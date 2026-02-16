@@ -8,17 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
-  Download,
-  FileSpreadsheet,
-  Clock,
-  Loader2,
-  CheckCircle2,
-  Table2,
-  RefreshCw,
-  Sheet,
-  LogIn,
-  LogOut,
-  Mail,
+  Download, FileSpreadsheet, Clock, Loader2, CheckCircle2, Table2,
+  RefreshCw, Sheet, LogIn, LogOut, Mail, FileText, BarChart3,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -40,13 +31,15 @@ interface GoogleToken {
   token_expires_at: string;
 }
 
-type DataType = "mentions" | "narratives" | "incidents" | "escalations";
+type DataType = "mentions" | "narratives" | "incidents" | "escalations" | "facts" | "people";
 
 const DATA_TYPES: { value: DataType; label: string; description: string }[] = [
   { value: "mentions", label: "Mentions", description: "All detected mentions with sentiment, source, severity" },
   { value: "narratives", label: "Narratives", description: "Tracked narratives with confidence and status" },
   { value: "incidents", label: "Incidents", description: "Incident records with timeline and stakeholders" },
   { value: "escalations", label: "Escalations", description: "Escalation tickets with priority and department" },
+  { value: "facts", label: "Approved Facts", description: "Governance library facts with categories and status" },
+  { value: "people", label: "People", description: "Monitored people with tiers and social handles" },
 ];
 
 export default function ExportsPage() {
@@ -62,8 +55,8 @@ export default function ExportsPage() {
   const [mode, setMode] = useState<"csv" | "sheets">("csv");
   const [googleToken, setGoogleToken] = useState<GoogleToken | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [summaryStats, setSummaryStats] = useState<Record<string, number>>({});
 
-  // Handle OAuth callback params
   useEffect(() => {
     if (searchParams.get("google_connected") === "true") {
       toast({ title: "Google Connected", description: "Your Google account is now linked for Sheets export." });
@@ -72,11 +65,7 @@ export default function ExportsPage() {
       setMode("sheets");
     }
     if (searchParams.get("google_error")) {
-      toast({
-        title: "Google Connection Failed",
-        description: `Error: ${searchParams.get("google_error")}`,
-        variant: "destructive",
-      });
+      toast({ title: "Google Connection Failed", description: `Error: ${searchParams.get("google_error")}`, variant: "destructive" });
       searchParams.delete("google_error");
       setSearchParams(searchParams, { replace: true });
     }
@@ -86,41 +75,41 @@ export default function ExportsPage() {
     if (!currentOrg || !user) return;
     setLoading(true);
 
-    const [exportsRes, tokenRes] = await Promise.all([
-      supabase
-        .from("exports")
-        .select("id, type, sheet_id, last_exported_at")
-        .eq("org_id", currentOrg.id)
-        .order("last_exported_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("user_google_tokens")
-        .select("id, google_email, token_expires_at")
-        .eq("user_id", user.id)
-        .eq("org_id", currentOrg.id)
-        .maybeSingle(),
+    const [exportsRes, tokenRes, mentionsCount, narrativesCount, incidentsCount, escalationsCount, factsCount] = await Promise.all([
+      supabase.from("exports").select("id, type, sheet_id, last_exported_at")
+        .eq("org_id", currentOrg.id).order("last_exported_at", { ascending: false }).limit(50),
+      supabase.from("user_google_tokens").select("id, google_email, token_expires_at")
+        .eq("user_id", user.id).eq("org_id", currentOrg.id).maybeSingle(),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
+      supabase.from("narratives").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
+      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
+      supabase.from("escalations").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
+      supabase.from("approved_facts").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
     ]);
 
     setExports(exportsRes.data || []);
     setGoogleToken(tokenRes.data || null);
+    setSummaryStats({
+      mentions: mentionsCount.count || 0,
+      narratives: narrativesCount.count || 0,
+      incidents: incidentsCount.count || 0,
+      escalations: escalationsCount.count || 0,
+      facts: factsCount.count || 0,
+    });
 
-    const withSheet = (exportsRes.data || []).find((e) => e.sheet_id);
+    const withSheet = (exportsRes.data || []).find(e => e.sheet_id);
     if (withSheet?.sheet_id && !sheetId) setSheetId(withSheet.sheet_id);
     setLoading(false);
   }, [currentOrg, user]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const connectGoogle = async () => {
     if (!currentOrg || !user) return;
     setConnectingGoogle(true);
     try {
       const redirectUri = `${window.location.origin}/exports|${user.id}|${currentOrg.id}`;
-      const { data, error } = await supabase.functions.invoke("google-sheets-auth", {
-        body: { redirect_uri: redirectUri },
-      });
+      const { data, error } = await supabase.functions.invoke("google-sheets-auth", { body: { redirect_uri: redirectUri } });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       window.location.href = data.url;
@@ -138,15 +127,12 @@ export default function ExportsPage() {
   };
 
   const toggleType = (dt: DataType) => {
-    setSelectedTypes((prev) =>
-      prev.includes(dt) ? prev.filter((t) => t !== dt) : [...prev, dt]
-    );
+    setSelectedTypes(prev => prev.includes(dt) ? prev.filter(t => t !== dt) : [...prev, dt]);
   };
 
   const handleExport = async (dataType: DataType) => {
     if (!currentOrg) return;
     setExporting(dataType);
-
     try {
       if (mode === "csv") {
         const res = await fetch(
@@ -161,10 +147,7 @@ export default function ExportsPage() {
             body: JSON.stringify({ org_id: currentOrg.id, data_type: dataType, mode: "csv" }),
           }
         );
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Export failed");
-        }
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Export failed"); }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -174,16 +157,8 @@ export default function ExportsPage() {
         URL.revokeObjectURL(url);
         toast({ title: "CSV Downloaded", description: `${dataType} export ready.` });
       } else {
-        if (!sheetId.trim()) {
-          toast({ title: "Missing Sheet ID", description: "Enter a Google Sheet ID.", variant: "destructive" });
-          setExporting(null);
-          return;
-        }
-        if (!googleToken) {
-          toast({ title: "Not Connected", description: "Connect your Google account first.", variant: "destructive" });
-          setExporting(null);
-          return;
-        }
+        if (!sheetId.trim()) { toast({ title: "Missing Sheet ID", variant: "destructive" }); setExporting(null); return; }
+        if (!googleToken) { toast({ title: "Not Connected", variant: "destructive" }); setExporting(null); return; }
         const { data, error } = await supabase.functions.invoke("export-data", {
           body: { org_id: currentOrg.id, data_type: dataType, mode: "sheets", sheet_id: sheetId.trim() },
         });
@@ -200,9 +175,7 @@ export default function ExportsPage() {
   };
 
   const handleExportAll = async () => {
-    for (const dt of selectedTypes) {
-      await handleExport(dt);
-    }
+    for (const dt of selectedTypes) { await handleExport(dt); }
   };
 
   return (
@@ -213,19 +186,29 @@ export default function ExportsPage() {
         <p className="text-sm text-muted-foreground mt-1">Export data as CSV or sync to your own Google Sheet</p>
       </div>
 
+      {/* Data summary */}
+      <Card className="bg-card border-border p-5">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+          <BarChart3 className="h-4 w-4 text-primary" /> Available Data Summary
+        </h3>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          {Object.entries(summaryStats).map(([key, count]) => (
+            <div key={key} className="text-center">
+              <p className="text-lg font-bold text-foreground">{count}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider capitalize">{key}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       {/* Mode selector */}
-      <Tabs value={mode} onValueChange={(v) => setMode(v as "csv" | "sheets")}>
+      <Tabs value={mode} onValueChange={v => setMode(v as "csv" | "sheets")}>
         <TabsList className="bg-muted">
-          <TabsTrigger value="csv" className="gap-2">
-            <Download className="h-3.5 w-3.5" /> CSV Download
-          </TabsTrigger>
-          <TabsTrigger value="sheets" className="gap-2">
-            <Sheet className="h-3.5 w-3.5" /> Google Sheets
-          </TabsTrigger>
+          <TabsTrigger value="csv" className="gap-2"><Download className="h-3.5 w-3.5" /> CSV Download</TabsTrigger>
+          <TabsTrigger value="sheets" className="gap-2"><Sheet className="h-3.5 w-3.5" /> Google Sheets</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sheets" className="mt-4 space-y-4">
-          {/* Google account connection */}
           <Card className="bg-card border-border p-5">
             {googleToken ? (
               <div className="flex items-center justify-between">
@@ -234,52 +217,34 @@ export default function ExportsPage() {
                   <div>
                     <p className="text-sm font-medium text-card-foreground">Google Account Connected</p>
                     {googleToken.google_email && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Mail className="h-3 w-3" /> {googleToken.google_email}
-                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail className="h-3 w-3" /> {googleToken.google_email}</p>
                     )}
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={disconnectGoogle}>
-                  <LogOut className="h-3.5 w-3.5 mr-1.5" /> Disconnect
-                </Button>
+                <Button size="sm" variant="outline" onClick={disconnectGoogle}><LogOut className="h-3.5 w-3.5 mr-1.5" /> Disconnect</Button>
               </div>
             ) : (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-card-foreground">Connect Google Account</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Sign in with Google to export directly to your sheets
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Sign in with Google to export directly to your sheets</p>
                 </div>
                 <Button onClick={connectGoogle} disabled={connectingGoogle}>
-                  {connectingGoogle ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <LogIn className="h-4 w-4 mr-2" />
-                  )}
+                  {connectingGoogle ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
                   Connect Google
                 </Button>
               </div>
             )}
           </Card>
-
-          {/* Sheet ID input */}
           {googleToken && (
             <Card className="bg-card border-border p-5 space-y-3">
               <Label className="text-foreground text-sm font-medium">Google Sheet ID</Label>
               <p className="text-xs text-muted-foreground">
                 From the sheet URL: docs.google.com/spreadsheets/d/<strong className="text-primary">THIS_PART</strong>/edit
               </p>
-              <Input
-                value={sheetId}
-                onChange={(e) => setSheetId(e.target.value)}
+              <Input value={sheetId} onChange={e => setSheetId(e.target.value)}
                 placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
-                className="bg-muted border-border font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Each data type exports to its own tab (Mentions, Narratives, etc.)
-              </p>
+                className="bg-muted border-border font-mono text-xs" />
             </Card>
           )}
         </TabsContent>
@@ -295,64 +260,41 @@ export default function ExportsPage() {
       <Card className="bg-card border-border p-5 space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Select Data Types</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {DATA_TYPES.map((dt) => {
+          {DATA_TYPES.map(dt => {
             const isSelected = selectedTypes.includes(dt.value);
             return (
-              <button
-                key={dt.value}
-                onClick={() => toggleType(dt.value)}
-                className={`text-left p-4 rounded-lg border transition-all ${
-                  isSelected
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border bg-muted/30 hover:border-muted-foreground/30"
-                }`}
-              >
+              <button key={dt.value} onClick={() => toggleType(dt.value)}
+                className={`text-left p-4 rounded-lg border transition-all ${isSelected ? "border-primary/50 bg-primary/5" : "border-border bg-muted/30 hover:border-muted-foreground/30"}`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium text-card-foreground">{dt.label}</span>
                   <Switch checked={isSelected} onCheckedChange={() => toggleType(dt.value)} />
                 </div>
                 <p className="text-xs text-muted-foreground">{dt.description}</p>
+                {summaryStats[dt.value] !== undefined && (
+                  <p className="text-[10px] text-primary mt-1">{summaryStats[dt.value]} records available</p>
+                )}
               </button>
             );
           })}
         </div>
 
-        <Button
-          onClick={handleExportAll}
+        <Button onClick={handleExportAll}
           disabled={selectedTypes.length === 0 || !!exporting || (mode === "sheets" && !googleToken)}
-          className="w-full"
-        >
-          {exporting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : mode === "csv" ? (
-            <Download className="h-4 w-4 mr-2" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          {exporting
-            ? `Exporting ${exporting}...`
-            : mode === "csv"
-              ? `Download ${selectedTypes.length} CSV file${selectedTypes.length !== 1 ? "s" : ""}`
-              : `Sync ${selectedTypes.length} type${selectedTypes.length !== 1 ? "s" : ""} to Sheet`}
+          className="w-full">
+          {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : mode === "csv" ? <Download className="h-4 w-4 mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          {exporting ? `Exporting ${exporting}...` : mode === "csv"
+            ? `Download ${selectedTypes.length} CSV file${selectedTypes.length !== 1 ? "s" : ""}`
+            : `Sync ${selectedTypes.length} type${selectedTypes.length !== 1 ? "s" : ""} to Sheet`}
         </Button>
       </Card>
 
       {/* Quick single exports */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {DATA_TYPES.map((dt) => (
-          <Button
-            key={dt.value}
-            variant="outline"
-            size="sm"
-            className="gap-2"
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {DATA_TYPES.map(dt => (
+          <Button key={dt.value} variant="outline" size="sm" className="gap-2"
             disabled={!!exporting || (mode === "sheets" && !googleToken)}
-            onClick={() => handleExport(dt.value)}
-          >
-            {exporting === dt.value ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Table2 className="h-3.5 w-3.5" />
-            )}
+            onClick={() => handleExport(dt.value)}>
+            {exporting === dt.value ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Table2 className="h-3.5 w-3.5" />}
             {dt.label}
           </Button>
         ))}
@@ -362,15 +304,13 @@ export default function ExportsPage() {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Export History</h3>
         {loading ? (
-          Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
-          ))
+          Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
         ) : exports_.length === 0 ? (
           <Card className="bg-card border-border p-8 text-center">
             <p className="text-sm text-muted-foreground">No exports yet.</p>
           </Card>
         ) : (
-          exports_.map((e) => (
+          exports_.map(e => (
             <Card key={e.id} className="bg-card border-border p-4 hover:border-primary/30 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -379,10 +319,7 @@ export default function ExportsPage() {
                     <div className="text-sm font-medium text-card-foreground capitalize">{e.type}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
                       {e.last_exported_at && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {new Date(e.last_exported_at).toLocaleString()}
-                        </span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(e.last_exported_at).toLocaleString()}</span>
                       )}
                     </div>
                   </div>
@@ -392,15 +329,7 @@ export default function ExportsPage() {
                     <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> synced
                   </Badge>
                   {e.sheet_id && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setSheetId(e.sheet_id!);
-                        setMode("sheets");
-                        setSelectedTypes([e.type as DataType]);
-                      }}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => { setSheetId(e.sheet_id!); setMode("sheets"); setSelectedTypes([e.type as DataType]); }}>
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                   )}

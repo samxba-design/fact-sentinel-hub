@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TicketCheck, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TicketCheck, Plus, History, Settings2, Users, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,6 +44,7 @@ export default function EscalationsPage() {
   const [editData, setEditData] = useState<Escalation | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState<Escalation | null>(null);
+  const [tab, setTab] = useState("active");
 
   const fetchEscalations = useCallback(async () => {
     if (!currentOrg) return;
@@ -83,6 +85,14 @@ export default function EscalationsPage() {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  const activeEscalations = escalations.filter(e => e.status !== "resolved");
+  const resolvedEscalations = escalations.filter(e => e.status === "resolved");
+  const displayed = tab === "active" ? activeEscalations : tab === "resolved" ? resolvedEscalations : escalations;
+
+  // Stats
+  const criticalCount = escalations.filter(e => e.priority === "critical" && e.status !== "resolved").length;
+  const openCount = escalations.filter(e => e.status === "open").length;
+
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
@@ -93,43 +103,93 @@ export default function EscalationsPage() {
         <Button onClick={handleCreate}><Plus className="h-4 w-4 mr-2" />New Ticket</Button>
       </div>
 
-      <div className="space-y-3">
-        {loading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
-        ) : escalations.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No escalation tickets yet. Create one or they are auto-created when the response engine blocks a draft.</p>
-          </Card>
-        ) : (
-          escalations.map(e => (
-            <Card
-              key={e.id}
-              className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
-              onClick={() => handleRowClick(e)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <TicketCheck className="h-5 w-5 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium text-card-foreground">{e.title}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {e.department || "—"} · {timeAgo(e.created_at)}
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="bg-card border-border p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">{escalations.length}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Total</p>
+        </Card>
+        <Card className="bg-card border-border p-4 text-center">
+          <p className="text-2xl font-bold text-sentinel-cyan">{openCount}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Open</p>
+        </Card>
+        <Card className="bg-card border-border p-4 text-center">
+          <p className="text-2xl font-bold text-sentinel-red">{criticalCount}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Critical</p>
+        </Card>
+        <Card className="bg-card border-border p-4 text-center">
+          <p className="text-2xl font-bold text-sentinel-emerald">{resolvedEscalations.length}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Resolved</p>
+        </Card>
+      </div>
+
+      {/* Auto-escalation info */}
+      <Card className="bg-muted/30 border-border p-4">
+        <div className="flex items-start gap-3">
+          <Settings2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Auto-Escalation Active</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tickets are auto-created when the response engine blocks a draft due to missing approved facts.
+              Critical severity mentions also trigger automatic escalation tickets.
+            </p>
+            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Assigned to department leads</span>
+              <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> Email alerts configured in Settings</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="bg-muted">
+          <TabsTrigger value="active" className="gap-1.5">Active ({activeEscalations.length})</TabsTrigger>
+          <TabsTrigger value="resolved" className="gap-1.5"><History className="h-3 w-3" /> Resolved ({resolvedEscalations.length})</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={tab} className="mt-4">
+          <div className="space-y-3">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+            ) : displayed.length === 0 ? (
+              <Card className="bg-card border-border p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {tab === "resolved" ? "No resolved escalations." : "No escalation tickets yet."}
+                </p>
+              </Card>
+            ) : (
+              displayed.map(e => (
+                <Card
+                  key={e.id}
+                  className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
+                  onClick={() => handleRowClick(e)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <TicketCheck className="h-5 w-5 text-primary" />
+                      <div>
+                        <div className="text-sm font-medium text-card-foreground">{e.title}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {e.department || "—"} · {timeAgo(e.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className={`text-[10px] ${priorityColors[e.priority || "medium"]}`}>
+                        {e.priority || "medium"}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[e.status || "open"]}`}>
+                        {(e.status || "open").replace("_", " ")}
+                      </Badge>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline" className={`text-[10px] ${priorityColors[e.priority || "medium"]}`}>
-                    {e.priority || "medium"}
-                  </Badge>
-                  <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[e.status || "open"]}`}>
-                    {(e.status || "open").replace("_", " ")}
-                  </Badge>
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <EscalationFormDialog
         open={formOpen}
