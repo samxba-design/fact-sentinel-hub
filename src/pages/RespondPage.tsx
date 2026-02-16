@@ -9,6 +9,7 @@ import { MessageCircleReply, AlertTriangle, CheckCircle2, Ban, Loader2, External
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
+import UpgradeBanner from "@/components/UpgradeBanner";
 
 interface Claim {
   claim_text: string;
@@ -75,6 +76,7 @@ export default function RespondPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl">
+      <UpgradeBanner feature="AI Response Drafting" className="mb-2" />
       <div>
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
         <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>

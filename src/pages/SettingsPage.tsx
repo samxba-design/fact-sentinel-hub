@@ -491,6 +491,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
   const [requestType, setRequestType] = useState("monthly");
   const [message, setMessage] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   const STRIPE_PLANS = [
     { id: "monthly", name: "Pro Monthly", price: "$99/mo", priceId: "price_1T1ObmB29RCAwSicAeV8uVVM" },
@@ -591,6 +592,29 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
               </p>
             )}
           </div>
+          {org?.subscription_status === "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={portalLoading}
+              onClick={async () => {
+                setPortalLoading(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("customer-portal");
+                  if (error) throw new Error(error.message);
+                  if (data?.error) throw new Error(data.error);
+                  if (data?.url) window.open(data.url, "_blank");
+                } catch (err: any) {
+                  toast({ title: "Error", description: err.message, variant: "destructive" });
+                } finally {
+                  setPortalLoading(false);
+                }
+              }}
+            >
+              {portalLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+              Manage Subscription
+            </Button>
+          )}
         </div>
       </div>
 
