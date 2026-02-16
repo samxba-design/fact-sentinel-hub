@@ -3,19 +3,25 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookCheck, Plus, Search, CheckCircle2, Clock, Archive } from "lucide-react";
+import { BookCheck, Plus, Search, CheckCircle2, Clock, Archive, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import FactFormDialog from "@/components/facts/FactFormDialog";
 
 interface Fact {
   id: string;
   title: string;
+  statement_text: string;
   category: string | null;
   status: string | null;
   owner_department: string | null;
   last_reviewed: string | null;
   jurisdiction: string | null;
+  source_link: string | null;
 }
 
 const statusConfig: Record<string, { icon: any; className: string; label: string }> = {
@@ -26,24 +32,84 @@ const statusConfig: Record<string, { icon: any; className: string; label: string
 
 export default function ApprovedFactsPage() {
   const { currentOrg } = useOrg();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [facts, setFacts] = useState<Fact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingFact, setEditingFact] = useState<Fact | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchFacts = async () => {
     if (!currentOrg) return;
     setLoading(true);
-    supabase
+    const { data } = await supabase
       .from("approved_facts")
-      .select("id, title, category, status, owner_department, last_reviewed, jurisdiction")
+      .select("id, title, statement_text, category, status, owner_department, last_reviewed, jurisdiction, source_link")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(100)
-      .then(({ data }) => {
-        setFacts(data || []);
-        setLoading(false);
-      });
-  }, [currentOrg]);
+      .limit(200);
+    setFacts(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchFacts(); }, [currentOrg]);
+
+  const handleSave = async (data: Omit<Fact, "id">) => {
+    if (!currentOrg) return;
+    setSaving(true);
+    try {
+      if (editingFact) {
+        const { error } = await supabase.from("approved_facts").update({
+          title: data.title,
+          statement_text: data.statement_text,
+          category: data.category,
+          jurisdiction: data.jurisdiction,
+          source_link: data.source_link,
+          owner_department: data.owner_department,
+          status: data.status,
+          last_reviewed: new Date().toISOString(),
+        }).eq("id", editingFact.id);
+        if (error) throw error;
+        toast({ title: "Fact updated" });
+      } else {
+        const { error } = await supabase.from("approved_facts").insert({
+          org_id: currentOrg.id,
+          title: data.title,
+          statement_text: data.statement_text,
+          category: data.category,
+          jurisdiction: data.jurisdiction,
+          source_link: data.source_link,
+          owner_department: data.owner_department,
+          status: data.status,
+          approved_by: data.status === "active" ? user?.id : null,
+        });
+        if (error) throw error;
+        toast({ title: "Fact created" });
+      }
+      setDialogOpen(false);
+      setEditingFact(null);
+      fetchFacts();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    const { error } = await supabase.from("approved_facts").delete().eq("id", deleteId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Fact deleted" });
+      fetchFacts();
+    }
+    setDeleteId(null);
+  };
 
   const filtered = search
     ? facts.filter(f => f.title.toLowerCase().includes(search.toLowerCase()))
@@ -56,7 +122,7 @@ export default function ApprovedFactsPage() {
           <h1 className="text-2xl font-bold text-foreground">Approved Facts</h1>
           <p className="text-sm text-muted-foreground mt-1">Governance library of verified facts</p>
         </div>
-        <Button><Plus className="h-4 w-4 mr-2" />Add Fact</Button>
+        <Button onClick={() => { setEditingFact(null); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />Add Fact</Button>
       </div>
 
       <div className="relative max-w-md">
@@ -76,23 +142,29 @@ export default function ApprovedFactsPage() {
             const sc = statusConfig[f.status || "under_review"] || statusConfig.under_review;
             const StatusIcon = sc.icon;
             return (
-              <Card key={f.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+              <Card key={f.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <BookCheck className="h-5 w-5 text-primary" />
-                    <div>
-                      <div className="text-sm font-medium text-card-foreground">{f.title}</div>
+                  <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => { setEditingFact(f); setDialogOpen(true); }}>
+                    <BookCheck className="h-5 w-5 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-card-foreground truncate">{f.title}</div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {f.owner_department || "—"} · {f.jurisdiction || "Global"} · Last reviewed {f.last_reviewed ? new Date(f.last_reviewed).toLocaleDateString() : "—"}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     {f.category && <Badge variant="secondary" className="text-[10px]">{f.category}</Badge>}
                     <Badge variant="outline" className={`text-[10px] ${sc.className}`}>
                       <StatusIcon className="h-3 w-3 mr-1" />
                       {sc.label}
                     </Badge>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingFact(f); setDialogOpen(true); }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(f.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -100,6 +172,21 @@ export default function ApprovedFactsPage() {
           })
         )}
       </div>
+
+      <FactFormDialog open={dialogOpen} onOpenChange={setDialogOpen} fact={editingFact} onSave={handleSave} saving={saving} />
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Fact</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove this approved fact. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
