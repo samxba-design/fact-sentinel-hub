@@ -244,6 +244,9 @@ export default function SourceConnectionsTab() {
           {[
             { name: "Web / News / Blogs", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Article text, author, URL" },
             { name: "Review Sites", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Trustpilot, G2, Glassdoor, Capterra reviews" },
+            { name: "RSS Feeds", status: "ready" as const, via: "Custom Sources", cost: "Included", dataPoints: "Blog posts, news articles, publications" },
+            { name: "Google News", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Press coverage, mainstream media" },
+            { name: "App Store / Play Store", status: "ready" as const, via: "Custom Sources", cost: "Included", dataPoints: "App reviews, ratings, user feedback" },
             { name: "X (Twitter)", status: isConnected("twitter") ? "connected" as const : "needs_key" as const, via: "X API v2", cost: "$100/mo (from X)", dataPoints: "Tweets, author, engagement, verification" },
             { name: "Reddit", status: isConnected("reddit") ? "connected" as const : "needs_key" as const, via: "Reddit API", cost: "Free", dataPoints: "Posts, comments, subreddit, upvotes" },
             { name: "YouTube", status: isConnected("youtube") ? "connected" as const : "needs_key" as const, via: "YouTube Data API v3", cost: "Free (10k units/day)", dataPoints: "Videos, comments, views, likes, channel info" },
