@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
-  ThumbsUp, ThumbsDown, Minus, Hash,
+  ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -111,6 +112,17 @@ export default function MentionDetailPage() {
     return String(count);
   };
 
+  const updateStatus = async (newStatus: string) => {
+    if (!mention) return;
+    const { error } = await supabase.from("mentions").update({ status: newStatus }).eq("id", mention.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setMention({ ...mention, status: newStatus });
+      toast({ title: `Mention ${newStatus}` });
+    }
+  };
+
   const handleRespond = () => {
     navigate("/respond");
   };
@@ -176,6 +188,16 @@ export default function MentionDetailPage() {
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to Mentions
         </Button>
         <div className="flex items-center gap-2">
+          {mention.status && mention.status !== "new" && (
+            <Badge variant="outline" className={`text-xs ${
+              mention.status === "ignored" ? "text-muted-foreground" : mention.status === "snoozed" ? "text-sentinel-amber" : "text-sentinel-emerald"
+            }`}>
+              {mention.status === "ignored" && <EyeOff className="h-3 w-3 mr-1" />}
+              {mention.status === "snoozed" && <Clock className="h-3 w-3 mr-1" />}
+              {mention.status === "resolved" && <CheckCircle2 className="h-3 w-3 mr-1" />}
+              {mention.status}
+            </Badge>
+          )}
           <Button size="sm" variant="outline" onClick={handleRespond}>
             <MessageCircleReply className="h-3.5 w-3.5 mr-1.5" /> Respond
           </Button>
@@ -185,6 +207,35 @@ export default function MentionDetailPage() {
           <Button size="sm" variant="outline" onClick={handleAddToIncident}>
             <Siren className="h-3.5 w-3.5 mr-1.5" /> Add to Incident
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="px-2">
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {mention.status !== "ignored" && (
+                <DropdownMenuItem onClick={() => updateStatus("ignored")}>
+                  <EyeOff className="h-3.5 w-3.5 mr-2" /> Ignore
+                </DropdownMenuItem>
+              )}
+              {mention.status !== "snoozed" && (
+                <DropdownMenuItem onClick={() => updateStatus("snoozed")}>
+                  <Clock className="h-3.5 w-3.5 mr-2" /> Snooze
+                </DropdownMenuItem>
+              )}
+              {mention.status !== "resolved" && (
+                <DropdownMenuItem onClick={() => updateStatus("resolved")}>
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Resolved
+                </DropdownMenuItem>
+              )}
+              {mention.status && mention.status !== "new" && (
+                <DropdownMenuItem onClick={() => updateStatus("new")}>
+                  Reopen
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

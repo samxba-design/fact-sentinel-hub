@@ -436,7 +436,7 @@ export default function SettingsPage() {
                 <p className="text-[10px] text-muted-foreground">Default: 0 9 * * * (daily at 9 AM UTC)</p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Quiet Hours (UTC)</Label>
+                <Label className="text-xs text-muted-foreground">Quiet Hours (UTC) — Optional</Label>
                 <div className="flex items-center gap-2">
                   <Select value={quietStart != null ? String(quietStart) : "none"} onValueChange={v => setQuietStart(v === "none" ? null : Number(v))}>
                     <SelectTrigger className="w-24"><SelectValue placeholder="Start" /></SelectTrigger>
@@ -458,6 +458,7 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-[10px] text-muted-foreground">Default: 24/7 monitoring (no quiet hours). Set quiet hours to pause alerts during off-hours.</p>
               </div>
             </div>
 
