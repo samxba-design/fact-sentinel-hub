@@ -137,6 +137,46 @@ function hasSubstantiveContent(text: string): boolean {
   return true;
 }
 
+// Blocklist of evergreen/reference domains that are never "news" or "threats"
+const EVERGREEN_DOMAINS = new Set([
+  "en.wikipedia.org", "wikipedia.org",
+  "investopedia.com", "www.investopedia.com",
+  "help.wealthsimple.com", "wealthsimple.com",
+  "apps.apple.com", "play.google.com",
+  "ca.investing.com", "investing.com",
+  "support.google.com", "support.apple.com",
+  "docs.google.com", "help.coinbase.com",
+  "academy.binance.com", "www.binance.com",
+  "kraken.com", "support.kraken.com",
+  "gemini.com", "support.gemini.com",
+  "howstuffworks.com", "about.com",
+  "dictionary.com", "merriam-webster.com",
+  "britannica.com", "www.britannica.com",
+  "corporatefinanceinstitute.com",
+  "nerdwallet.com", "bankrate.com",
+]);
+
+// Known review site homepages (not individual review pages)
+function isGenericReviewPage(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  // Block generic Glassdoor/Capterra/G2 overview pages (not review-specific pages with dates)
+  if ((lower.includes("glassdoor.com/Overview") || lower.includes("glassdoor.com/Reviews")) && !lower.includes("?sort.sortType=RD")) return true;
+  if (lower.includes("capterra.com/p/") && lower.endsWith("/reviews/")) return false; // actual reviews OK
+  if (lower.includes("capterra.com") && !lower.includes("/reviews/")) return true;
+  if (lower.includes("g2.com/products/") && !lower.includes("/reviews")) return true;
+  if (lower.includes("trustpilot.com/review/") && lower.includes("?page=")) return false; // paginated reviews OK
+  return false;
+}
+
+function isEvergreenDomain(url: string): boolean {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.replace("www.", "").toLowerCase();
+    return EVERGREEN_DOMAINS.has(hostname);
+  } catch { return false; }
+}
+
 // Classify source from URL
 function classifySource(url: string, fallback: string): string {
   if (!url) return fallback;
@@ -265,19 +305,24 @@ Deno.serve(async (req) => {
 
     // === SMART KEYWORD GROUPING for Web/News ===
     if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
-      // Search 1: Brand/alias keywords (core identity search)
+      // Search 1: Brand/alias keywords with recency bias
       scanPromises.push((async () => {
         try {
+          // Add recency context to search queries to avoid evergreen SEO pages
+          const currentYear = new Date().getFullYear();
+          const currentMonth = new Date().toLocaleString('en', { month: 'long' });
+          const recencyBrandKws = brandKws.map(k => `"${k}" ${currentYear}`);
+          
           const webResult = await callFunction("scan-web", {
-            keywords: brandKws,
+            keywords: recencyBrandKws,
             limit: 25,
             tbs: dateToTbs(date_from),
             date_from,
-            accept_undated: true,
+            accept_undated: false, // REJECT undated content — likely evergreen pages
           });
           if (webResult.success && webResult.results) {
             allResults.push(...webResult.results);
-            scanLog.push({ source: "web-brand", query: webResult.query_used || brandKws.join(" OR "), found: webResult.results.length });
+            scanLog.push({ source: "web-brand", query: webResult.query_used || recencyBrandKws.join(" OR "), found: webResult.results.length });
           } else if (webResult.error) {
             errors.push(`Web (brand): ${webResult.error}`);
           }
@@ -292,12 +337,12 @@ Deno.serve(async (req) => {
         const riskQueries = kwGroups.risk.slice(0, 4).map(r => `"${primaryBrand}" "${r}"`);
         scanPromises.push((async () => {
           try {
-            const webResult = await callFunction("scan-web", {
+          const webResult = await callFunction("scan-web", {
               keywords: riskQueries,
               limit: 15,
               tbs: dateToTbs(date_from),
               date_from,
-              accept_undated: true,
+              accept_undated: false,
             });
             if (webResult.success && webResult.results) {
               allResults.push(...webResult.results);
@@ -322,7 +367,7 @@ Deno.serve(async (req) => {
             limit: 15,
             tbs: dateToTbs(date_from),
             date_from,
-            accept_undated: true,
+            accept_undated: false,
           });
           if (gnResult.success && gnResult.results) {
             allResults.push(...gnResult.results);
@@ -360,7 +405,7 @@ Deno.serve(async (req) => {
               keywords: redditQueries,
               limit: 20,
               tbs: dateToTbs(date_from),
-              accept_undated: true,
+              accept_undated: false,
             });
             if (webRedditResult.success && webRedditResult.results) {
               allResults.push(...webRedditResult.results);
@@ -375,7 +420,7 @@ Deno.serve(async (req) => {
               keywords: redditQueries2,
               limit: 20,
               tbs: dateToTbs(date_from),
-              accept_undated: true,
+              accept_undated: false,
             });
             if (webRedditResult.success && webRedditResult.results) {
               allResults.push(...webRedditResult.results);
@@ -397,7 +442,7 @@ Deno.serve(async (req) => {
             limit: 15,
             tbs: dateToTbs(date_from),
             date_from,
-            accept_undated: true,
+            accept_undated: false,
           });
           if (socialResult.success && socialResult.results) {
             allResults.push(...socialResult.results);
@@ -488,6 +533,16 @@ Deno.serve(async (req) => {
     const cleanedResults: RawResult[] = [];
     const seenUrls = new Set<string>();
     for (const r of allResults) {
+      // Block evergreen/reference domains
+      if (isEvergreenDomain(r.url || "")) {
+        console.log("Filtering evergreen domain:", r.url);
+        continue;
+      }
+      // Block generic review site overview pages
+      if (isGenericReviewPage(r.url || "")) {
+        console.log("Filtering generic review page:", r.url);
+        continue;
+      }
       // Deduplicate by URL
       if (r.url) {
         const normalizedUrl = r.url.toLowerCase().replace(/\/$/, "");
@@ -599,24 +654,28 @@ Deno.serve(async (req) => {
 
 For each mention, you MUST first determine RELEVANCE then analyze sentiment.
 
-RELEVANCE RULES (CRITICAL):
-- relevant=true ONLY if the content is SUBSTANTIVELY about "${brandContext}" — meaning it discusses the brand's actions, products, reputation, leadership, legal matters, partnerships, or user experiences
-- relevant=false if:
-  - The content merely lists "${brandContext}" in a table, sidebar, menu, or comparison chart without substantive discussion
-  - The content is a generic "about us" page for a review site, news aggregator, or other platform
-  - The content is primarily about a DIFFERENT company and only mentions "${brandContext}" in passing
+RELEVANCE RULES (CRITICAL — be VERY strict):
+- relevant=true ONLY if the content describes a SPECIFIC, RECENT EVENT, NEWS STORY, USER EXPERIENCE, or OPINION about "${brandContext}"
+- relevant=false if ANY of these apply:
+  - The content is an evergreen/reference page (Wikipedia, encyclopedia, "what is X", explainer, tutorial, FAQ, help doc)
+  - The content is a product listing, app store description, or marketing page
+  - The content is a company overview, career page, or investor page
+  - The content merely lists "${brandContext}" in a table, sidebar, menu, or comparison chart
+  - The content is a generic review site page (Glassdoor overview, Capterra overview, G2 overview) — NOT a specific review with a date
+  - The content is primarily about a DIFFERENT entity and only mentions "${brandContext}" in passing (e.g., an article about CZ's investments that tangentially mentions Binance)
+  - The content describes a historical event (>3 months old) without new developments
   - The content is a tag page, category page, or index page
-  - The content cannot be determined to be about "${brandContext}" specifically
-- When in doubt, set relevant=false — precision matters more than recall
+  - The content is a market data / price ticker page
+- PRECISION over RECALL: when in doubt, reject. It is better to miss one real mention than to include 5 irrelevant ones.
 
 For RELEVANT mentions only, also return:
-- clean_summary: 2-4 sentence summary of what the content says about "${brandContext}". Focus on claims, facts, opinions ABOUT the brand. NEVER include navigation text, cookie notices, tickers, or boilerplate.
+- clean_summary: 2-4 sentence summary of a SPECIFIC event/opinion about "${brandContext}". Must describe WHAT happened, WHEN, and WHY it matters to the brand's reputation. NEVER include boilerplate.
 - sentiment_label: "positive", "negative", "neutral", or "mixed" (relative to "${brandContext}")
 - sentiment_score: -1 (very negative) to 1 (very positive)
 - sentiment_confidence: 0 to 1
 - severity: "low", "medium", "high", or "critical" based on reputational risk to "${brandContext}"
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
-- rejection_reason: null for relevant, or a short reason like "generic review site page", "brand mentioned in passing", "tag/category page"
+- rejection_reason: null for relevant, or a short reason
 
 Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
