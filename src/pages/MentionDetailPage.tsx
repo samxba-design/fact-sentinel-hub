@@ -281,11 +281,23 @@ export default function MentionDetailPage() {
               <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{mention.language.toUpperCase()}</span>
             )}
           </div>
-          {mention.scan_run_id && (
-            <span className="flex items-center gap-1 text-muted-foreground text-[10px]">
-              <Bot className="h-3 w-3" /> From scan run
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {mention.url && (
+              <a
+                href={mention.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> View original source
+              </a>
+            )}
+            {mention.scan_run_id && (
+              <span className="flex items-center gap-1 text-muted-foreground text-[10px]">
+                <Bot className="h-3 w-3" /> From scan run
+              </span>
+            )}
+          </div>
         </div>
       </Card>
 
