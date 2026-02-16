@@ -101,36 +101,24 @@ function isJunkContent(text: string): boolean {
   return false;
 }
 
-// Detect content that is a ticker/price list, sitemap, or navigation dump
+// Detect content that is PRIMARILY a ticker/price list, sitemap, or navigation dump
+// Only reject if the content is MOSTLY junk, not if it has a few tickers mixed with real article text
 function isNonArticleContent(text: string): boolean {
   const lower = text.toLowerCase();
+  const wordCount = text.split(/\s+/).length;
   
-  // Ticker/price pattern: repeated currency symbols with numbers (e.g. "$68,723.81 2.41%")
+  // Ticker/price pattern: only reject if tickers dominate (>50% of content)
   const priceMatches = text.match(/\$[\d,]+\.?\d*\s+[\d.]+%/g);
-  if (priceMatches && priceMatches.length >= 3) return true;
-  
-  // Crypto ticker pattern: repeated short uppercase tokens with % values
-  const tickerMatches = text.match(/\b[A-Z]{2,5}\b\s+\$?[\d,]+\.?\d*\s+[\d.]+%/g);
-  if (tickerMatches && tickerMatches.length >= 3) return true;
+  if (priceMatches && priceMatches.length >= 5 && wordCount < priceMatches.length * 15) return true;
   
   // Sitemap-like: mostly URLs or link lists
   const urlCount = (text.match(/https?:\/\//g) || []).length;
-  const wordCount = text.split(/\s+/).length;
-  if (urlCount > 5 && urlCount > wordCount * 0.3) return true;
+  if (urlCount > 10 && urlCount > wordCount * 0.3) return true;
   
-  // Navigation dump: very short "sentences" that are mostly nav labels
+  // Navigation dump: very short content that is mostly nav labels
   const navPatterns = ["home", "about", "contact", "login", "sign up", "subscribe", "menu", "search", "privacy", "terms"];
   const navMatchCount = navPatterns.filter(p => lower.includes(p)).length;
-  if (navMatchCount >= 5 && text.length < 500) return true;
-  
-  // Repetitive structure: same pattern repeated many times (like price tickers)
-  // Split by common delimiters and check for pattern repetition
-  const segments = text.split(/\\\\|[\n\r]+/).map(s => s.trim()).filter(s => s.length > 0);
-  if (segments.length > 20) {
-    // Check if >60% of segments are very short (typical of ticker/nav data)
-    const shortSegments = segments.filter(s => s.length < 15);
-    if (shortSegments.length > segments.length * 0.6) return true;
-  }
+  if (navMatchCount >= 6 && text.length < 300) return true;
   
   return false;
 }
@@ -273,7 +261,7 @@ Deno.serve(async (req) => {
 
     // Run all source scans in PARALLEL
     const scanPromises: Promise<void>[] = [];
-    const brandKws = kwGroups.brand.length > 0 ? kwGroups.brand.slice(0, 5) : keywords.slice(0, 5);
+    const brandKws = kwGroups.brand.length > 0 ? kwGroups.brand.slice(0, 7) : keywords.slice(0, 7);
 
     // === SMART KEYWORD GROUPING for Web/News ===
     if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
@@ -282,7 +270,7 @@ Deno.serve(async (req) => {
         try {
           const webResult = await callFunction("scan-web", {
             keywords: brandKws,
-            limit: 15,
+            limit: 25,
             tbs: dateToTbs(date_from),
             date_from,
             accept_undated: true,
@@ -306,7 +294,7 @@ Deno.serve(async (req) => {
           try {
             const webResult = await callFunction("scan-web", {
               keywords: riskQueries,
-              limit: 10,
+              limit: 15,
               tbs: dateToTbs(date_from),
               date_from,
               accept_undated: true,
@@ -330,8 +318,8 @@ Deno.serve(async (req) => {
         try {
           const gnResult = await callFunction("scan-web", {
             keywords: brandKws.slice(0, 3),
-            sites: ["reuters.com", "bloomberg.com", "cnbc.com", "bbc.com", "techcrunch.com", "forbes.com", "coindesk.com", "cointelegraph.com"],
-            limit: 10,
+            sites: ["reuters.com", "bloomberg.com", "cnbc.com", "bbc.com", "techcrunch.com", "forbes.com", "coindesk.com", "cointelegraph.com", "theblock.co", "decrypt.co", "theverge.com", "wired.com"],
+            limit: 15,
             tbs: dateToTbs(date_from),
             date_from,
             accept_undated: true,
@@ -365,14 +353,13 @@ Deno.serve(async (req) => {
             allResults.push(...redditResult.results);
             scanLog.push({ source: "reddit-api", query: brandKws.join(" OR "), found: redditResult.results.length });
           } else {
-            // Fallback: search Reddit via Firecrawl web search
-            console.log("Reddit API unavailable, falling back to web search");
+            // Fallback: search Reddit via Firecrawl web search with better queries
+            console.log("Reddit API unavailable or returned no results, falling back to web search");
+            const redditQueries = brandKws.slice(0, 3).map(k => `${k} site:reddit.com`);
             const webRedditResult = await callFunction("scan-web", {
-              keywords: brandKws.slice(0, 3),
-              sites: ["reddit.com"],
-              limit: 15,
+              keywords: redditQueries,
+              limit: 20,
               tbs: dateToTbs(date_from),
-              date_from,
               accept_undated: true,
             });
             if (webRedditResult.success && webRedditResult.results) {
@@ -383,12 +370,11 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           // Fallback on error too
           try {
+            const redditQueries2 = brandKws.slice(0, 3).map(k => `${k} site:reddit.com`);
             const webRedditResult = await callFunction("scan-web", {
-              keywords: brandKws.slice(0, 3),
-              sites: ["reddit.com"],
-              limit: 15,
+              keywords: redditQueries2,
+              limit: 20,
               tbs: dateToTbs(date_from),
-              date_from,
               accept_undated: true,
             });
             if (webRedditResult.success && webRedditResult.results) {
@@ -405,11 +391,10 @@ Deno.serve(async (req) => {
     if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin", "facebook"].includes(s))) {
       scanPromises.push((async () => {
         try {
-          const socialSites = ["twitter.com", "x.com", "linkedin.com"];
+          const socialQueries = brandKws.slice(0, 3).map(k => `${k} site:twitter.com OR site:x.com OR site:linkedin.com`);
           const socialResult = await callFunction("scan-web", {
-            keywords: brandKws.slice(0, 3),
-            sites: socialSites,
-            limit: 10,
+            keywords: socialQueries,
+            limit: 15,
             tbs: dateToTbs(date_from),
             date_from,
             accept_undated: true,
@@ -527,12 +512,10 @@ Deno.serve(async (req) => {
           continue;
         }
       }
-      // For web/news sources: reject undated results when date filter is active
-      // (can't verify recency without a date)
-      const webSources = ["news", "blog", "forum", "trustpilot", "g2", "glassdoor", "capterra"];
-      if (dateFromMs > 0 && !r.posted_at && webSources.includes(r.source)) {
-        console.log("Filtering undated web result (can't verify recency):", r.url);
-        continue;
+      // Accept undated results — they were already accepted by scan-web with accept_undated: true
+      // Mark them with date_verified: false (already in flags) so the UI can badge them
+      if (!r.posted_at && !r.date_verified) {
+        r.date_verified = false;
       }
       const cleaned = cleanContent(r.content || "");
       if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {
