@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
 import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard } from "lucide-react";
+import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -250,6 +251,7 @@ export default function SettingsPage() {
           <TabsTrigger value="topics"><Layers className="h-3.5 w-3.5 mr-1.5" />Topics</TabsTrigger>
           <TabsTrigger value="sources"><Globe className="h-3.5 w-3.5 mr-1.5" />Sources</TabsTrigger>
           <TabsTrigger value="alerts"><Bell className="h-3.5 w-3.5 mr-1.5" />Alerts</TabsTrigger>
+          <TabsTrigger value="connections"><Plug className="h-3.5 w-3.5 mr-1.5" />Connections</TabsTrigger>
           <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5" />Subscription</TabsTrigger>
           <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5" />Integrations</TabsTrigger>
         </TabsList>
@@ -472,6 +474,11 @@ export default function SettingsPage() {
         {/* SUBSCRIPTION TAB */}
         <TabsContent value="subscription">
           <SubscriptionTab orgId={currentOrg?.id} userId={user?.id} />
+        </TabsContent>
+
+        {/* CONNECTIONS TAB */}
+        <TabsContent value="connections">
+          <SourceConnectionsTab />
         </TabsContent>
 
         {/* INTEGRATIONS TAB */}
