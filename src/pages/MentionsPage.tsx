@@ -426,49 +426,80 @@ export default function MentionsPage() {
     query.then(({ data }) => { setMentions(data || []); setLoading(false); });
   };
 
-  // Detect coordinated patterns - mentions POSTED (not ingested) from same time window across DIFFERENT domains
+  // Detect coordinated patterns with linked mention details
+  interface CoordWarning {
+    type: "burst" | "duplicate" | "ai_flagged";
+    message: string;
+    mentionIds: string[];
+    sources: string[];
+    contentPreview?: string;
+  }
+
   const coordWarnings = useMemo(() => {
-    const warnings: string[] = [];
+    const warnings: CoordWarning[] = [];
+
     // Check for burst of same-sentiment mentions in short window across DIFFERENT sources
     const negMentions = filtered.filter(m => m.sentiment_label === "negative" && m.posted_at);
     if (negMentions.length >= 5) {
       const withTime = negMentions.map(m => ({
+        id: m.id,
         time: new Date(m.posted_at!).getTime(),
         domain: getDomain(m.url),
       })).filter(t => t.time > 0).sort((a, b) => a.time - b.time);
       if (withTime.length >= 5) {
         const span = withTime[withTime.length - 1].time - withTime[0].time;
         const uniqueDomains = new Set(withTime.map(t => t.domain));
-        // Only flag if posted within 1 hour AND from 3+ different domains (not just found in one scan)
         if (span < 3600000 && uniqueDomains.size >= 3) {
-          warnings.push(`${negMentions.length} negative mentions published within the same hour across ${uniqueDomains.size} different sources — possible coordinated FUD campaign`);
+          warnings.push({
+            type: "burst",
+            message: `${negMentions.length} negative mentions published within the same hour across ${uniqueDomains.size} different sources — possible coordinated FUD campaign`,
+            mentionIds: withTime.map(t => t.id),
+            sources: [...uniqueDomains],
+          });
         }
       }
     }
+
     // Check for duplicate content across DIFFERENT domains only
-    const contentMap = new Map<string, { count: number; domains: Set<string> }>();
+    const contentMap = new Map<string, { count: number; domains: Set<string>; ids: string[]; preview: string }>();
     filtered.forEach(m => {
-      const key = cleanPreview(m.content).slice(0, 80).toLowerCase();
+      const preview = cleanPreview(m.content);
+      const key = preview.slice(0, 80).toLowerCase();
       const domain = getDomain(m.url);
       if (key.length > 30) {
-        const entry = contentMap.get(key) || { count: 0, domains: new Set() };
+        const entry = contentMap.get(key) || { count: 0, domains: new Set(), ids: [], preview };
         entry.count++;
         entry.domains.add(domain);
+        entry.ids.push(m.id);
         contentMap.set(key, entry);
       }
     });
-    // Only flag as coordinated if duplicate content appears across 3+ DIFFERENT domains
     const dupes = [...contentMap.entries()].filter(([, v]) => v.domains.size >= 3);
     if (dupes.length > 0) {
-      warnings.push(`Similar content detected across ${dupes[0][1].domains.size} different sources — may indicate coordinated activity`);
+      const [, detail] = dupes[0];
+      warnings.push({
+        type: "duplicate",
+        message: `Similar content detected across ${detail.domains.size} different sources — may indicate coordinated activity`,
+        mentionIds: detail.ids,
+        sources: [...detail.domains],
+        contentPreview: detail.preview.slice(0, 120) + (detail.preview.length > 120 ? "…" : ""),
+      });
     }
-    // Check if many flagged as coordinated
-    const coordCount = filtered.filter(m => (m.flags as any)?.coordinated).length;
-    if (coordCount >= 3) {
-      warnings.push(`${coordCount} mentions flagged as potentially coordinated activity by AI analysis`);
+
+    // Check if many flagged as coordinated by AI
+    const coordMentions = filtered.filter(m => (m.flags as any)?.coordinated);
+    if (coordMentions.length >= 3) {
+      warnings.push({
+        type: "ai_flagged",
+        message: `${coordMentions.length} mentions flagged as potentially coordinated activity by AI analysis`,
+        mentionIds: coordMentions.map(m => m.id),
+        sources: [...new Set(coordMentions.map(m => getDomain(m.url)))],
+      });
     }
     return warnings;
   }, [filtered]);
+
+  const [expandedWarning, setExpandedWarning] = useState<number | null>(null);
 
   // Render a single mention card
   const renderMention = (m: Mention) => {
@@ -679,12 +710,65 @@ export default function MentionsPage() {
       {coordWarnings.length > 0 && (
         <div className="space-y-2">
           {coordWarnings.map((w, i) => (
-            <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-sentinel-amber/5 border border-sentinel-amber/20">
-              <AlertCircle className="h-4 w-4 text-sentinel-amber mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-sentinel-amber">Suspicious Pattern Detected</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{w}</p>
-              </div>
+            <div key={i} className="rounded-lg bg-sentinel-amber/5 border border-sentinel-amber/20 overflow-hidden">
+              <button
+                className="w-full flex items-start gap-2 p-3 text-left hover:bg-sentinel-amber/10 transition-colors"
+                onClick={() => setExpandedWarning(expandedWarning === i ? null : i)}
+              >
+                <AlertCircle className="h-4 w-4 text-sentinel-amber mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-sentinel-amber">Suspicious Pattern Detected</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{w.message}</p>
+                </div>
+                <ChevronRight className={`h-4 w-4 text-sentinel-amber shrink-0 mt-0.5 transition-transform ${expandedWarning === i ? "rotate-90" : ""}`} />
+              </button>
+              {expandedWarning === i && (
+                <div className="px-3 pb-3 space-y-3 border-t border-sentinel-amber/10 pt-3">
+                  {/* Content preview for duplicate warnings */}
+                  {w.contentPreview && (
+                    <div className="rounded-md bg-muted/40 p-2.5 border border-border">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Matching Content</p>
+                      <p className="text-xs text-foreground italic">"{w.contentPreview}"</p>
+                    </div>
+                  )}
+                  {/* Sources involved */}
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Sources Involved ({w.sources.length})</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {w.sources.map(s => (
+                        <Badge key={s} variant="outline" className="text-[10px] border-sentinel-amber/30 text-sentinel-amber cursor-pointer hover:bg-sentinel-amber/10" onClick={() => setDomainFilter(s)}>
+                          <Globe className="h-2.5 w-2.5 mr-1" />{s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Linked mentions */}
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Affected Mentions ({w.mentionIds.length})</p>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {w.mentionIds.slice(0, 10).map(mid => {
+                        const m = filtered.find(x => x.id === mid);
+                        if (!m) return null;
+                        return (
+                          <div
+                            key={mid}
+                            className="flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:border-primary/30 cursor-pointer transition-colors"
+                            onClick={() => navigate(`/mentions/${mid}`)}
+                          >
+                            <SourceBadge source={m.source} />
+                            <span className="text-xs text-muted-foreground truncate">{getDomain(m.url)}</span>
+                            <span className="text-xs text-foreground truncate flex-1">{cleanPreview(m.content).slice(0, 60)}</span>
+                            <Eye className="h-3 w-3 text-muted-foreground shrink-0" />
+                          </div>
+                        );
+                      })}
+                      {w.mentionIds.length > 10 && (
+                        <p className="text-[10px] text-muted-foreground pl-2">+ {w.mentionIds.length - 10} more</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
