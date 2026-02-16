@@ -15,6 +15,7 @@ import {
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
   Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye, ChevronDown, Search,
+  Network, Link2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -117,6 +118,8 @@ export default function MentionDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
+  const [similarMentions, setSimilarMentions] = useState<MentionDetail[]>([]);
+  const [similarLoading, setSimilarLoading] = useState(false);
 
   const getDomain = (url: string | null): string => {
     if (!url) return "unknown";
@@ -147,6 +150,30 @@ export default function MentionDetailPage() {
       setLoading(false);
     });
   }, [id, currentOrg]);
+
+  // Find similar mentions from other sources (for coordinated activity detection)
+  useEffect(() => {
+    if (!mention || !currentOrg) return;
+    const content = cleanContentText(mention.content);
+    if (content.length < 40) return;
+
+    const flags = mention.flags || {};
+    if (!flags.coordinated && !flags.misinformation && !flags.bot_likely) return;
+
+    setSimilarLoading(true);
+    const searchSnippet = content.slice(0, 60);
+    supabase
+      .from("mentions")
+      .select("id, source, content, url, posted_at, sentiment_label, severity, author_name, flags, created_at, author_handle, author_verified, author_follower_count, sentiment_score, sentiment_confidence, language, metrics, scan_run_id, status")
+      .eq("org_id", currentOrg.id)
+      .neq("id", mention.id)
+      .ilike("content", `%${searchSnippet}%`)
+      .limit(20)
+      .then(({ data }) => {
+        setSimilarMentions((data as MentionDetail[]) || []);
+        setSimilarLoading(false);
+      });
+  }, [mention, currentOrg]);
 
   const formatReach = (count: number | null) => {
     if (!count) return "0";
@@ -601,6 +628,66 @@ export default function MentionDetailPage() {
             </div>
           )}
         </Card>
+
+        {/* Similar Content from Other Sources — coordination warning */}
+        {(flags.coordinated || flags.misinformation || flags.bot_likely) && (
+          <Card className="bg-sentinel-amber/5 border-sentinel-amber/20 p-5 space-y-3">
+            <h3 className="text-xs font-medium text-sentinel-amber uppercase tracking-wider flex items-center gap-1.5">
+              <Network className="h-3 w-3" /> Similar Content from Other Sources
+            </h3>
+            {flags.coordinated && (
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-sentinel-amber/10 border border-sentinel-amber/20">
+                <AlertCircle className="h-3.5 w-3.5 text-sentinel-amber mt-0.5 shrink-0" />
+                <p className="text-xs text-foreground">
+                  This mention was flagged as potentially <strong>coordinated activity</strong> — similar content may have been distributed across multiple sources simultaneously.
+                </p>
+              </div>
+            )}
+            {similarLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <Loader2 className="h-3 w-3 animate-spin" /> Searching for similar content…
+              </div>
+            ) : similarMentions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No similar content found from other sources.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Found <strong>{similarMentions.length}</strong> similar mention{similarMentions.length > 1 ? "s" : ""} from{" "}
+                  <strong>{new Set(similarMentions.map(m => getDomain(m.url))).size}</strong> other source{new Set(similarMentions.map(m => getDomain(m.url))).size > 1 ? "s" : ""}:
+                </p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {similarMentions.map(sm => (
+                    <div
+                      key={sm.id}
+                      className="flex items-center gap-2 p-2.5 rounded-md bg-card border border-border hover:border-primary/30 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/mentions/${sm.id}`)}
+                    >
+                      <Badge variant="outline" className="text-[10px] shrink-0">{sm.source}</Badge>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{getDomain(sm.url)}</span>
+                      <span className="text-xs text-foreground truncate flex-1">
+                        {cleanContentText(sm.content).slice(0, 80)}
+                      </span>
+                      {sm.posted_at && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {format(new Date(sm.posted_at), "MMM d")}
+                        </span>
+                      )}
+                      <Eye className="h-3 w-3 text-muted-foreground shrink-0" />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <p className="text-[10px] text-muted-foreground w-full">Sources:</p>
+                  {[...new Set(similarMentions.map(m => getDomain(m.url)))].map(domain => (
+                    <Badge key={domain} variant="outline" className="text-[10px] border-sentinel-amber/30 text-sentinel-amber">
+                      <Globe className="h-2.5 w-2.5 mr-1" />{domain}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Topics */}
         <Card className="bg-card border-border p-5 space-y-3">
