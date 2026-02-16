@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
 import TeamManagementTab from "@/components/settings/TeamManagementTab";
 import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
+import IntegrationsTab from "@/components/settings/IntegrationsTab";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -516,21 +517,7 @@ export default function SettingsPage() {
 
         {/* INTEGRATIONS TAB */}
         <TabsContent value="integrations">
-          <Card className="bg-card border-border p-6 space-y-4">
-            <h3 className="text-sm font-medium text-card-foreground">Integrations</h3>
-            <div className="space-y-3">
-              {[
-                { name: "Email (SMTP)", status: "Not configured" },
-                { name: "Google Sheets", status: "Not connected" },
-                { name: "Webhooks", status: "Not configured" },
-              ].map((int, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm text-card-foreground">{int.name}</span>
-                  <Button size="sm" variant="outline">Configure</Button>
-                </div>
-              ))}
-            </div>
-          </Card>
+          <IntegrationsTab />
         </TabsContent>
       </Tabs>
     </div>
