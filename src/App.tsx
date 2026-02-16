@@ -31,6 +31,7 @@ import GuidePage from "@/pages/GuidePage";
 import CompetitorsPage from "@/pages/CompetitorsPage";
 import ContactsPage from "@/pages/ContactsPage";
 import NotFound from "@/pages/NotFound";
+import RoleGate from "@/components/RoleGate";
 
 const queryClient = new QueryClient();
 
@@ -87,7 +88,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/scans" element={<ScansPage />} />
+        <Route path="/scans" element={<RoleGate require="edit"><ScansPage /></RoleGate>} />
         <Route path="/mentions" element={<MentionsPage />} />
         <Route path="/mentions/:id" element={<MentionDetailPage />} />
         <Route path="/narratives" element={<NarrativesPage />} />
@@ -100,11 +101,11 @@ function AppRoutes() {
         <Route path="/respond" element={<RespondPage />} />
         <Route path="/approved-facts" element={<ApprovedFactsPage />} />
         <Route path="/approved-templates" element={<ApprovedTemplatesPage />} />
-        <Route path="/escalations" element={<EscalationsPage />} />
-        <Route path="/competitors" element={<CompetitorsPage />} />
-        <Route path="/contacts" element={<ContactsPage />} />
-        <Route path="/exports" element={<ExportsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/escalations" element={<RoleGate require="write"><EscalationsPage /></RoleGate>} />
+        <Route path="/competitors" element={<RoleGate require="edit"><CompetitorsPage /></RoleGate>} />
+        <Route path="/contacts" element={<RoleGate require="manage"><ContactsPage /></RoleGate>} />
+        <Route path="/exports" element={<RoleGate require="write"><ExportsPage /></RoleGate>} />
+        <Route path="/settings" element={<RoleGate require="manage"><SettingsPage /></RoleGate>} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/admin" element={<AdminPage />} />
