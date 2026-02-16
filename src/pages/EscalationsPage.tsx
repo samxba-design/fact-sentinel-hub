@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TicketCheck, Plus, History, Settings2, Users, Mail } from "lucide-react";
+import ContactPopover from "@/components/contacts/ContactPopover";
+import SmartLink from "@/components/SmartLink";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -134,8 +136,12 @@ export default function EscalationsPage() {
               Critical severity mentions also trigger automatic escalation tickets.
             </p>
             <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Assigned to department leads</span>
-              <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> Email alerts configured in Settings</span>
+              <ContactPopover department={null}>
+                <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Assigned to department leads</span>
+              </ContactPopover>
+              <SmartLink to="/settings?tab=alerts" className="text-xs">
+                <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> Email alerts configured in Settings</span>
+              </SmartLink>
             </div>
           </div>
         </div>
@@ -170,8 +176,12 @@ export default function EscalationsPage() {
                       <TicketCheck className="h-5 w-5 text-primary" />
                       <div>
                         <div className="text-sm font-medium text-card-foreground">{e.title}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {e.department || "—"} · {timeAgo(e.created_at)}
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          {e.department ? (
+                            <ContactPopover department={e.department}>
+                              <span>{e.department}</span>
+                            </ContactPopover>
+                          ) : "—"} · {timeAgo(e.created_at)}
                         </div>
                       </div>
                     </div>
