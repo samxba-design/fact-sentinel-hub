@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) throw new Error("Unauthorized");
 
-    const { org_id, keywords, sources, date_from, date_to } = await req.json();
+    const { org_id, keywords, sources, date_from, date_to, review_urls } = await req.json();
     if (!org_id) throw new Error("org_id required");
 
     // Verify membership
@@ -138,6 +138,43 @@ Deno.serve(async (req) => {
         }
       } catch (e: any) {
         errors.push(`Twitter: ${e.message}`);
+      }
+    }
+
+    // YouTube
+    if (selectedSources.includes("youtube")) {
+      try {
+        const ytResult = await callFunction("scan-youtube", {
+          org_id,
+          keywords: keywords?.length > 0 ? keywords : ["brand"],
+          limit: 15,
+          include_comments: true,
+        });
+        if (ytResult.success && ytResult.results) {
+          allResults.push(...ytResult.results);
+        } else if (ytResult.error) {
+          errors.push(`YouTube: ${ytResult.error}`);
+        }
+      } catch (e: any) {
+        errors.push(`YouTube: ${e.message}`);
+      }
+    }
+
+    // Review sites (Trustpilot, G2, Glassdoor, Capterra)
+    if (selectedSources.includes("reviews")) {
+      try {
+        const reviewResult = await callFunction("scan-reviews", {
+          keywords: keywords?.length > 0 ? keywords : ["brand"],
+          review_urls: review_urls || [],
+          limit: 10,
+        });
+        if (reviewResult.success && reviewResult.results) {
+          allResults.push(...reviewResult.results);
+        } else if (reviewResult.error) {
+          errors.push(`Reviews: ${reviewResult.error}`);
+        }
+      } catch (e: any) {
+        errors.push(`Reviews: ${e.message}`);
       }
     }
 

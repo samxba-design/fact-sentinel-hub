@@ -34,12 +34,23 @@ const statusConfig: Record<string, { icon: any; className: string }> = {
   pending: { icon: Clock, className: "text-muted-foreground" },
 };
 
-const ALL_SOURCES = ["twitter", "reddit", "news", "blogs", "forums"];
+const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews"];
 
 // Sources that need API keys from the user
 const SOURCES_NEEDING_KEYS: Record<string, string> = {
   twitter: "X (Twitter)",
   reddit: "Reddit",
+  youtube: "YouTube",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  twitter: "X (Twitter)",
+  reddit: "Reddit",
+  youtube: "YouTube",
+  news: "News",
+  blogs: "Blogs",
+  forums: "Forums",
+  reviews: "Review Sites",
 };
 
 export default function ScansPage() {
@@ -158,6 +169,28 @@ export default function ScansPage() {
         scan_run_id: data.scan_run_id || "",
       });
       setScanProgress("");
+
+      // Save schedule if enabled
+      if (scheduleEnabled) {
+        await supabase
+          .from("tracking_profiles")
+          .upsert({
+            org_id: currentOrg.id,
+            scan_schedule: scheduleInterval,
+          }, { onConflict: "org_id" });
+
+        // Also save selected sources
+        const existingSources = await supabase.from("sources").select("type").eq("org_id", currentOrg.id);
+        const existingTypes = (existingSources.data || []).map((s: any) => s.type);
+        const newSources = selectedSources.filter(s => !existingTypes.includes(s));
+        if (newSources.length > 0) {
+          await supabase.from("sources").insert(
+            newSources.map(s => ({ org_id: currentOrg.id, type: s, enabled: true }))
+          );
+        }
+
+        toast({ title: "Schedule saved", description: `Scans will run every ${scheduleInterval}.` });
+      }
       fetchRuns();
     } catch (err: any) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
@@ -396,7 +429,7 @@ export default function ScansPage() {
                         onCheckedChange={() => toggleSource(s)}
                         className="h-3.5 w-3.5"
                       />
-                      {s === "twitter" ? "X (Twitter)" : s}
+                      {SOURCE_LABELS[s] || s}
                       {needsKey && !isConnected && (
                         <AlertTriangle className="h-3 w-3 text-sentinel-amber" />
                       )}
