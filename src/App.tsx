@@ -26,6 +26,7 @@ import EscalationsPage from "@/pages/EscalationsPage";
 import ExportsPage from "@/pages/ExportsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AdminPage from "@/pages/AdminPage";
+import PricingPage from "@/pages/PricingPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="/escalations" element={<EscalationsPage />} />
         <Route path="/exports" element={<ExportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Route>
       <Route path="/onboarding" element={<OnboardingPage />} />
