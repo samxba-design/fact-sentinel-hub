@@ -1,6 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
+import { useOrgRole } from "@/hooks/useOrgRole";
 import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
@@ -14,9 +15,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navItems = [
+type RequiredAccess = "all" | "write" | "edit" | "manage";
+
+interface NavItem {
+  to: string;
+  icon: any;
+  label: string;
+  access?: RequiredAccess;
+}
+
+const navItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/scans", icon: Scan, label: "Scans" },
+  { to: "/scans", icon: Scan, label: "Scans", access: "edit" },
   { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
   { to: "/narratives", icon: Network, label: "Narratives" },
   { to: "/people", icon: Users, label: "People" },
@@ -25,20 +35,29 @@ const navItems = [
   { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
   { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
   { to: "/approved-templates", icon: FileText, label: "Templates" },
-  { to: "/escalations", icon: TicketCheck, label: "Escalations" },
-  { to: "/competitors", icon: Target, label: "Competitors" },
-  { to: "/contacts", icon: Contact, label: "Contacts" },
-  { to: "/exports", icon: Download, label: "Exports" },
+  { to: "/escalations", icon: TicketCheck, label: "Escalations", access: "write" },
+  { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
+  { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
+  { to: "/exports", icon: Download, label: "Exports", access: "write" },
   { to: "/pricing", icon: CreditCard, label: "Pricing" },
   { to: "/guide", icon: BookOpen, label: "Getting Started" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
 ];
 
 export default function AppSidebar() {
   const { signOut, isSuperAdmin } = useAuth();
   const { orgs, currentOrg, setCurrentOrg } = useOrg();
+  const { isManager, canEdit, canWrite } = useOrgRole();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const hasAccess = (access?: RequiredAccess) => {
+    if (!access || access === "all") return true;
+    if (access === "manage") return isManager;
+    if (access === "edit") return canEdit;
+    if (access === "write") return canWrite;
+    return true;
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50">
@@ -83,7 +102,7 @@ export default function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        {navItems.map(item => (
+        {navItems.filter(item => hasAccess(item.access)).map(item => (
           <NavLink
             key={item.to}
             to={item.to}

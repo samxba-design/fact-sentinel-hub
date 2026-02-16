@@ -2,18 +2,28 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
+import { useOrgRole } from "@/hooks/useOrgRole";
 import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut, Menu, X,
-  ShieldCheck, CreditCard, BookOpen, Target
+  ShieldCheck, CreditCard, BookOpen, Target, Contact
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 
-const navItems = [
+type RequiredAccess = "all" | "write" | "edit" | "manage";
+
+interface NavItem {
+  to: string;
+  icon: any;
+  label: string;
+  access?: RequiredAccess;
+}
+
+const navItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/scans", icon: Scan, label: "Scans" },
+  { to: "/scans", icon: Scan, label: "Scans", access: "edit" },
   { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
   { to: "/narratives", icon: Network, label: "Narratives" },
   { to: "/people", icon: Users, label: "People" },
@@ -22,18 +32,28 @@ const navItems = [
   { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
   { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
   { to: "/approved-templates", icon: FileText, label: "Templates" },
-  { to: "/escalations", icon: TicketCheck, label: "Escalations" },
-  { to: "/competitors", icon: Target, label: "Competitors" },
-  { to: "/exports", icon: Download, label: "Exports" },
+  { to: "/escalations", icon: TicketCheck, label: "Escalations", access: "write" },
+  { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
+  { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
+  { to: "/exports", icon: Download, label: "Exports", access: "write" },
   { to: "/pricing", icon: CreditCard, label: "Pricing" },
   { to: "/guide", icon: BookOpen, label: "Getting Started" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
 ];
 
 export default function MobileHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { signOut, isSuperAdmin } = useAuth();
+  const { isManager, canEdit, canWrite } = useOrgRole();
   const navigate = useNavigate();
+
+  const hasAccess = (access?: RequiredAccess) => {
+    if (!access || access === "all") return true;
+    if (access === "manage") return isManager;
+    if (access === "edit") return canEdit;
+    if (access === "write") return canWrite;
+    return true;
+  };
 
   return (
     <>
@@ -71,7 +91,7 @@ export default function MobileHeader() {
               </button>
             </div>
             <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-              {navItems.map(item => (
+              {navItems.filter(item => hasAccess(item.access)).map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
