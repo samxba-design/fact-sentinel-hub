@@ -251,10 +251,10 @@ export default function DashboardPage() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
         ) : (
           <>
-            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate("/mentions")} tooltip="Total mentions detected across all sources in the selected time period." />
-            <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/mentions")} tooltip="Mentions classified as having negative sentiment by AI analysis." />
-            <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate("/risk-console")} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
-            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents")} tooltip="Open incident war-rooms currently being tracked." />
+            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate(`/mentions?days=${rangeDays}`)} tooltip="Total mentions detected across all sources in the selected time period." />
+            <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate(`/mentions?sentiment=negative&days=${rangeDays}`)} tooltip="Mentions classified as having negative sentiment by AI analysis." />
+            <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate(`/mentions?severity=critical&days=${rangeDays}`)} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
+            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents?status=active")} tooltip="Open incident war-rooms currently being tracked." />
           </>
         )}
       </div>
@@ -263,7 +263,9 @@ export default function DashboardPage() {
       <SentimentSparklines />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <RiskIndex score={loading ? 0 : riskScore} />
+       <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
+          <RiskIndex score={loading ? 0 : riskScore} />
+        </div>
         <Card className="bg-card border-border p-5 lg:col-span-2">
           <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
             Sentiment Breakdown
@@ -286,13 +288,20 @@ export default function DashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-3 flex-1">
-                {sentimentData.map((s) => (
-                  <div key={s.name} className="flex items-center justify-between">
+              {sentimentData.map((s) => (
+                  <div
+                    key={s.name}
+                    className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                    onClick={() => navigate(`/mentions?sentiment=${s.name}&days=${rangeDays}`)}
+                  >
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: SENTIMENT_COLORS[s.name] }} />
                       <span className="text-sm text-card-foreground capitalize">{s.name}</span>
                     </div>
-                    <span className="text-sm font-mono text-muted-foreground">{s.value}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-mono text-muted-foreground">{s.value}</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
+                    </div>
                   </div>
                 ))}
               </div>
