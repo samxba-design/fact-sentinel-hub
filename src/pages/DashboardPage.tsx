@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOrg } from "@/contexts/OrgContext";
+import UpgradeBanner from "@/components/UpgradeBanner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -184,6 +185,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <UpgradeBanner feature="Advanced analytics & unlimited scans" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
