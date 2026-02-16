@@ -241,6 +241,7 @@ Deno.serve(async (req) => {
             keywords: keywords?.length > 0 ? keywords : ["brand"],
             limit: 10,
             tbs: dateToTbs(date_from),
+            date_from, // pass through for secondary metadata-based date filtering
           });
           if (webResult.success && webResult.results) {
             allResults.push(...webResult.results);
@@ -360,19 +361,21 @@ Deno.serve(async (req) => {
         }
         seenUrls.add(normalizedUrl);
       }
-      // Only enforce date range for sources with reliable timestamps (Twitter, YouTube, Reddit)
-      // Web/news/review scraped dates are unreliable (extracted from body text) so skip date filtering for those
-      const hasReliableDate = ["twitter", "reddit", "youtube"].includes(r.source);
-      if (hasReliableDate && dateFromMs > 0 && r.posted_at) {
+      // Enforce date range for ALL sources that have a posted_at date
+      // Web sources now get dates from metadata, so they can be filtered too
+      if (dateFromMs > 0 && r.posted_at) {
         const postedMs = new Date(r.posted_at).getTime();
         if (postedMs < dateFromMs) {
           console.log("Filtering out-of-range result:", r.url, r.posted_at);
           continue;
         }
       }
-      if (hasReliableDate && dateToMs > 0 && r.posted_at) {
+      if (dateToMs > 0 && r.posted_at) {
         const postedMs = new Date(r.posted_at).getTime();
-        if (postedMs > dateToMs) continue;
+        if (postedMs > dateToMs) {
+          console.log("Filtering future result:", r.url, r.posted_at);
+          continue;
+        }
       }
       const cleaned = cleanContent(r.content || "");
       if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {

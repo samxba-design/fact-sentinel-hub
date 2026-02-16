@@ -26,25 +26,16 @@ function isBlockedOrErrorContent(text: string): boolean {
 
 function cleanExtractedContent(raw: string): string {
   let text = raw;
-  // Remove markdown images with data URIs
   text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
   text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
-  // Remove markdown links but keep link text
   text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  // Remove raw URLs
   text = text.replace(/https?:\/\/\S+/g, "");
-  // Remove SVG/data URI fragments
   text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
-  // Remove HTML tags
   text = text.replace(/<[^>]+>/g, " ");
-  // Remove markdown formatting
   text = text.replace(/[#*_~`>|]/g, "");
-  // Remove repeated dashes/equals
   text = text.replace(/[-=]{3,}/g, " ");
-  // Collapse whitespace
   text = text.replace(/\s+/g, " ").trim();
 
-  // Strip common leading boilerplate phrases
   const boilerplateStarts = [
     /^skip to (content|main|navigation)\s*/i,
     /^(menu|navigation|home|about|contact|sign in|log in|subscribe)\s+(menu|navigation|home|about|contact|sign in|log in|subscribe|\s)*\s*/i,
@@ -75,6 +66,34 @@ function classifySourceFromUrl(url: string): string {
   return "news";
 }
 
+// Extract publish date from Firecrawl metadata (HTML meta tags - reliable)
+function extractDateFromMetadata(metadata: any): string | null {
+  if (!metadata) return null;
+  
+  // Firecrawl exposes these from HTML meta tags like <meta property="article:published_time">
+  const dateFields = [
+    metadata.publishedTime,
+    metadata["article:published_time"],
+    metadata["og:article:published_time"],
+    metadata.datePublished,
+    metadata["date"],
+    metadata.modifiedTime,
+    metadata["article:modified_time"],
+  ];
+
+  for (const raw of dateFields) {
+    if (!raw) continue;
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2015 && d.getTime() <= Date.now() + 86400000) {
+        return d.toISOString();
+      }
+    } catch { /* skip */ }
+  }
+
+  return null;
+}
+
 // Scan websites/news using Firecrawl search API
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -90,7 +109,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { keywords, sites, limit, tbs } = await req.json();
+    const { keywords, sites, limit, tbs, date_from } = await req.json();
     if (!keywords || keywords.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: "Keywords required" }),
@@ -110,8 +129,6 @@ Deno.serve(async (req) => {
       scrapeOptions: { formats: ["markdown"] },
     };
 
-    // Apply time-based search filter
-    // tbs values: 'qdr:d' (day), 'qdr:w' (week), 'qdr:m' (month)
     if (tbs) {
       searchBody.tbs = tbs;
     }
@@ -145,6 +162,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Parse date_from for secondary filtering
+    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
+
     const results = (data.data || [])
       .map((item: any) => {
         const rawContent = item.markdown || item.description || "";
@@ -162,6 +182,18 @@ Deno.serve(async (req) => {
           return null;
         }
 
+        // Extract publish date from page metadata (reliable - from HTML meta tags)
+        const metadataDate = extractDateFromMetadata(item.metadata);
+        
+        // If we have a metadata date AND a date_from filter, reject articles outside the range
+        if (metadataDate && dateFromMs > 0) {
+          const publishedMs = new Date(metadataDate).getTime();
+          if (publishedMs < dateFromMs) {
+            console.log("Filtering out-of-range article:", url, "published:", metadataDate, "date_from:", date_from);
+            return null;
+          }
+        }
+
         return {
           source,
           content: cleanedContent.slice(0, 800),
@@ -170,9 +202,8 @@ Deno.serve(async (req) => {
           author_name: (() => {
             try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
           })(),
-          // Web-scraped dates are unreliable - set to null so UI shows "Unknown"
-          // Firecrawl's tbs parameter already handles time filtering
-          posted_at: null,
+          // Use metadata date if available, otherwise null
+          posted_at: metadataDate,
         };
       })
       .filter(Boolean);
