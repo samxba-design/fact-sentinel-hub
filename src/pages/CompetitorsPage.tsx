@@ -1,19 +1,36 @@
 import { useState, useEffect } from "react";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, ArrowUpDown, Scan, Sparkles } from "lucide-react";
+import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye } from "lucide-react";
 import PageGuide from "@/components/PageGuide";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import SuggestCompetitorsDialog from "@/components/competitors/SuggestCompetitorsDialog";
+import { useNavigate } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Competitor {
   id: string;
@@ -23,18 +40,26 @@ interface Competitor {
   mentionCount: number;
   narrativeCount: number;
   sentiment: "positive" | "negative" | "neutral" | "mixed";
+  negPct: number;
+  posPct: number;
+  neuPct: number;
 }
 
 export default function CompetitorsPage() {
   const { currentOrg } = useOrg();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Competitor | null>(null);
+  const [editTarget, setEditTarget] = useState<Competitor | null>(null);
   const [newName, setNewName] = useState("");
   const [newDomain, setNewDomain] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [compareMode, setCompareMode] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -45,7 +70,6 @@ export default function CompetitorsPage() {
     if (!currentOrg) return;
     setLoading(true);
 
-    // Load keywords that are competitor type, or all keywords for cross-reference
     const { data: keywords } = await supabase
       .from("keywords")
       .select("*")
@@ -58,7 +82,6 @@ export default function CompetitorsPage() {
       return;
     }
 
-    // For each competitor keyword, count mentions referencing that term
     const comps: Competitor[] = await Promise.all(
       keywords.map(async (kw) => {
         const term = `%${kw.value}%`;
@@ -68,9 +91,11 @@ export default function CompetitorsPage() {
         ]);
 
         const mentions = mentionRes.data || [];
+        const total = mentions.length || 1;
         const sentiments = mentions.map(m => m.sentiment_label).filter(Boolean);
         const negCount = sentiments.filter(s => s === "negative").length;
         const posCount = sentiments.filter(s => s === "positive").length;
+        const neuCount = total - negCount - posCount;
         let sentiment: Competitor["sentiment"] = "neutral";
         if (negCount > posCount) sentiment = "negative";
         else if (posCount > negCount) sentiment = "positive";
@@ -84,6 +109,9 @@ export default function CompetitorsPage() {
           mentionCount: mentionRes.count || 0,
           narrativeCount: narrativeRes.count || 0,
           sentiment,
+          negPct: Math.round((negCount / total) * 100),
+          posPct: Math.round((posCount / total) * 100),
+          neuPct: Math.round((neuCount / total) * 100),
         };
       })
     );
@@ -100,7 +128,6 @@ export default function CompetitorsPage() {
       value: newName.trim(),
       status: "active",
     });
-    // Note: domain and notes are stored as keyword metadata for future use
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
@@ -111,6 +138,39 @@ export default function CompetitorsPage() {
     setNewNotes("");
     setAddOpen(false);
     loadCompetitors();
+  };
+
+  const deleteCompetitor = async (comp: Competitor) => {
+    const { error } = await supabase.from("keywords").delete().eq("id", comp.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Competitor removed", description: `"${comp.name}" is no longer tracked` });
+      loadCompetitors();
+    }
+    setDeleteConfirm(null);
+  };
+
+  const renameCompetitor = async () => {
+    if (!editTarget || !newName.trim()) return;
+    const { error } = await supabase.from("keywords").update({ value: newName.trim() }).eq("id", editTarget.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Competitor updated", description: `Renamed to "${newName.trim()}"` });
+      loadCompetitors();
+    }
+    setEditOpen(false);
+    setEditTarget(null);
+    setNewName("");
+  };
+
+  const viewMentions = (comp: Competitor) => {
+    navigate(`/mentions?search=${encodeURIComponent(comp.name)}`);
+  };
+
+  const viewNarratives = (comp: Competitor) => {
+    navigate(`/narratives?search=${encodeURIComponent(comp.name)}`);
   };
 
   const sentimentIcon = (s: Competitor["sentiment"]) => {
@@ -132,6 +192,7 @@ export default function CompetitorsPage() {
 
   const totalMentions = competitors.reduce((s, c) => s + c.mentionCount, 0);
   const totalNarratives = competitors.reduce((s, c) => s + c.narrativeCount, 0);
+  const maxMentions = Math.max(...competitors.map(c => c.mentionCount), 1);
 
   return (
     <div className="space-y-6">
@@ -141,6 +202,11 @@ export default function CompetitorsPage() {
           <p className="text-sm text-muted-foreground mt-1">Track competitors across your monitored landscape</p>
         </div>
         <div className="flex gap-2">
+          {competitors.length >= 2 && (
+            <Button variant={compareMode ? "default" : "outline"} onClick={() => setCompareMode(!compareMode)}>
+              <BarChart3 className="h-4 w-4 mr-2" />{compareMode ? "Exit Compare" : "Compare"}
+            </Button>
+          )}
           <SuggestCompetitorsDialog onAdded={loadCompetitors} />
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
@@ -190,7 +256,7 @@ export default function CompetitorsPage() {
           {
             icon: <TrendingUp className="h-4 w-4 text-primary" />,
             title: "3. Compare & Analyze",
-            description: "See mention volume, narrative overlap, and sentiment breakdown per competitor. Identify when rivals are driving narrative changes.",
+            description: "Click any competitor to view their mentions, edit or remove them, or use Compare mode for side-by-side analysis.",
           },
         ]}
         integrations={[
@@ -249,6 +315,67 @@ export default function CompetitorsPage() {
         />
       </div>
 
+      {/* Compare Mode */}
+      {compareMode && competitors.length >= 2 && (
+        <Card>
+          <CardContent className="pt-6 space-y-5">
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" /> Side-by-Side Comparison
+            </h3>
+            {/* Mention volume comparison */}
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mention Volume</p>
+              {competitors.map(comp => (
+                <div key={comp.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground truncate max-w-[200px]">{comp.name}</span>
+                    <span className="text-muted-foreground">{comp.mentionCount}</span>
+                  </div>
+                  <Progress value={(comp.mentionCount / maxMentions) * 100} className="h-2" />
+                </div>
+              ))}
+            </div>
+            {/* Sentiment breakdown */}
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sentiment Breakdown</p>
+              {competitors.map(comp => (
+                <div key={comp.id} className="space-y-1">
+                  <span className="text-sm font-medium text-foreground truncate max-w-[200px] block">{comp.name}</span>
+                  <div className="flex h-3 rounded-full overflow-hidden bg-muted/30">
+                    {comp.posPct > 0 && (
+                      <div className="bg-[hsl(var(--sentinel-emerald))]" style={{ width: `${comp.posPct}%` }} title={`Positive: ${comp.posPct}%`} />
+                    )}
+                    {comp.neuPct > 0 && (
+                      <div className="bg-muted-foreground/30" style={{ width: `${comp.neuPct}%` }} title={`Neutral: ${comp.neuPct}%`} />
+                    )}
+                    {comp.negPct > 0 && (
+                      <div className="bg-destructive" style={{ width: `${comp.negPct}%` }} title={`Negative: ${comp.negPct}%`} />
+                    )}
+                  </div>
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    <span className="text-[hsl(var(--sentinel-emerald))]">{comp.posPct}% pos</span>
+                    <span>{comp.neuPct}% neu</span>
+                    <span className="text-destructive">{comp.negPct}% neg</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Narrative overlap */}
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Narrative Overlap</p>
+              {competitors.map(comp => (
+                <div key={comp.id} className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{comp.name}</span>
+                  <Button variant="ghost" size="sm" onClick={() => viewNarratives(comp)}>
+                    {comp.narrativeCount} narratives <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Competitor cards */}
       {loading ? (
         <div className="text-sm text-muted-foreground animate-pulse py-12 text-center">Loading competitors...</div>
@@ -280,18 +407,44 @@ export default function CompetitorsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-center">
+                    <button onClick={() => viewMentions(comp)} className="text-center hover:opacity-70 transition-opacity cursor-pointer">
                       <p className="text-lg font-bold text-foreground">{comp.mentionCount}</p>
                       <p className="text-xs text-muted-foreground">Mentions</p>
-                    </div>
-                    <div className="text-center">
+                    </button>
+                    <button onClick={() => viewNarratives(comp)} className="text-center hover:opacity-70 transition-opacity cursor-pointer">
                       <p className="text-lg font-bold text-foreground">{comp.narrativeCount}</p>
                       <p className="text-xs text-muted-foreground">Narratives</p>
-                    </div>
+                    </button>
                     <Badge className={sentimentColor(comp.sentiment)}>
                       {sentimentIcon(comp.sentiment)}
                       <span className="ml-1 capitalize">{comp.sentiment}</span>
                     </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <span className="sr-only">Actions</span>
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => viewMentions(comp)}>
+                          <Eye className="h-4 w-4 mr-2" /> View Mentions
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => viewNarratives(comp)}>
+                          <Network className="h-4 w-4 mr-2" /> View Narratives
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setEditTarget(comp);
+                          setNewName(comp.name);
+                          setEditOpen(true);
+                        }}>
+                          <Pencil className="h-4 w-4 mr-2" /> Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteConfirm(comp)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -299,6 +452,43 @@ export default function CompetitorsPage() {
           ))}
         </div>
       )}
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={v => { setEditOpen(v); if (!v) { setEditTarget(null); setNewName(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Competitor</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>New Name</Label>
+              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Competitor name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={renameCompetitor} disabled={!newName.trim()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={v => { if (!v) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Competitor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stop tracking "{deleteConfirm?.name}"? This removes the keyword — existing mentions referencing this competitor will remain.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteConfirm && deleteCompetitor(deleteConfirm)}>
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
