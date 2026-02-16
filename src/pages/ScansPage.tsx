@@ -231,9 +231,18 @@ export default function ScansPage() {
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
         ) : runs.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No scans yet. Create your first scan to start monitoring.</p>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Scan className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No scans yet</h3>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">
+              Create your first scan to start monitoring mentions across news, social media, and forums.
+            </p>
+            <Button onClick={() => setBuilderOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Run First Scan
+            </Button>
+          </div>
         ) : (
           runs.map(run => {
             const sc = statusConfig[run.status || "pending"];

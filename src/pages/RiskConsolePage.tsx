@@ -157,7 +157,7 @@ export default function RiskConsolePage() {
          <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
           <p className="text-sm text-muted-foreground mt-1">Triage and manage operational risks, spikes, and alerts</p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/scans")}>
+        <Button variant="outline" className="text-foreground" onClick={() => navigate("/scans")}>
           <Scan className="h-4 w-4 mr-2" /> Run New Scan
         </Button>
       </div>
