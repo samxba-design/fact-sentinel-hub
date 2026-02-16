@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import UpgradeBanner from "@/components/UpgradeBanner";
 import EmptyState from "@/components/EmptyState";
+import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
 
 interface ExportRecord {
   id: string;
@@ -182,9 +183,12 @@ export default function ExportsPage() {
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl">
       <UpgradeBanner feature="Data Exports" className="mb-2" />
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Exports</h1>
-        <p className="text-sm text-muted-foreground mt-1">Export data as CSV or sync to your own Google Sheet</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Exports</h1>
+          <p className="text-sm text-muted-foreground mt-1">Export data as CSV or sync to your own Google Sheet</p>
+        </div>
+        <ReportGeneratorDialog />
       </div>
 
       {/* Data summary */}

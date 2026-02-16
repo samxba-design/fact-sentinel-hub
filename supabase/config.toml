@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.send-weekly-digest]
 verify_jwt = false
+
+[functions.suggest-competitors]
+verify_jwt = false
+
+[functions.generate-report]
+verify_jwt = false

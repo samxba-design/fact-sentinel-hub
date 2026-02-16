@@ -4,6 +4,7 @@ import MobileHeader from "@/components/MobileHeader";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import FloatingReportButton from "@/components/reports/FloatingReportButton";
 
 export default function AppLayout() {
   useKeyboardShortcuts();
@@ -29,6 +30,8 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      <FloatingReportButton />
     </div>
   );
 }
