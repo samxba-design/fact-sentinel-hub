@@ -129,7 +129,9 @@ export default function OnboardingPage() {
     setSaving(true);
 
     try {
-      const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const baseSlug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const slugSuffix = Math.random().toString(36).substring(2, 6);
+      const slug = `${baseSlug}-${slugSuffix}`;
 
       // Check if user signed up with a beta invite code
       const betaCode = localStorage.getItem("sentiwatch_beta_code");
