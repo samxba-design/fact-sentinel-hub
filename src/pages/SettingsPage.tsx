@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
+import TeamManagementTab from "@/components/settings/TeamManagementTab";
+import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users } from "lucide-react";
+import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users, Settings2, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -251,8 +253,10 @@ export default function SettingsPage() {
           <TabsTrigger value="keywords"><Key className="h-3.5 w-3.5 mr-1.5" />Keywords</TabsTrigger>
           <TabsTrigger value="topics"><Layers className="h-3.5 w-3.5 mr-1.5" />Topics</TabsTrigger>
           <TabsTrigger value="sources"><Globe className="h-3.5 w-3.5 mr-1.5" />Sources</TabsTrigger>
+          <TabsTrigger value="custom-sources"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Custom Sources</TabsTrigger>
           <TabsTrigger value="alerts"><Bell className="h-3.5 w-3.5 mr-1.5" />Alerts</TabsTrigger>
           <TabsTrigger value="connections"><Plug className="h-3.5 w-3.5 mr-1.5" />Connections</TabsTrigger>
+          <TabsTrigger value="team"><Shield className="h-3.5 w-3.5 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5" />Subscription</TabsTrigger>
           <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5" />Integrations</TabsTrigger>
         </TabsList>
@@ -407,6 +411,13 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* CUSTOM SOURCES TAB */}
+        <TabsContent value="custom-sources">
+          <Card className="bg-card border-border p-6">
+            <CustomSourcesTab />
+          </Card>
+        </TabsContent>
+
         {/* ALERTS TAB */}
         <TabsContent value="alerts">
           <Card className="bg-card border-border p-6 space-y-5">
@@ -485,6 +496,13 @@ export default function SettingsPage() {
         {/* CONNECTIONS TAB */}
         <TabsContent value="connections">
           <SourceConnectionsTab />
+        </TabsContent>
+
+        {/* TEAM TAB */}
+        <TabsContent value="team">
+          <Card className="bg-card border-border p-6">
+            <TeamManagementTab />
+          </Card>
         </TabsContent>
 
         {/* INTEGRATIONS TAB */}
