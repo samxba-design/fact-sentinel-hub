@@ -64,6 +64,22 @@ function AppRoutes() {
     );
   }
 
+  // Super admin with no orgs — allow admin access but redirect root to admin
+  if (orgs.length === 0 && isSuperAdmin) {
+    return (
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route element={<AppLayout />}>
