@@ -7,7 +7,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('./styles/themes.css');
 
 @layer base {
   :root {
