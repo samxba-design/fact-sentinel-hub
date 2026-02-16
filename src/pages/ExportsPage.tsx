@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
   Download, FileSpreadsheet, Clock, Loader2, CheckCircle2, Table2,
-  RefreshCw, Sheet, LogIn, LogOut, Mail, FileText, BarChart3, Share2, Brain
+  RefreshCw, Sheet, LogIn, LogOut, Mail, FileText, BarChart3, Share2, Brain, Plus, ExternalLink
 } from "lucide-react";
 import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +60,8 @@ export default function ExportsPage() {
   const [googleToken, setGoogleToken] = useState<GoogleToken | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [summaryStats, setSummaryStats] = useState<Record<string, number>>({});
+  const [creatingSheet, setCreatingSheet] = useState(false);
+  const [newSheetUrl, setNewSheetUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get("google_connected") === "true") {
@@ -128,6 +130,26 @@ export default function ExportsPage() {
     await supabase.from("user_google_tokens").delete().eq("id", googleToken.id);
     setGoogleToken(null);
     toast({ title: "Disconnected", description: "Google account unlinked." });
+  };
+
+  const createNewSheet = async () => {
+    if (!currentOrg || !user) return;
+    setCreatingSheet(true);
+    setNewSheetUrl(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-google-sheet", {
+        body: { org_id: currentOrg.id },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setSheetId(data.sheet_id);
+      setNewSheetUrl(data.sheet_url);
+      toast({ title: "Sheet Created!", description: `"${data.title}" is ready. Sheet ID has been filled in automatically.` });
+    } catch (err: any) {
+      toast({ title: "Error creating sheet", description: err.message, variant: "destructive" });
+    } finally {
+      setCreatingSheet(false);
+    }
   };
 
   const toggleType = (dt: DataType) => {
@@ -284,14 +306,26 @@ export default function ExportsPage() {
             )}
           </Card>
           {googleToken && (
-            <Card className="bg-card border-border p-5 space-y-3">
-              <Label className="text-foreground text-sm font-medium">Google Sheet ID</Label>
+            <Card className="bg-card border-border p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-foreground text-sm font-medium">Google Sheet</Label>
+                <Button variant="outline" size="sm" onClick={createNewSheet} disabled={creatingSheet}>
+                  {creatingSheet ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
+                  Create New Sheet
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                From the sheet URL: docs.google.com/spreadsheets/d/<strong className="text-primary">THIS_PART</strong>/edit
+                Create a new sheet above, or paste an existing Sheet ID from the URL: docs.google.com/spreadsheets/d/<strong className="text-primary">THIS_PART</strong>/edit
               </p>
-              <Input id="sheet-id-input" value={sheetId} onChange={e => setSheetId(e.target.value)}
+              <Input id="sheet-id-input" value={sheetId} onChange={e => { setSheetId(e.target.value); setNewSheetUrl(null); }}
                 placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
                 className="bg-muted border-border font-mono text-xs" />
+              {newSheetUrl && (
+                <a href={newSheetUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
+                  <ExternalLink className="h-3 w-3" /> Open sheet in Google Sheets
+                </a>
+              )}
             </Card>
           )}
         </TabsContent>
