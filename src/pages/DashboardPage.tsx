@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOrg } from "@/contexts/OrgContext";
 import UpgradeBanner from "@/components/UpgradeBanner";
@@ -54,10 +54,10 @@ function useCountUp(target: number, duration = 800) {
   return current;
 }
 
-function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick, tooltip }: {
+const MetricCard = React.forwardRef<HTMLDivElement, {
   icon: any; label: string; value: number; change?: string; changeType?: "up" | "down" | "neutral";
   accentClass?: string; onClick?: () => void; tooltip?: string;
-}) {
+}>(function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick, tooltip }, ref) {
   const animatedValue = useCountUp(value);
   return (
     <Card
@@ -87,7 +87,7 @@ function MetricCard({ icon: Icon, label, value, change, changeType, accentClass,
       {onClick && <span className="text-[10px] text-primary">Click to view →</span>}
     </Card>
   );
-}
+});
 
 function RiskIndex({ score }: { score: number }) {
   const animatedScore = useCountUp(score);
@@ -211,6 +211,45 @@ export default function DashboardPage() {
     });
   }, [currentOrg, rangeDays]);
 
+  // Realtime subscription for live dashboard updates
+  useEffect(() => {
+    if (!currentOrg) return;
+
+    const channel = supabase
+      .channel(`dashboard-${currentOrg.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mentions', filter: `org_id=eq.${currentOrg.id}` },
+        () => {
+          // Re-fetch dashboard data when new mentions arrive
+          setLoading(false); // avoid showing skeleton
+          const now = new Date();
+          const rangeAgo = subDays(now, rangeDays).toISOString();
+          Promise.all([
+            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", rangeAgo),
+            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").gte("posted_at", rangeAgo),
+            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", rangeAgo),
+          ]).then(([total, neg, emg]) => {
+            setTotalMentions(total.count ?? 0);
+            setNegativeMentions(neg.count ?? 0);
+            setEmergencies(emg.count ?? 0);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'alerts', filter: `org_id=eq.${currentOrg.id}` },
+        () => {
+          // Alerts changed — could trigger notification refresh
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrg, rangeDays]);
+
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
   const totalChangeType = totalMentions > prevTotal ? "up" as const : totalMentions < prevTotal ? "down" as const : "neutral" as const;
@@ -220,12 +259,12 @@ export default function DashboardPage() {
       <OnboardingTour />
       <GettingStartedChecklist />
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last {rangeDays} days</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ReportGeneratorDialog />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">

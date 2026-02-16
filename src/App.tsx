@@ -1,3 +1,4 @@
+import React, { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,34 +7,45 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrgProvider, useOrg } from "@/contexts/OrgContext";
 import AppLayout from "@/components/AppLayout";
-import AuthPage from "@/pages/AuthPage";
-import OnboardingPage from "@/pages/OnboardingPage";
-import DashboardPage from "@/pages/DashboardPage";
-import ScansPage from "@/pages/ScansPage";
-import MentionsPage from "@/pages/MentionsPage";
-import MentionDetailPage from "@/pages/MentionDetailPage";
-import NarrativesPage from "@/pages/NarrativesPage";
-import NarrativeDetailPage from "@/pages/NarrativeDetailPage";
-import PeoplePage from "@/pages/PeoplePage";
-import PersonDetailPage from "@/pages/PersonDetailPage";
-import RiskConsolePage from "@/pages/RiskConsolePage";
-import IncidentsPage from "@/pages/IncidentsPage";
-import IncidentDetailPage from "@/pages/IncidentDetailPage";
-import RespondPage from "@/pages/RespondPage";
-import ApprovedFactsPage from "@/pages/ApprovedFactsPage";
-import ApprovedTemplatesPage from "@/pages/ApprovedTemplatesPage";
-import EscalationsPage from "@/pages/EscalationsPage";
-import ExportsPage from "@/pages/ExportsPage";
-import SettingsPage from "@/pages/SettingsPage";
-import AdminPage from "@/pages/AdminPage";
-import PricingPage from "@/pages/PricingPage";
-import GuidePage from "@/pages/GuidePage";
-import CompetitorsPage from "@/pages/CompetitorsPage";
-import ContactsPage from "@/pages/ContactsPage";
-import NotFound from "@/pages/NotFound";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import RoleGate from "@/components/RoleGate";
 
+// Lazy-loaded pages for code splitting
+const AuthPage = React.lazy(() => import("@/pages/AuthPage"));
+const OnboardingPage = React.lazy(() => import("@/pages/OnboardingPage"));
+const DashboardPage = React.lazy(() => import("@/pages/DashboardPage"));
+const ScansPage = React.lazy(() => import("@/pages/ScansPage"));
+const MentionsPage = React.lazy(() => import("@/pages/MentionsPage"));
+const MentionDetailPage = React.lazy(() => import("@/pages/MentionDetailPage"));
+const NarrativesPage = React.lazy(() => import("@/pages/NarrativesPage"));
+const NarrativeDetailPage = React.lazy(() => import("@/pages/NarrativeDetailPage"));
+const PeoplePage = React.lazy(() => import("@/pages/PeoplePage"));
+const PersonDetailPage = React.lazy(() => import("@/pages/PersonDetailPage"));
+const RiskConsolePage = React.lazy(() => import("@/pages/RiskConsolePage"));
+const IncidentsPage = React.lazy(() => import("@/pages/IncidentsPage"));
+const IncidentDetailPage = React.lazy(() => import("@/pages/IncidentDetailPage"));
+const RespondPage = React.lazy(() => import("@/pages/RespondPage"));
+const ApprovedFactsPage = React.lazy(() => import("@/pages/ApprovedFactsPage"));
+const ApprovedTemplatesPage = React.lazy(() => import("@/pages/ApprovedTemplatesPage"));
+const EscalationsPage = React.lazy(() => import("@/pages/EscalationsPage"));
+const ExportsPage = React.lazy(() => import("@/pages/ExportsPage"));
+const SettingsPage = React.lazy(() => import("@/pages/SettingsPage"));
+const AdminPage = React.lazy(() => import("@/pages/AdminPage"));
+const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
+const GuidePage = React.lazy(() => import("@/pages/GuidePage"));
+const CompetitorsPage = React.lazy(() => import("@/pages/CompetitorsPage"));
+const ContactsPage = React.lazy(() => import("@/pages/ContactsPage"));
+const NotFound = React.lazy(() => import("@/pages/NotFound"));
+
 const queryClient = new QueryClient();
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[200px]">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
+}
 
 function AppRoutes() {
   const { user, loading: authLoading, isSuperAdmin } = useAuth();
@@ -52,72 +64,80 @@ function AppRoutes() {
 
   if (!user) {
     return (
-      <Routes>
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="*" element={<Navigate to="/auth" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="*" element={<Navigate to="/auth" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   // Super admins can bypass onboarding to access admin panel
   if (orgs.length === 0 && !isSuperAdmin) {
     return (
-      <Routes>
-        <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="*" element={<Navigate to="/onboarding" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="*" element={<Navigate to="/onboarding" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   // Super admin with no orgs — allow admin access but redirect root to admin
   if (orgs.length === 0 && isSuperAdmin) {
     return (
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/admin" replace />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
-        <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="*" element={<Navigate to="/admin" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/admin" replace />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/scans" element={<RoleGate require="edit"><ScansPage /></RoleGate>} />
-        <Route path="/mentions" element={<MentionsPage />} />
-        <Route path="/mentions/:id" element={<MentionDetailPage />} />
-        <Route path="/narratives" element={<NarrativesPage />} />
-        <Route path="/narratives/:id" element={<NarrativeDetailPage />} />
-        <Route path="/people" element={<PeoplePage />} />
-        <Route path="/people/:id" element={<PersonDetailPage />} />
-        <Route path="/risk-console" element={<RiskConsolePage />} />
-        <Route path="/incidents" element={<IncidentsPage />} />
-        <Route path="/incidents/:id" element={<IncidentDetailPage />} />
-        <Route path="/respond" element={<RespondPage />} />
-        <Route path="/approved-facts" element={<ApprovedFactsPage />} />
-        <Route path="/approved-templates" element={<ApprovedTemplatesPage />} />
-        <Route path="/escalations" element={<RoleGate require="write"><EscalationsPage /></RoleGate>} />
-        <Route path="/competitors" element={<RoleGate require="edit"><CompetitorsPage /></RoleGate>} />
-        <Route path="/contacts" element={<RoleGate require="manage"><ContactsPage /></RoleGate>} />
-        <Route path="/exports" element={<RoleGate require="write"><ExportsPage /></RoleGate>} />
-        <Route path="/settings" element={<RoleGate require="manage"><SettingsPage /></RoleGate>} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/guide" element={<GuidePage />} />
-        <Route path="/admin" element={<AdminPage />} />
-      </Route>
-      {/* Allow onboarding for creating additional orgs */}
-      <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/auth" element={<Navigate to="/" replace />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<ErrorBoundary fallbackTitle="Dashboard failed to load"><DashboardPage /></ErrorBoundary>} />
+          <Route path="/scans" element={<RoleGate require="edit"><ErrorBoundary><ScansPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/mentions" element={<ErrorBoundary><MentionsPage /></ErrorBoundary>} />
+          <Route path="/mentions/:id" element={<ErrorBoundary><MentionDetailPage /></ErrorBoundary>} />
+          <Route path="/narratives" element={<ErrorBoundary><NarrativesPage /></ErrorBoundary>} />
+          <Route path="/narratives/:id" element={<ErrorBoundary><NarrativeDetailPage /></ErrorBoundary>} />
+          <Route path="/people" element={<ErrorBoundary><PeoplePage /></ErrorBoundary>} />
+          <Route path="/people/:id" element={<ErrorBoundary><PersonDetailPage /></ErrorBoundary>} />
+          <Route path="/risk-console" element={<ErrorBoundary><RiskConsolePage /></ErrorBoundary>} />
+          <Route path="/incidents" element={<ErrorBoundary><IncidentsPage /></ErrorBoundary>} />
+          <Route path="/incidents/:id" element={<ErrorBoundary><IncidentDetailPage /></ErrorBoundary>} />
+          <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
+          <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
+          <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
+          <Route path="/escalations" element={<RoleGate require="write"><ErrorBoundary><EscalationsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/competitors" element={<RoleGate require="edit"><ErrorBoundary><CompetitorsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/contacts" element={<RoleGate require="manage"><ErrorBoundary><ContactsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/exports" element={<RoleGate require="write"><ErrorBoundary><ExportsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/settings" element={<RoleGate require="manage"><ErrorBoundary><SettingsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/guide" element={<ErrorBoundary><GuidePage /></ErrorBoundary>} />
+          <Route path="/admin" element={<ErrorBoundary><AdminPage /></ErrorBoundary>} />
+        </Route>
+        {/* Allow onboarding for creating additional orgs */}
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/auth" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }
 
@@ -129,7 +149,9 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <OrgProvider>
-            <AppRoutes />
+            <ErrorBoundary fallbackTitle="Application error">
+              <AppRoutes />
+            </ErrorBoundary>
           </OrgProvider>
         </AuthProvider>
       </BrowserRouter>
