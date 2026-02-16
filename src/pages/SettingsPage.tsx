@@ -3,6 +3,7 @@ import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
 import TeamManagementTab from "@/components/settings/TeamManagementTab";
 import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
 import IntegrationsTab from "@/components/settings/IntegrationsTab";
+import DangerZoneTab from "@/components/settings/DangerZoneTab";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -263,6 +264,7 @@ export default function SettingsPage() {
             <TabsTrigger value="team"><Shield className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Team</span></TabsTrigger>
             <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Subscription</span></TabsTrigger>
             <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Integrations</span></TabsTrigger>
+            <TabsTrigger value="danger"><Trash2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Danger Zone</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -518,6 +520,11 @@ export default function SettingsPage() {
         {/* INTEGRATIONS TAB */}
         <TabsContent value="integrations">
           <IntegrationsTab />
+        </TabsContent>
+
+        {/* DANGER ZONE TAB */}
+        <TabsContent value="danger">
+          <DangerZoneTab />
         </TabsContent>
       </Tabs>
     </div>
