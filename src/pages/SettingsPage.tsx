@@ -491,122 +491,193 @@ export default function SettingsPage() {
         {/* ═══ SOURCES TAB ═══ */}
         <TabsContent value="sources">
           <Card className="bg-card border-border p-6 space-y-5">
-            <TabInfoBanner icon={Info} title="How sources work">
-              <p>Sources define <strong>which platforms</strong> SentiWatch scans. Each has an access tier:</p>
-              <div className="mt-2 space-y-1">
-                <p><Badge variant="outline" className="text-[9px] bg-sentinel-emerald/10 text-sentinel-emerald border-sentinel-emerald/30 mr-1">Auto</Badge> Works out of the box — no setup needed</p>
-                <p><Badge variant="outline" className="text-[9px] bg-sentinel-cyan/10 text-sentinel-cyan border-sentinel-cyan/30 mr-1">Web Discovery</Badge> Searches the web for mentions — good coverage but may miss some</p>
-                <p><Badge variant="outline" className="text-[9px] bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30 mr-1">API Key</Badge> Requires an API key for full access — setup guide included</p>
-                <p><Badge variant="outline" className="text-[9px] bg-sentinel-purple/10 text-sentinel-purple border-sentinel-purple/30 mr-1">Manual Import</Badge> Platform blocks scraping — paste content from the Mentions page</p>
+            <TabInfoBanner icon={Info} title="Source Catalog">
+              <p>All available monitoring sources are shown below. <strong>Enable</strong> a source to include it in scans. Sources that require setup will guide you through the process.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <SourceTierBadge tier="auto" label="Auto — no setup" />
+                <SourceTierBadge tier="web" label="Web Discovery" />
+                <SourceTierBadge tier="api" label="API Key Required" />
+                <SourceTierBadge tier="manual" label="Manual Import" />
               </div>
             </TabInfoBanner>
 
-            <h3 className="text-sm font-medium text-card-foreground">Source Types</h3>
-
-            <div className="flex items-end gap-3">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                  Add Source Type
-                  <InfoTooltip text="Select a platform to add. Each source shows its access tier and any setup needed." />
-                </Label>
-                <Select value={newSourceType} onValueChange={setNewSourceType}>
-                  <SelectTrigger><SelectValue placeholder="Select a source type..." /></SelectTrigger>
-                  <SelectContent>
-                    {SOURCE_TYPE_OPTIONS.filter(opt => !sources.some(s => s.type === opt.value)).map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex items-center gap-2">
-                          <span>{opt.label}</span>
-                          <SourceTierBadge tier={opt.tier} label={opt.tierLabel} />
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button size="sm" onClick={addSource} disabled={addingSource || !newSourceType}>
-                {addingSource ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
-                Add
-              </Button>
-            </div>
-
             {loading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : sources.length === 0 ? (
-              <div className="text-center py-8 space-y-2">
-                <Globe className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-                <p className="text-sm text-muted-foreground">No sources configured yet.</p>
-                <p className="text-xs text-muted-foreground">Add source types above to start scanning platforms.</p>
-              </div>
+              <Skeleton className="h-40 w-full" />
             ) : (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Active Sources ({sources.filter(s => s.enabled).length} enabled)
-                </Label>
-                {sources.map(s => {
-                  const sourceInfo = SOURCE_TYPE_OPTIONS.find(opt => opt.value === s.type);
-                  const isExpanded = expandedSource === s.id;
+              <>
+                {/* Group sources by tier */}
+                {(["auto", "web", "api", "manual"] as SourceTier[]).map(tier => {
+                  const tierSources = SOURCE_TYPE_OPTIONS.filter(opt => opt.tier === tier);
+                  const tierLabels: Record<SourceTier, { title: string; subtitle: string; icon: React.ReactNode }> = {
+                    auto: { title: "Automatic Sources", subtitle: "Works out of the box — enable and scan", icon: <Zap className="h-4 w-4 text-sentinel-emerald" /> },
+                    web: { title: "Web Discovery", subtitle: "Searches the web for mentions — good coverage", icon: <Globe className="h-4 w-4 text-sentinel-cyan" /> },
+                    api: { title: "API-Connected Sources", subtitle: "Full access with an API key — setup guide included", icon: <Key className="h-4 w-4 text-sentinel-amber" /> },
+                    manual: { title: "Manual Import Sources", subtitle: "Platform blocks scraping — paste or upload content", icon: <Upload className="h-4 w-4 text-sentinel-purple" /> },
+                  };
+                  const { title, subtitle, icon } = tierLabels[tier];
+
                   return (
-                    <div key={s.id} className="rounded-lg bg-muted/50 border border-border overflow-hidden">
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`h-2 w-2 rounded-full shrink-0 ${s.enabled ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-card-foreground">{sourceInfo?.label || s.type}</span>
-                              {sourceInfo && <SourceTierBadge tier={sourceInfo.tier} label={sourceInfo.tierLabel} />}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">{sourceInfo?.description}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {sourceInfo?.setupNote && (
-                            <button
-                              onClick={() => setExpandedSource(isExpanded ? null : s.id)}
-                              className="text-muted-foreground hover:text-foreground transition-colors p-1"
-                            >
-                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
-                          {sourceInfo?.tier !== "manual" && (
-                            <Switch checked={!!s.enabled} onCheckedChange={() => toggleSource(s)} />
-                          )}
-                          {sourceInfo?.tier === "manual" && (
-                            <Button size="sm" variant="outline" className="text-[10px] h-7 gap-1" onClick={() => navigate("/mentions?import=true")}>
-                              <Upload className="h-3 w-3" /> Import
-                            </Button>
-                          )}
-                          <button onClick={() => deleteSource(s)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                    <div key={tier} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {icon}
+                        <div>
+                          <h4 className="text-sm font-medium text-card-foreground">{title}</h4>
+                          <p className="text-[10px] text-muted-foreground">{subtitle}</p>
                         </div>
                       </div>
-                      {/* Expandable setup guide */}
-                      {isExpanded && sourceInfo?.setupNote && (
-                        <div className="border-t border-border bg-card/50 p-3 space-y-2">
-                          <p className="text-xs text-muted-foreground">{sourceInfo.setupNote}</p>
-                          {sourceInfo.fallbackNote && (
-                            <p className="text-[10px] text-sentinel-cyan flex items-center gap-1">
-                              <Zap className="h-3 w-3 shrink-0" /> {sourceInfo.fallbackNote}
-                            </p>
-                          )}
-                          {sourceInfo.setupSteps && (
-                            <ol className="text-[11px] text-muted-foreground space-y-1 pl-4 list-decimal">
-                              {sourceInfo.setupSteps.map((step, i) => (
-                                <li key={i}>{step}</li>
-                              ))}
-                            </ol>
-                          )}
-                          {sourceInfo.tier === "manual" && (
-                            <Button size="sm" variant="outline" className="text-xs h-7 gap-1.5 mt-1" onClick={() => navigate("/mentions?import=true")}>
-                              <Upload className="h-3 w-3" /> Go to Import
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {tierSources.map(opt => {
+                          const existingSource = sources.find(s => s.type === opt.value);
+                          const isAdded = !!existingSource;
+                          const isEnabled = existingSource?.enabled;
+                          const isExpanded = expandedSource === opt.value;
+
+                          return (
+                            <div
+                              key={opt.value}
+                              className={`rounded-lg border overflow-hidden transition-all ${
+                                isAdded
+                                  ? isEnabled
+                                    ? "bg-muted/50 border-sentinel-emerald/30"
+                                    : "bg-muted/30 border-border"
+                                  : "bg-card/30 border-dashed border-border/60"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between p-3 gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className={`h-2.5 w-2.5 rounded-full shrink-0 transition-colors ${
+                                    isEnabled ? "bg-sentinel-emerald shadow-[0_0_6px] shadow-sentinel-emerald/40" : isAdded ? "bg-muted-foreground/30" : "bg-transparent border border-dashed border-muted-foreground/30"
+                                  }`} />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`text-sm ${isAdded ? "text-card-foreground" : "text-muted-foreground"}`}>{opt.label}</span>
+                                      <SourceTierBadge tier={opt.tier} label={opt.tierLabel} />
+                                      {isEnabled && <Badge variant="outline" className="text-[9px] bg-sentinel-emerald/10 text-sentinel-emerald border-sentinel-emerald/30">Active</Badge>}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">{opt.description}</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {/* Expand/info button for sources with setup notes */}
+                                  {opt.setupNote && (
+                                    <button
+                                      onClick={() => setExpandedSource(isExpanded ? null : opt.value)}
+                                      className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
+                                      title="Setup info"
+                                    >
+                                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
+                                    </button>
+                                  )}
+
+                                  {/* Action button based on tier and state */}
+                                  {opt.tier === "manual" ? (
+                                    <Button
+                                      size="sm"
+                                      variant={isAdded ? "outline" : "default"}
+                                      className="text-[10px] h-7 gap-1"
+                                      onClick={async () => {
+                                        if (!isAdded && currentOrg) {
+                                          await supabase.from("sources").insert({ org_id: currentOrg.id, type: opt.value, enabled: true }).select("id, type, enabled").single().then(({ data }) => {
+                                            if (data) setSources(prev => [...prev, data]);
+                                          });
+                                        }
+                                        navigate("/mentions?import=true");
+                                      }}
+                                    >
+                                      <Upload className="h-3 w-3" /> Import
+                                    </Button>
+                                  ) : opt.tier === "api" && !isAdded ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-[10px] h-7 gap-1 border-sentinel-amber/40 text-sentinel-amber hover:bg-sentinel-amber/10"
+                                      onClick={() => setExpandedSource(isExpanded ? null : opt.value)}
+                                    >
+                                      <Key className="h-3 w-3" /> Setup
+                                    </Button>
+                                  ) : !isAdded ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-[10px] h-7 gap-1"
+                                      onClick={async () => {
+                                        if (!currentOrg) return;
+                                        const { data } = await supabase.from("sources").insert({ org_id: currentOrg.id, type: opt.value, enabled: true }).select("id, type, enabled").single();
+                                        if (data) {
+                                          setSources(prev => [...prev, data]);
+                                          toast({ title: "Source enabled", description: `${opt.label} will be included in future scans.` });
+                                        }
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3" /> Enable
+                                    </Button>
+                                  ) : (
+                                    <>
+                                      <Switch checked={!!isEnabled} onCheckedChange={() => existingSource && toggleSource(existingSource)} />
+                                      <button onClick={() => existingSource && deleteSource(existingSource)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Expandable setup/info panel */}
+                              {isExpanded && opt.setupNote && (
+                                <div className="border-t border-border bg-card/50 p-3 space-y-2 animate-fade-up">
+                                  <p className="text-xs text-muted-foreground">{opt.setupNote}</p>
+                                  {opt.fallbackNote && (
+                                    <p className="text-[10px] text-sentinel-cyan flex items-center gap-1">
+                                      <Zap className="h-3 w-3 shrink-0" /> {opt.fallbackNote}
+                                    </p>
+                                  )}
+                                  {opt.setupSteps && (
+                                    <ol className="text-[11px] text-muted-foreground space-y-1 pl-4 list-decimal">
+                                      {opt.setupSteps.map((step, i) => (
+                                        <li key={i}>{step}</li>
+                                      ))}
+                                    </ol>
+                                  )}
+                                  {opt.tier === "api" && !isAdded && (
+                                    <div className="flex gap-2 mt-1">
+                                      <Button size="sm" variant="outline" className="text-xs h-7 gap-1.5" onClick={() => navigate("/settings?tab=connections")}>
+                                        <Plug className="h-3 w-3" /> Go to Connections
+                                      </Button>
+                                      <Button size="sm" className="text-xs h-7 gap-1.5" onClick={async () => {
+                                        if (!currentOrg) return;
+                                        const { data } = await supabase.from("sources").insert({ org_id: currentOrg.id, type: opt.value, enabled: true }).select("id, type, enabled").single();
+                                        if (data) {
+                                          setSources(prev => [...prev, data]);
+                                          toast({ title: "Source enabled", description: `${opt.label} enabled with web fallback. Add API key for full coverage.` });
+                                        }
+                                      }}>
+                                        <Zap className="h-3 w-3" /> Enable with Fallback
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {opt.tier === "manual" && (
+                                    <Button size="sm" variant="outline" className="text-xs h-7 gap-1.5 mt-1" onClick={() => navigate("/mentions?import=true")}>
+                                      <Upload className="h-3 w-3" /> Go to Import
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
-              </div>
+
+                {/* Summary footer */}
+                <div className="flex items-center justify-between pt-3 border-t border-border">
+                  <p className="text-[10px] text-muted-foreground">
+                    {sources.filter(s => s.enabled).length} source{sources.filter(s => s.enabled).length !== 1 ? "s" : ""} active out of {SOURCE_TYPE_OPTIONS.length} available
+                  </p>
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>
