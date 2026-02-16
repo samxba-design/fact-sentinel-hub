@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,7 +34,7 @@ const statusConfig: Record<string, { icon: any; className: string }> = {
   pending: { icon: Clock, className: "text-muted-foreground" },
 };
 
-const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews"];
+const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews", "google-news"];
 
 // Sources that need API keys from the user
 const SOURCES_NEEDING_KEYS: Record<string, string> = {
@@ -51,6 +51,7 @@ const SOURCE_LABELS: Record<string, string> = {
   blogs: "Blogs",
   forums: "Forums",
   reviews: "Review Sites",
+  "google-news": "Google News",
 };
 
 export default function ScansPage() {
@@ -66,6 +67,7 @@ export default function ScansPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [autoScanning, setAutoScanning] = useState(false);
 
   // Builder state
   const [selectedSources, setSelectedSources] = useState<string[]>(["news"]);
@@ -91,6 +93,71 @@ export default function ScansPage() {
   }, [currentOrg]);
 
   useEffect(() => { fetchRuns(); }, [fetchRuns]);
+
+  // Auto scan: automatically uses all org keywords + all connected sources
+  const runAutoScan = async () => {
+    if (!currentOrg) return;
+    setAutoScanning(true);
+    setScanProgress("Preparing intelligent auto-scan...");
+    try {
+      // Load all keywords and connected providers in parallel
+      const [kwRes, provRes, customSourcesRes] = await Promise.all([
+        supabase.from("keywords").select("value").eq("org_id", currentOrg.id).limit(50),
+        supabase.from("org_api_keys").select("provider").eq("org_id", currentOrg.id),
+        supabase.from("sources").select("type").eq("org_id", currentOrg.id).eq("enabled", true),
+      ]);
+
+      const autoKeywords = (kwRes.data || []).map(k => k.value);
+      if (autoKeywords.length === 0) {
+        toast({ title: "No keywords configured", description: "Add keywords in Settings first so the scan knows what to look for.", variant: "destructive" });
+        setAutoScanning(false);
+        setScanProgress("");
+        return;
+      }
+
+      const connectedProviders = [...new Set((provRes.data || []).map(k => k.provider))];
+      const customTypes = (customSourcesRes.data || []).map(s => s.type);
+
+      // Auto-select: all free sources + any connected paid sources + custom sources
+      const autoSources = ["news", "blogs", "forums", "reviews", "google-news"];
+      if (connectedProviders.includes("twitter")) autoSources.push("twitter");
+      if (connectedProviders.includes("reddit")) autoSources.push("reddit");
+      if (connectedProviders.includes("youtube")) autoSources.push("youtube");
+      // Include custom source types
+      customTypes.forEach(t => { if (!autoSources.includes(t)) autoSources.push(t); });
+
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      setTimeout(() => setScanProgress("Scanning all connected sources..."), 1500);
+      setTimeout(() => setScanProgress("Analyzing sentiment & detecting threats..."), 4000);
+      setTimeout(() => setScanProgress("Clustering narratives with AI..."), 7000);
+
+      const { data, error } = await supabase.functions.invoke("run-scan", {
+        body: {
+          org_id: currentOrg.id,
+          keywords: autoKeywords,
+          sources: autoSources,
+          date_from: weekAgo.toISOString().split("T")[0],
+          date_to: now.toISOString().split("T")[0],
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Auto-scan complete!",
+        description: `Found ${data.mentions_created || 0} mentions across ${autoSources.length} sources using ${autoKeywords.length} keywords.`,
+      });
+      setScanProgress("");
+      fetchRuns();
+    } catch (err: any) {
+      toast({ title: "Auto-scan failed", description: err.message, variant: "destructive" });
+      setScanProgress("");
+    } finally {
+      setAutoScanning(false);
+    }
+  };
 
   // Load org keywords and check connected providers when builder opens
   useEffect(() => {
@@ -254,11 +321,33 @@ export default function ScansPage() {
               <Trash2 className="h-4 w-4 mr-2" />Reset All
             </Button>
           )}
-          <Button onClick={() => setBuilderOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />New Scan
+          <Button variant="outline" onClick={() => setBuilderOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />Custom Scan
+          </Button>
+          <Button onClick={runAutoScan} disabled={autoScanning || scanning} className="gap-2">
+            {autoScanning ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {autoScanning ? "Scanning..." : "Auto Scan"}
           </Button>
         </div>
       </div>
+
+      {/* Auto-scan progress banner */}
+      {autoScanning && scanProgress && (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
+          <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-card-foreground font-medium">{scanProgress}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Running full auto-scan across all connected sources with all tracked keywords</p>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2">
+              <div className="h-full rounded-full bg-primary animate-pulse" style={{ width: "60%", transition: "width 1s" }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {loading ? (
@@ -270,11 +359,17 @@ export default function ScansPage() {
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-1">No scans yet</h3>
             <p className="text-sm text-muted-foreground max-w-md mb-6">
-              Create your first scan to start monitoring mentions across news, social media, and forums.
+              Run an auto-scan to instantly search all connected sources with your tracked keywords, or build a custom scan with specific parameters.
             </p>
-            <Button onClick={() => setBuilderOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Run First Scan
-            </Button>
+            <div className="flex gap-3">
+              <Button onClick={runAutoScan} disabled={autoScanning} className="gap-2">
+                {autoScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {autoScanning ? "Scanning..." : "Auto Scan — Full Coverage"}
+              </Button>
+              <Button variant="outline" onClick={() => setBuilderOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Custom Scan
+              </Button>
+            </div>
           </div>
         ) : (
           runs.map(run => {
