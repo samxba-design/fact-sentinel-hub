@@ -490,6 +490,29 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
   const queryClient = useQueryClient();
   const [requestType, setRequestType] = useState("monthly");
   const [message, setMessage] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  const STRIPE_PLANS = [
+    { id: "monthly", name: "Pro Monthly", price: "$99/mo", priceId: "price_1T1ObmB29RCAwSicAeV8uVVM" },
+    { id: "yearly", name: "Pro Yearly", price: "$950/yr", priceId: "price_1T1ObnB29RCAwSiccq30KKyT", badge: "Save 20%" },
+  ];
+
+  const handleStripeCheckout = async (priceId: string, planId: string) => {
+    if (!orgId) return;
+    setCheckoutLoading(planId);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { priceId, orgId },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      if (data?.url) window.location.href = data.url;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
 
   const { data: org } = useQuery({
     queryKey: ["org-subscription", orgId],
@@ -571,9 +594,36 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
         </div>
       </div>
 
-      {/* Request Upgrade */}
+      {/* Stripe Checkout */}
+      {org?.subscription_status !== "active" && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-card-foreground">Subscribe via Stripe</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {STRIPE_PLANS.map((plan) => (
+              <div key={plan.id} className="p-4 rounded-lg border border-border bg-muted/50 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-card-foreground">{plan.name}</span>
+                  {plan.badge && <Badge variant="secondary" className="text-[10px]">{plan.badge}</Badge>}
+                </div>
+                <div className="text-lg font-bold text-card-foreground">{plan.price}</div>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => handleStripeCheckout(plan.priceId, plan.id)}
+                  disabled={checkoutLoading !== null}
+                >
+                  {checkoutLoading === plan.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                  Subscribe
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Manual Request Upgrade */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-card-foreground">Request Upgrade</h3>
+        <h3 className="text-sm font-medium text-card-foreground">Or Request Manual Approval</h3>
         {hasPending ? (
           <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
             You already have a pending upgrade request. An admin will review it shortly.
