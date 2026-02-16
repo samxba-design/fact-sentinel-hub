@@ -4,6 +4,7 @@ import TeamManagementTab from "@/components/settings/TeamManagementTab";
 import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
 import IntegrationsTab from "@/components/settings/IntegrationsTab";
 import DangerZoneTab from "@/components/settings/DangerZoneTab";
+import SharedLinksTab from "@/components/settings/SharedLinksTab";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -335,6 +336,7 @@ export default function SettingsPage() {
             <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Subscription</span></TabsTrigger>
             <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Integrations</span></TabsTrigger>
             <TabsTrigger value="support"><HelpCircle className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Support</span></TabsTrigger>
+            <TabsTrigger value="shared-links"><Link2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Shared Links</span></TabsTrigger>
             <TabsTrigger value="danger"><Trash2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Danger Zone</span></TabsTrigger>
           </TabsList>
         </div>
@@ -737,6 +739,13 @@ export default function SettingsPage() {
         {/* SUPPORT TAB */}
         <TabsContent value="support">
           <SupportTab />
+        </TabsContent>
+
+        {/* SHARED LINKS TAB */}
+        <TabsContent value="shared-links">
+          <Card className="bg-card border-border p-6">
+            <SharedLinksTab />
+          </Card>
         </TabsContent>
 
         {/* DANGER ZONE TAB */}
