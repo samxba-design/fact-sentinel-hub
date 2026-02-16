@@ -47,6 +47,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
     );
@@ -57,6 +58,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="*" element={<Navigate to="/onboarding" replace />} />
       </Routes>
     );

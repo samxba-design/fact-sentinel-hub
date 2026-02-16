@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 
@@ -62,6 +62,39 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchOrgs();
   }, [user]);
+
+  // Auto-refresh subscription status from Stripe
+  const refreshSubscription = useCallback(async () => {
+    if (!user || !currentOrg) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("check-subscription");
+      if (error || data?.error) return;
+      if (data?.subscribed !== undefined) {
+        // Update the org in the DB to stay in sync
+        const newStatus = data.subscribed ? "active" : "free";
+        const updates: any = { subscription_status: newStatus };
+        if (data.subscription_type) updates.subscription_type = data.subscription_type;
+        if (data.subscription_end) updates.subscription_expires_at = data.subscription_end;
+
+        if (currentOrg.subscription_status !== newStatus) {
+          await supabase.from("organizations").update(updates).eq("id", currentOrg.id);
+          // Refresh orgs to pick up changes
+          fetchOrgs();
+        }
+      }
+    } catch {
+      // silently fail — non-critical
+    }
+  }, [user, currentOrg]);
+
+  // Check subscription on mount and every 60 seconds
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!currentOrg) return;
+    refreshSubscription();
+    intervalRef.current = setInterval(refreshSubscription, 60_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [currentOrg?.id]);
 
   const handleSetCurrentOrg = (org: Org) => {
     setCurrentOrg(org);
