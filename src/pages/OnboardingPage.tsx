@@ -138,21 +138,26 @@ export default function OnboardingPage() {
         localStorage.removeItem("sentiwatch_beta_code");
       }
 
-      const { data: org, error: orgError } = await supabase
+      // Generate org ID client-side so we can create membership immediately after
+      // without needing .select() (which would fail since user isn't a member yet)
+      const orgId = crypto.randomUUID();
+
+      const { error: orgError } = await supabase
         .from("organizations")
         .insert({
+          id: orgId,
           name: orgName, slug, domain, industry,
           regions: selectedRegions, languages: selectedLanguages, timezone,
           ...(isBeta ? { subscription_status: "active", subscription_type: "beta", plan: "pro" } : {}),
-        })
-        .select()
-        .single();
+        });
       if (orgError) throw orgError;
 
       const { error: memError } = await supabase
         .from("org_memberships")
-        .insert({ org_id: org.id, user_id: user.id, role: "owner" as any, accepted_at: new Date().toISOString() });
+        .insert({ org_id: orgId, user_id: user.id, role: "owner" as any, accepted_at: new Date().toISOString() });
       if (memError) throw memError;
+
+      const org = { id: orgId };
 
       const cronValue = scanSchedule === "custom" ? customCron :
         scanSchedule === "daily_9am" ? "0 9 * * *" :
