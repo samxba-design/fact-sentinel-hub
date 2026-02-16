@@ -39,11 +39,6 @@ const features = [
 export default function Index() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Floating theme switcher */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeSwitcher className="bg-card/80 backdrop-blur-sm border border-border shadow-lg" />
-      </div>
-
       {/* Nav */}
       <header className="border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -54,6 +49,7 @@ export default function Index() {
             <span className="text-lg font-bold tracking-tight">SentiWatch</span>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeSwitcher />
             <Link to="/auth">
               <Button variant="ghost" size="sm">Sign in</Button>
             </Link>
