@@ -1,14 +1,20 @@
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TicketCheck, Plus, MessageSquare } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrg } from "@/contexts/OrgContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const mockEscalations = [
-  { title: "Missing facts for security breach response", department: "Security", priority: "critical", status: "open", requester: "System", created: "1h ago", comments: 0 },
-  { title: "Regulatory compliance statement needs review", department: "Legal", priority: "high", status: "in_progress", requester: "Ana M.", created: "3h ago", comments: 2 },
-  { title: "CEO impersonation scam response needed", department: "Communications", priority: "high", status: "open", requester: "System", created: "5h ago", comments: 1 },
-  { title: "Withdrawal SLA fact outdated", department: "Operations", priority: "medium", status: "resolved", requester: "James O.", created: "2 days ago", comments: 4 },
-];
+interface Escalation {
+  id: string;
+  title: string;
+  department: string | null;
+  priority: string | null;
+  status: string | null;
+  created_at: string | null;
+}
 
 const priorityColors: Record<string, string> = {
   low: "border-muted-foreground/30 text-muted-foreground",
@@ -24,6 +30,34 @@ const statusColors: Record<string, string> = {
 };
 
 export default function EscalationsPage() {
+  const { currentOrg } = useOrg();
+  const [escalations, setEscalations] = useState<Escalation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    setLoading(true);
+    supabase
+      .from("escalations")
+      .select("id, title, department, priority, status, created_at")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setEscalations(data || []);
+        setLoading(false);
+      });
+  }, [currentOrg]);
+
+  const timeAgo = (d: string | null) => {
+    if (!d) return "—";
+    const diff = Date.now() - new Date(d).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return `${Math.floor(diff / 60000)}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
@@ -31,41 +65,41 @@ export default function EscalationsPage() {
           <h1 className="text-2xl font-bold text-foreground">Escalations</h1>
           <p className="text-sm text-muted-foreground mt-1">Tickets requiring human review and approval</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Ticket
-        </Button>
+        <Button><Plus className="h-4 w-4 mr-2" />New Ticket</Button>
       </div>
 
       <div className="space-y-3">
-        {mockEscalations.map((e, i) => (
-          <Card key={i} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <TicketCheck className="h-5 w-5 text-primary" />
-                <div>
-                  <div className="text-sm font-medium text-card-foreground">{e.title}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {e.department} · {e.requester} · {e.created}
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+        ) : escalations.length === 0 ? (
+          <Card className="bg-card border-border p-8 text-center">
+            <p className="text-sm text-muted-foreground">No escalation tickets. They are created when the response engine blocks a draft.</p>
+          </Card>
+        ) : (
+          escalations.map(e => (
+            <Card key={e.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <TicketCheck className="h-5 w-5 text-primary" />
+                  <div>
+                    <div className="text-sm font-medium text-card-foreground">{e.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {e.department || "—"} · {timeAgo(e.created_at)}
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className={`text-[10px] ${priorityColors[e.priority || "medium"]}`}>
+                    {e.priority || "medium"}
+                  </Badge>
+                  <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[e.status || "open"]}`}>
+                    {(e.status || "open").replace("_", " ")}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                {e.comments > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MessageSquare className="h-3 w-3" /> {e.comments}
-                  </span>
-                )}
-                <Badge variant="outline" className={`text-[10px] ${priorityColors[e.priority]}`}>
-                  {e.priority}
-                </Badge>
-                <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[e.status]}`}>
-                  {e.status.replace("_", " ")}
-                </Badge>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );

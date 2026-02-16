@@ -1,16 +1,50 @@
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Network, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Network, ArrowUpRight } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrg } from "@/contexts/OrgContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const mockNarratives = [
-  { name: "Security breach claims", volume: 148, negativePct: 78, acceleration: "+32%", topSources: ["Reddit", "X", "News"], status: "active", firstSeen: "3 days ago", lastSeen: "1h ago" },
-  { name: "CEO leadership controversy", volume: 92, negativePct: 65, acceleration: "+18%", topSources: ["X", "News"], status: "active", firstSeen: "5 days ago", lastSeen: "3h ago" },
-  { name: "Product reliability issues", volume: 76, negativePct: 82, acceleration: "-5%", topSources: ["App Store", "Reddit"], status: "watch", firstSeen: "2 weeks ago", lastSeen: "6h ago" },
-  { name: "Partnership expansion", volume: 54, negativePct: 12, acceleration: "+8%", topSources: ["News", "X"], status: "active", firstSeen: "1 week ago", lastSeen: "2h ago" },
-  { name: "Pricing unfair comparisons", volume: 38, negativePct: 71, acceleration: "+45%", topSources: ["Reddit", "Forums"], status: "active", firstSeen: "2 days ago", lastSeen: "30m ago" },
-];
+interface Narrative {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  confidence: number | null;
+  first_seen: string | null;
+  last_seen: string | null;
+}
 
 export default function NarrativesPage() {
+  const { currentOrg } = useOrg();
+  const [narratives, setNarratives] = useState<Narrative[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    setLoading(true);
+    supabase
+      .from("narratives")
+      .select("*")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setNarratives(data || []);
+        setLoading(false);
+      });
+  }, [currentOrg]);
+
+  const timeAgo = (d: string | null) => {
+    if (!d) return "—";
+    const diff = Date.now() - new Date(d).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return `${Math.floor(diff / 60000)}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
@@ -19,49 +53,46 @@ export default function NarrativesPage() {
       </div>
 
       <div className="space-y-3">
-        {mockNarratives.map((n, i) => (
-          <Card key={i} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Network className="h-5 w-5 text-primary" />
-                <div>
-                  <div className="text-sm font-medium text-card-foreground">{n.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                    <span>First seen {n.firstSeen}</span>
-                    <span>·</span>
-                    <span>Last active {n.lastSeen}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="flex gap-1">
-                  {n.topSources.map(s => (
-                    <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
-                  ))}
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-mono text-card-foreground">{n.volume}</div>
-                  <div className="text-[10px] text-muted-foreground">mentions</div>
-                </div>
-                <div className="text-right">
-                  <div className={`text-sm font-mono ${n.negativePct > 50 ? "text-sentinel-red" : "text-sentinel-emerald"}`}>
-                    {n.negativePct}%
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">negative</div>
-                </div>
-                <div className={`flex items-center gap-1 text-xs font-medium ${n.acceleration.startsWith("+") ? "text-sentinel-amber" : "text-sentinel-emerald"}`}>
-                  <ArrowUpRight className="h-3 w-3" />
-                  {n.acceleration}
-                </div>
-                <Badge variant="outline" className={`text-[10px] capitalize ${
-                  n.status === "active" ? "border-sentinel-emerald/30 text-sentinel-emerald" : "border-sentinel-amber/30 text-sentinel-amber"
-                }`}>
-                  {n.status}
-                </Badge>
-              </div>
-            </div>
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
+        ) : narratives.length === 0 ? (
+          <Card className="bg-card border-border p-8 text-center">
+            <p className="text-sm text-muted-foreground">No narratives detected yet. They will appear after scans process mentions.</p>
           </Card>
-        ))}
+        ) : (
+          narratives.map(n => (
+            <Card key={n.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Network className="h-5 w-5 text-primary" />
+                  <div>
+                    <div className="text-sm font-medium text-card-foreground">{n.name}</div>
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                      <span>First seen {timeAgo(n.first_seen)}</span>
+                      <span>·</span>
+                      <span>Last active {timeAgo(n.last_seen)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  {n.confidence != null && (
+                    <div className="text-right">
+                      <div className="text-sm font-mono text-card-foreground">{(Number(n.confidence) * 100).toFixed(0)}%</div>
+                      <div className="text-[10px] text-muted-foreground">confidence</div>
+                    </div>
+                  )}
+                  <Badge variant="outline" className={`text-[10px] capitalize ${
+                    n.status === "active" ? "border-sentinel-emerald/30 text-sentinel-emerald" :
+                    n.status === "watch" ? "border-sentinel-amber/30 text-sentinel-amber" :
+                    "border-muted-foreground/30 text-muted-foreground"
+                  }`}>
+                    {n.status || "active"}
+                  </Badge>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
