@@ -6,7 +6,7 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { to: "/narratives", icon: Network, label: "Narratives" },
   { to: "/people", icon: Users, label: "People" },
   { to: "/risk-console", icon: AlertTriangle, label: "Risk Console" },
+  { to: "/alerts", icon: Bell, label: "Alerts & Monitoring" },
   { to: "/incidents", icon: Siren, label: "Incidents" },
   { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
   { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },

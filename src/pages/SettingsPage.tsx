@@ -65,7 +65,7 @@ export default function SettingsPage() {
   // Alert config state
   const [alertEmails, setAlertEmails] = useState("");
   const [escalationEmails, setEscalationEmails] = useState("");
-  const [scanSchedule, setScanSchedule] = useState("0 9 * * *");
+  const [scanSchedule, setScanSchedule] = useState("daily");
   const [quietStart, setQuietStart] = useState<number | null>(null);
   const [quietEnd, setQuietEnd] = useState<number | null>(null);
   const [savingAlerts, setSavingAlerts] = useState(false);
@@ -85,7 +85,7 @@ export default function SettingsPage() {
     if (tracking.data) {
       setAlertEmails((tracking.data.alert_emails || []).join(", "));
       setEscalationEmails((tracking.data.escalation_emails || []).join(", "));
-      setScanSchedule(tracking.data.scan_schedule || "0 9 * * *");
+      setScanSchedule(tracking.data.scan_schedule || "daily");
       setQuietStart(tracking.data.quiet_hours_start);
       setQuietEnd(tracking.data.quiet_hours_end);
     }
@@ -453,13 +453,18 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Scan Schedule (cron)</Label>
-                <Input
-                  placeholder="0 9 * * *"
-                  value={scanSchedule}
-                  onChange={e => setScanSchedule(e.target.value)}
-                />
-                <p className="text-[10px] text-muted-foreground">Default: 0 9 * * * (daily at 9 AM UTC)</p>
+                <Label className="text-xs text-muted-foreground">Scan Schedule</Label>
+                <Select value={scanSchedule} onValueChange={setScanSchedule}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Manual only</SelectItem>
+                    <SelectItem value="6h">Every 6 hours</SelectItem>
+                    <SelectItem value="12h">Every 12 hours</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">How often automated scans run. Spike detection runs independently every 15 minutes.</p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Quiet Hours (UTC) — Optional</Label>

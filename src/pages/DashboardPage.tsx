@@ -30,6 +30,7 @@ import GettingStartedChecklist from "@/components/dashboard/GettingStartedCheckl
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget";
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
+import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
 
 // Animated counter hook
@@ -445,35 +446,35 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Source Breakdown + Narratives + Live Feed */}
+      {/* Source Breakdown + Monitoring + Live Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <NarrativeHealthWidget />
-
-        {/* Source Breakdown */}
-        <Card className="bg-card border-border p-5 space-y-3">
-          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-            Source Breakdown
-            <InfoTooltip text="Distribution of mentions by source platform in the selected period." />
-          </span>
-          {loading ? (
-            <Skeleton className="h-48 w-full" />
-          ) : sourceData.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No source data yet. Run a scan to populate.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sourceData} layout="vertical" margin={{ left: 0, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={70} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Mentions" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
+        <MonitoringWidget />
         <LiveThreatFeed />
       </div>
+
+      {/* Source Breakdown */}
+      <Card className="bg-card border-border p-5 space-y-3">
+        <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+          Source Breakdown
+          <InfoTooltip text="Distribution of mentions by source platform in the selected period." />
+        </span>
+        {loading ? (
+          <Skeleton className="h-48 w-full" />
+        ) : sourceData.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No source data yet. Run a scan to populate.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={sourceData} layout="vertical" margin={{ left: 0, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Mentions" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Card>
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>
   );
