@@ -26,6 +26,7 @@ function isBlockedOrErrorContent(text: string): boolean {
 
 function cleanExtractedContent(raw: string): string {
   let text = raw;
+  // Strip markdown images and links
   text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
   text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
   text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
@@ -36,6 +37,7 @@ function cleanExtractedContent(raw: string): string {
   text = text.replace(/[-=]{3,}/g, " ");
   text = text.replace(/\s+/g, " ").trim();
 
+  // Strip boilerplate at start
   const boilerplateStarts = [
     /^skip to (content|main|navigation)\s*/i,
     /^(menu|navigation|home|about|contact|sign in|log in|subscribe)\s+(menu|navigation|home|about|contact|sign in|log in|subscribe|\s)*\s*/i,
@@ -45,7 +47,30 @@ function cleanExtractedContent(raw: string): string {
     text = text.replace(pattern, "");
   }
 
-  return text.trim();
+  // Strip navigation fragments ANYWHERE in content (e.g. "Digital Assets - News - Crypto Prices - NFT Prices - Learn")
+  // Pattern: sequences of short capitalized phrases separated by " - " (nav menus)
+  text = text.replace(/(?:^|\s)(?:[A-Z][a-zA-Z&]{0,20}\s*-\s*){2,}[A-Z][a-zA-Z&]{0,20}(?:\s|$)/g, " ");
+  
+  // Strip common site-wide UI fragments
+  const navJunk = [
+    /\b(sign up|log in|sign in|create account|get started|download app|open app)\b[^.]{0,30}(sign up|log in|sign in|create account|get started)\b/gi,
+    /\b(trending|top stories|most read|popular|recommended|related articles)\s*[:.]?\s*/gi,
+    /\b(cookie|privacy) (policy|notice|settings)\b[^.]*\./gi,
+    /\b(share|tweet|pin|email)\s+(this|on|via)\b[^.]{0,30}/gi,
+    /\b(follow us|subscribe|newsletter|notifications?)\s+(on|to|for)\b[^.]{0,50}/gi,
+    /\b(advertisement|sponsored|promoted)\b/gi,
+    /©\s*\d{4}[^.]*\./g,
+    /all rights reserved[^.]*\.?/gi,
+  ];
+  for (const pattern of navJunk) {
+    text = text.replace(pattern, " ");
+  }
+
+  // Strip crypto ticker bars: "BTC $68,723 2.41% ETH $3,821 1.2%"
+  text = text.replace(/\b[A-Z]{2,5}\s+\$[\d,]+\.?\d*\s+[\d.]+%\s*/g, "");
+
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
 }
 
 function classifySourceFromUrl(url: string): string {
@@ -214,7 +239,7 @@ Deno.serve(async (req) => {
     const searchBody: any = {
       query: searchQuery,
       limit: limit || 15,
-      scrapeOptions: { formats: ["markdown"] },
+      scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
     };
 
     if (tbs) {

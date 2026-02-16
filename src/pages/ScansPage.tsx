@@ -35,12 +35,11 @@ const statusConfig: Record<string, { icon: any; className: string }> = {
   pending: { icon: Clock, className: "text-muted-foreground" },
 };
 
-const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews", "google-news"];
+const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews", "google-news", "social"];
 
 // Sources that need API keys from the user
 const SOURCES_NEEDING_KEYS: Record<string, string> = {
   twitter: "X (Twitter)",
-  reddit: "Reddit",
   youtube: "YouTube",
 };
 
@@ -48,11 +47,12 @@ const SOURCE_LABELS: Record<string, string> = {
   twitter: "X (Twitter)",
   reddit: "Reddit",
   youtube: "YouTube",
-  news: "News",
+  news: "News & Web",
   blogs: "Blogs",
   forums: "Forums",
   reviews: "Review Sites",
   "google-news": "Google News",
+  social: "Social Media (X, LinkedIn)",
 };
 
 export default function ScansPage() {
@@ -74,7 +74,7 @@ export default function ScansPage() {
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [customSentimentFilter, setCustomSentimentFilter] = useState<string>("all");
   // Builder state
-  const [selectedSources, setSelectedSources] = useState<string[]>(["news"]);
+  const [selectedSources, setSelectedSources] = useState<string[]>(["news", "google-news", "reddit", "social"]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");

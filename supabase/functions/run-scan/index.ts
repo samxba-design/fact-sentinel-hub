@@ -52,7 +52,18 @@ function cleanContent(raw: string): string {
   // Strip leading boilerplate
   text = text.replace(/^skip to (content|main|navigation)\s*/i, "");
   text = text.replace(/^(menu|navigation|home|about|contact|sign in|log in|subscribe)(\s+(menu|navigation|home|about|contact|sign in|log in|subscribe))*\s*/i, "");
-  return text.trim();
+  // Strip nav fragments anywhere: "Digital Assets - News - Crypto Prices - NFT Prices"
+  text = text.replace(/(?:^|\s)(?:[A-Z][a-zA-Z&]{0,20}\s*-\s*){2,}[A-Z][a-zA-Z&]{0,20}(?:\s|$)/g, " ");
+  // Strip crypto ticker bars
+  text = text.replace(/\b[A-Z]{2,5}\s+\$[\d,]+\.?\d*\s+[\d.]+%\s*/g, "");
+  // Strip common UI junk
+  text = text.replace(/\b(sign up|log in|sign in|create account|get started|download app)\b[^.]{0,30}(sign up|log in|sign in|create account|get started)\b/gi, " ");
+  text = text.replace(/\b(cookie|privacy) (policy|notice|settings)\b[^.]*\./gi, " ");
+  text = text.replace(/\b(share|tweet|pin|email)\s+(this|on|via)\b[^.]{0,30}/gi, " ");
+  text = text.replace(/©\s*\d{4}[^.]*\./g, " ");
+  text = text.replace(/all rights reserved[^.]*\.?/gi, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
 }
 
 // Convert date_from to Firecrawl tbs time filter
@@ -238,7 +249,7 @@ Deno.serve(async (req) => {
     const allResults: RawResult[] = [];
     const errors: string[] = [];
     const scanLog: { source: string; query: string; found: number }[] = [];
-    const selectedSources: string[] = sources || ["news"];
+    const selectedSources: string[] = sources || ["news", "google-news", "reddit", "social"];
 
     // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
@@ -337,10 +348,11 @@ Deno.serve(async (req) => {
       })());
     }
 
-    // Reddit
+    // === Reddit: try API first, fallback to web search ===
     if (selectedSources.includes("reddit")) {
       scanPromises.push((async () => {
         try {
+          // Try Reddit API first
           const diffDays = date_from ? (Date.now() - new Date(date_from).getTime()) / (1000 * 60 * 60 * 24) : 7;
           const redditTimeFilter = diffDays <= 1 ? "day" : diffDays <= 7 ? "week" : diffDays <= 30 ? "month" : "year";
           const redditResult = await callFunction("scan-reddit", {
@@ -349,19 +361,72 @@ Deno.serve(async (req) => {
             limit: 25,
             time_filter: redditTimeFilter,
           });
-          if (redditResult.success && redditResult.results) {
+          if (redditResult.success && redditResult.results?.length > 0) {
             allResults.push(...redditResult.results);
-            scanLog.push({ source: "reddit", query: brandKws.join(" OR "), found: redditResult.results.length });
-          } else if (redditResult.error) {
-            errors.push(`Reddit: ${redditResult.error}`);
+            scanLog.push({ source: "reddit-api", query: brandKws.join(" OR "), found: redditResult.results.length });
+          } else {
+            // Fallback: search Reddit via Firecrawl web search
+            console.log("Reddit API unavailable, falling back to web search");
+            const webRedditResult = await callFunction("scan-web", {
+              keywords: brandKws.slice(0, 3),
+              sites: ["reddit.com"],
+              limit: 15,
+              tbs: dateToTbs(date_from),
+              date_from,
+              accept_undated: true,
+            });
+            if (webRedditResult.success && webRedditResult.results) {
+              allResults.push(...webRedditResult.results);
+              scanLog.push({ source: "reddit-web", query: webRedditResult.query_used || "", found: webRedditResult.results.length });
+            }
           }
         } catch (e: any) {
+          // Fallback on error too
+          try {
+            const webRedditResult = await callFunction("scan-web", {
+              keywords: brandKws.slice(0, 3),
+              sites: ["reddit.com"],
+              limit: 15,
+              tbs: dateToTbs(date_from),
+              date_from,
+              accept_undated: true,
+            });
+            if (webRedditResult.success && webRedditResult.results) {
+              allResults.push(...webRedditResult.results);
+              scanLog.push({ source: "reddit-web", query: webRedditResult.query_used || "", found: webRedditResult.results.length });
+            }
+          } catch { /* skip */ }
           errors.push(`Reddit: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
       })());
     }
 
-    // Twitter
+    // === Social Media via web search (Twitter/X, LinkedIn, Facebook) ===
+    if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin", "facebook"].includes(s))) {
+      scanPromises.push((async () => {
+        try {
+          const socialSites = ["twitter.com", "x.com", "linkedin.com"];
+          const socialResult = await callFunction("scan-web", {
+            keywords: brandKws.slice(0, 3),
+            sites: socialSites,
+            limit: 10,
+            tbs: dateToTbs(date_from),
+            date_from,
+            accept_undated: true,
+          });
+          if (socialResult.success && socialResult.results) {
+            allResults.push(...socialResult.results);
+            scanLog.push({ source: "social-web", query: socialResult.query_used || "", found: socialResult.results.length });
+          } else if (socialResult.error) {
+            errors.push(`Social: ${socialResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Social: ${e.name === "AbortError" ? "Timed out" : e.message}`);
+        }
+      })());
+    }
+
+    // Twitter (dedicated API)
     if (selectedSources.includes("twitter")) {
       scanPromises.push((async () => {
         try {
