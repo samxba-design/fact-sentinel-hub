@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Network, Scan, Brain, Layers, BarChart3 } from "lucide-react";
+import InfoTooltip from "@/components/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -120,7 +121,10 @@ export default function NarrativesPage() {
                   {n.confidence != null && (
                     <div className="text-right">
                       <div className="text-sm font-mono text-card-foreground">{Number(n.confidence) > 1 ? Number(n.confidence).toFixed(0) : (Number(n.confidence) * 100).toFixed(0)}%</div>
-                      <div className="text-[10px] text-muted-foreground">confidence</div>
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        confidence
+                        <InfoTooltip text="How certain the AI is that this is a real, coherent narrative. 70%+ = strong pattern across multiple sources. 40-69% = emerging pattern. Below 40% = weak signal." />
+                      </div>
                     </div>
                   )}
                   <Badge variant="outline" className={`text-[10px] capitalize ${
