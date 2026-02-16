@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users, Settings2, Shield } from "lucide-react";
+import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users, Settings2, Shield, Mail } from "lucide-react";
+import NotificationPreferencesTab from "@/components/settings/NotificationPreferencesTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -255,6 +256,7 @@ export default function SettingsPage() {
           <TabsTrigger value="sources"><Globe className="h-3.5 w-3.5 mr-1.5" />Sources</TabsTrigger>
           <TabsTrigger value="custom-sources"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Custom Sources</TabsTrigger>
           <TabsTrigger value="alerts"><Bell className="h-3.5 w-3.5 mr-1.5" />Alerts</TabsTrigger>
+          <TabsTrigger value="notifications"><Mail className="h-3.5 w-3.5 mr-1.5" />Notifications</TabsTrigger>
           <TabsTrigger value="connections"><Plug className="h-3.5 w-3.5 mr-1.5" />Connections</TabsTrigger>
           <TabsTrigger value="team"><Shield className="h-3.5 w-3.5 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5" />Subscription</TabsTrigger>
@@ -486,6 +488,11 @@ export default function SettingsPage() {
               Save Alert Settings
             </Button>
           </Card>
+        </TabsContent>
+
+        {/* NOTIFICATIONS TAB */}
+        <TabsContent value="notifications">
+          <NotificationPreferencesTab />
         </TabsContent>
 
         {/* SUBSCRIPTION TAB */}

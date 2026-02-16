@@ -243,6 +243,50 @@ export type Database = {
           },
         ]
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          email_type: string
+          id: string
+          metadata: Json | null
+          org_id: string
+          recipient_email: string
+          resend_id: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email_type: string
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          recipient_email: string
+          resend_id?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          recipient_email?: string
+          resend_id?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       escalation_comments: {
         Row: {
           content: string
@@ -828,6 +872,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "narratives_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          critical_alerts: boolean
+          email_enabled: boolean
+          escalation_assigned: boolean
+          escalation_updated: boolean
+          id: string
+          mention_spikes: boolean
+          negative_spikes: boolean
+          new_scan_complete: boolean
+          org_id: string
+          updated_at: string
+          user_id: string
+          viral_risk: boolean
+          weekly_digest: boolean
+        }
+        Insert: {
+          created_at?: string
+          critical_alerts?: boolean
+          email_enabled?: boolean
+          escalation_assigned?: boolean
+          escalation_updated?: boolean
+          id?: string
+          mention_spikes?: boolean
+          negative_spikes?: boolean
+          new_scan_complete?: boolean
+          org_id: string
+          updated_at?: string
+          user_id: string
+          viral_risk?: boolean
+          weekly_digest?: boolean
+        }
+        Update: {
+          created_at?: string
+          critical_alerts?: boolean
+          email_enabled?: boolean
+          escalation_assigned?: boolean
+          escalation_updated?: boolean
+          id?: string
+          mention_spikes?: boolean
+          negative_spikes?: boolean
+          new_scan_complete?: boolean
+          org_id?: string
+          updated_at?: string
+          user_id?: string
+          viral_risk?: boolean
+          weekly_digest?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"

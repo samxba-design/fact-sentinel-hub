@@ -26,3 +26,12 @@ verify_jwt = false
 
 [functions.customer-portal]
 verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.send-weekly-digest]
+verify_jwt = false
