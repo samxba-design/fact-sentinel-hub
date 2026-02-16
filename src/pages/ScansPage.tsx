@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2 } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,7 +34,13 @@ const statusConfig: Record<string, { icon: any; className: string }> = {
   pending: { icon: Clock, className: "text-muted-foreground" },
 };
 
-const ALL_SOURCES = ["twitter", "reddit", "news", "forums", "blogs", "tiktok", "youtube"];
+const ALL_SOURCES = ["twitter", "reddit", "news", "blogs", "forums"];
+
+// Sources that need API keys from the user
+const SOURCES_NEEDING_KEYS: Record<string, string> = {
+  twitter: "X (Twitter)",
+  reddit: "Reddit",
+};
 
 export default function ScansPage() {
   const { currentOrg } = useOrg();
@@ -49,11 +55,12 @@ export default function ScansPage() {
   const [deleting, setDeleting] = useState(false);
 
   // Builder state
-  const [selectedSources, setSelectedSources] = useState<string[]>(["twitter", "reddit", "news"]);
+  const [selectedSources, setSelectedSources] = useState<string[]>(["news"]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
 
   const fetchRuns = useCallback(async () => {
     if (!currentOrg) return;
@@ -70,9 +77,10 @@ export default function ScansPage() {
 
   useEffect(() => { fetchRuns(); }, [fetchRuns]);
 
-  // Load org keywords as defaults when builder opens
+  // Load org keywords and check connected providers when builder opens
   useEffect(() => {
     if (!builderOpen || !currentOrg) return;
+    // Load keywords
     supabase
       .from("keywords")
       .select("value")
@@ -82,6 +90,15 @@ export default function ScansPage() {
         if (data && data.length > 0 && keywords.length === 0) {
           setKeywords(data.map(k => k.value));
         }
+      });
+    // Check which providers are connected
+    supabase
+      .from("org_api_keys")
+      .select("provider")
+      .eq("org_id", currentOrg.id)
+      .then(({ data }) => {
+        const providers = [...new Set((data || []).map(k => k.provider))];
+        setConnectedProviders(providers);
       });
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -341,24 +358,57 @@ export default function ScansPage() {
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Sources</Label>
               <div className="flex flex-wrap gap-2">
-                {ALL_SOURCES.map(s => (
-                  <label
-                    key={s}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer transition-colors text-xs capitalize ${
-                      selectedSources.includes(s)
-                        ? "bg-primary/10 border-primary/30 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground hover:border-primary/20"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={selectedSources.includes(s)}
-                      onCheckedChange={() => toggleSource(s)}
-                      className="h-3.5 w-3.5"
-                    />
-                    {s}
-                  </label>
-                ))}
+                {ALL_SOURCES.map(s => {
+                  const needsKey = s in SOURCES_NEEDING_KEYS;
+                  const isConnected = !needsKey || connectedProviders.includes(s);
+                  return (
+                    <label
+                      key={s}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer transition-colors text-xs capitalize ${
+                        selectedSources.includes(s)
+                          ? isConnected
+                            ? "bg-primary/10 border-primary/30 text-primary"
+                            : "bg-sentinel-amber/10 border-sentinel-amber/30 text-sentinel-amber"
+                          : "bg-muted/30 border-border text-muted-foreground hover:border-primary/20"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedSources.includes(s)}
+                        onCheckedChange={() => toggleSource(s)}
+                        className="h-3.5 w-3.5"
+                      />
+                      {s === "twitter" ? "X (Twitter)" : s}
+                      {needsKey && !isConnected && (
+                        <AlertTriangle className="h-3 w-3 text-sentinel-amber" />
+                      )}
+                      {needsKey && isConnected && (
+                        <CheckCircle2 className="h-3 w-3 text-sentinel-emerald" />
+                      )}
+                    </label>
+                  );
+                })}
               </div>
+
+              {/* Warning for unconnected sources */}
+              {selectedSources.some(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s)) && (
+                <div className="flex items-start gap-2 rounded-md bg-sentinel-amber/10 border border-sentinel-amber/20 p-3 mt-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-sentinel-amber mt-0.5 shrink-0" />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>
+                      <strong className="text-card-foreground">API keys required:</strong>{" "}
+                      {selectedSources
+                        .filter(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s))
+                        .map(s => SOURCES_NEEDING_KEYS[s])
+                        .join(", ")}{" "}
+                      {selectedSources.filter(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s)).length === 1 ? "requires" : "require"} API credentials.
+                    </p>
+                    <p>Go to <strong>Settings → Connections</strong> to connect your accounts. Without credentials, these sources will be skipped.</p>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs text-primary" onClick={() => { setBuilderOpen(false); navigate("/settings?tab=connections"); }}>
+                      Go to Connections →
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />

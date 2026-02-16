@@ -245,7 +245,7 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="keywords" className="space-y-4">
+      <Tabs defaultValue={searchParams.get("tab") || "keywords"} className="space-y-4">
         <TabsList className="bg-muted border border-border">
           <TabsTrigger value="keywords"><Key className="h-3.5 w-3.5 mr-1.5" />Keywords</TabsTrigger>
           <TabsTrigger value="topics"><Layers className="h-3.5 w-3.5 mr-1.5" />Topics</TabsTrigger>

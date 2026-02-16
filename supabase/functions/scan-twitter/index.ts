@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
 
     console.log("Twitter search query:", query);
 
-    const searchRes = await fetch(`https://api.twitter.com/2/tweets/search/recent?${params}`, {
+    const searchRes = await fetch(`https://api.x.com/2/tweets/search/recent?${params}`, {
       headers: {
         Authorization: `Bearer ${bearerToken}`,
       },
