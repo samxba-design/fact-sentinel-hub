@@ -69,48 +69,58 @@ interface SourceTypeOption {
 }
 
 const SOURCE_TYPE_OPTIONS: SourceTypeOption[] = [
-  { value: "web", label: "Web / News", description: "General websites and news articles", tier: "auto", tierLabel: "Auto" },
-  { value: "google-news", label: "Google News", description: "Mainstream press coverage", tier: "auto", tierLabel: "Auto" },
-  { value: "reviews", label: "Review Sites", description: "Trustpilot, G2, Capterra, etc.", tier: "auto", tierLabel: "Auto" },
-  { value: "app-store", label: "App Stores", description: "Apple App Store & Google Play reviews", tier: "auto", tierLabel: "Auto" },
-  { value: "rss", label: "RSS Feeds", description: "Blog and news RSS/Atom feeds", tier: "auto", tierLabel: "Auto", setupNote: "Add specific RSS feed URLs in the Custom Sources tab for best results." },
+  { value: "web", label: "Web / News", description: "General websites and news articles via web crawling", tier: "auto", tierLabel: "Auto" },
+  { value: "google-news", label: "Google News", description: "Mainstream press and media coverage", tier: "auto", tierLabel: "Auto" },
+  { value: "reviews", label: "Review Sites", description: "Trustpilot, G2, Capterra, BBB, etc.", tier: "auto", tierLabel: "Auto", setupNote: "Crawls public review sites for your brand keywords. For specific review platforms, add them as custom sources in the Custom Sources tab." },
+  { value: "app-store", label: "App Stores", description: "Apple App Store & Google Play reviews", tier: "auto", tierLabel: "Auto", setupNote: "Scans public app store listings. For best results, add your exact app store URL in the Custom Sources tab." },
+  { value: "rss", label: "RSS Feeds", description: "Blog and news RSS/Atom feeds", tier: "auto", tierLabel: "Auto", setupNote: "Enables RSS feed scanning. You must add specific feed URLs in the Custom Sources tab — this toggle activates the RSS engine.", setupSteps: [
+    "Enable this source to activate RSS scanning",
+    "Go to the Custom Sources tab to add specific feed URLs",
+    "Each feed will be checked for your keywords during scans"
+  ] },
   { value: "forums", label: "Forums", description: "Community forums and discussion boards", tier: "auto", tierLabel: "Auto" },
-  { value: "podcasts", label: "Podcasts", description: "Podcast episode & transcript monitoring", tier: "web", tierLabel: "Web Discovery", setupNote: "Searches podcast platforms for brand mentions. Transcript-level accuracy depends on show notes availability." },
-  { value: "reddit", label: "Reddit", description: "Reddit posts and comments", tier: "auto", tierLabel: "Auto", fallbackNote: "Uses web discovery by default. For higher accuracy, add Reddit API credentials in Connections." },
-  { value: "youtube", label: "YouTube", description: "Video descriptions and comments", tier: "api", tierLabel: "API Key", setupNote: "Requires a YouTube Data API key for full comment and video scanning.", setupSteps: [
+  { value: "podcasts", label: "Podcasts", description: "Podcast titles and show notes on Spotify, Apple, etc.", tier: "web", tierLabel: "Web Discovery", setupNote: "Searches podcast directories (Spotify, Apple Podcasts, Podbean) for brand mentions in episode titles and descriptions. Cannot access full audio transcripts — accuracy depends on show notes quality." },
+  { value: "reddit", label: "Reddit", description: "Reddit posts and comments", tier: "auto", tierLabel: "Auto", setupNote: "Discovers Reddit mentions via web search by default. For deeper coverage (full comment threads, subreddit monitoring), add Reddit API credentials.", setupSteps: [
+    "Works immediately via web discovery — no setup needed",
+    "For enhanced coverage: create a Reddit app at reddit.com/prefs/apps",
+    "Choose 'script' type and note the client ID and secret",
+    "Add credentials in Settings → Connections"
+  ], fallbackNote: "Currently using web discovery. Add API credentials in Connections for deeper Reddit coverage." },
+  { value: "youtube", label: "YouTube", description: "Video titles, descriptions, and comments", tier: "api", tierLabel: "API Key", setupNote: "Requires a free YouTube Data API key for full access to video metadata and comments. Without it, falls back to web search which only catches titles.", setupSteps: [
     "Go to Google Cloud Console → APIs & Services",
     "Enable the YouTube Data API v3",
-    "Create an API key (no OAuth needed)",
+    "Create an API key (no OAuth needed — it's free)",
     "Add it in Settings → Connections as YOUTUBE_API_KEY"
-  ], apiKeyName: "YOUTUBE_API_KEY", fallbackNote: "Without API key, falls back to web search for YouTube mentions." },
-  { value: "twitter", label: "X (Twitter)", description: "Tweets, threads, and replies", tier: "api", tierLabel: "API Key", setupNote: "Requires X/Twitter API credentials for direct access to tweets and threads.", setupSteps: [
-    "Apply for a Twitter Developer account at developer.twitter.com",
+  ], apiKeyName: "YOUTUBE_API_KEY", fallbackNote: "Without API key, falls back to web search — catches video titles but misses comments and descriptions." },
+  { value: "twitter", label: "X (Twitter)", description: "Tweets, threads, and replies", tier: "api", tierLabel: "API Key", setupNote: "Requires X/Twitter API credentials (Basic plan: $100/mo) for direct tweet access. Without credentials, falls back to web search which has significant gaps due to X's restrictions.", setupSteps: [
+    "Apply for access at developer.x.com (Basic plan required)",
     "Create a project and app in the Developer Portal",
-    "Generate a Bearer Token (read-only is sufficient)",
-    "Add it in Settings → Connections as TWITTER_BEARER_TOKEN"
-  ], apiKeyName: "TWITTER_BEARER_TOKEN", fallbackNote: "Without API key, falls back to web search which captures fewer results." },
-  { value: "linkedin", label: "LinkedIn", description: "Posts, articles, and company mentions", tier: "manual", tierLabel: "Manual Import", setupNote: "LinkedIn blocks automated scraping. Use manual import to paste content from LinkedIn posts or articles you've found.", setupSteps: [
-    "Browse LinkedIn and find relevant posts/articles mentioning your brand",
-    "Copy the post content or URL",
-    "Use the 'Import Mention' button on the Mentions page to add it",
-    "AI will analyze sentiment and extract claims automatically"
+    "Generate API Key, API Secret, Access Token, and Access Token Secret",
+    "Add all four in Settings → Connections"
+  ], apiKeyName: "TWITTER_BEARER_TOKEN", fallbackNote: "Without API credentials, uses web search — catches some tweets but misses replies, threads, and real-time mentions." },
+  { value: "linkedin", label: "LinkedIn", description: "Posts, articles, and company mentions", tier: "manual", tierLabel: "Manual Import", setupNote: "LinkedIn actively blocks all automated scraping and has no public search API. The only way to monitor LinkedIn is to browse it yourself and import what you find.", setupSteps: [
+    "Search LinkedIn for your brand name or monitor your company page",
+    "When you find a relevant post or article, copy the text content",
+    "Go to Mentions → Import Mention and paste it",
+    "AI will automatically analyze sentiment, extract claims, and categorize it"
   ] },
-  { value: "tiktok", label: "TikTok", description: "Video mentions and comments", tier: "manual", tierLabel: "Manual Import", setupNote: "TikTok has no public search API. Use manual import to add video mentions you discover.", setupSteps: [
-    "Search TikTok for your brand name manually",
-    "Copy the video URL or transcribe the content",
-    "Use 'Import Mention' on the Mentions page to add it",
-    "AI will analyze the content and assign sentiment"
+  { value: "tiktok", label: "TikTok", description: "Video mentions and comments", tier: "manual", tierLabel: "Manual Import", setupNote: "TikTok has no public content search API. Video content also can't be scraped. Browse TikTok manually and import mentions you discover.", setupSteps: [
+    "Search TikTok for your brand name or hashtags",
+    "Copy the video URL and/or transcribe relevant content",
+    "Go to Mentions → Import Mention to add it",
+    "Include the video URL so it's linked for reference"
   ] },
-  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord requires a bot to be added to your server. Use manual import for now, or export channel logs.", setupSteps: [
-    "Monitor your Discord server manually for brand discussions",
-    "Copy relevant message content or use Discord's export feature",
-    "Use 'Import Mention' on the Mentions page",
-    "Consider setting up a Discord webhook in Integrations for alerts"
+  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord content is only accessible within servers you belong to. There's no public search. Export or copy relevant discussions manually.", setupSteps: [
+    "Monitor relevant Discord servers you've joined",
+    "Copy message content or use a Discord export tool (e.g. DiscordChatExporter)",
+    "Go to Mentions → Import Mention to add relevant discussions",
+    "For automated alerts, consider setting up a Discord webhook in Integrations"
   ] },
-  { value: "facebook", label: "Facebook", description: "Page posts, comments, and groups", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook's API requires app review for public content access. Use manual import for individual posts.", setupSteps: [
-    "Browse Facebook pages, groups, or search for your brand",
-    "Copy the post content or URL",
-    "Use 'Import Mention' on the Mentions page to add it"
+  { value: "facebook", label: "Facebook", description: "Page posts, comments, and group discussions", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook requires authentication to view most content and blocks automated scraping. Their API requires an approved Facebook App with business verification — not practical for monitoring. Browse Facebook manually and import what you find.", setupSteps: [
+    "Log into Facebook and search for your brand name",
+    "Check your company page mentions, relevant groups, and public posts",
+    "Copy the post content or screenshot it",
+    "Go to Mentions → Import Mention to add it manually"
   ] },
 ];
 // ─── Source Tier Badge ───
@@ -616,6 +626,15 @@ export default function SettingsPage() {
                                     </Button>
                                   ) : (
                                     <>
+                                      {opt.tier === "api" && (
+                                        <button
+                                          onClick={() => setExpandedSource(isExpanded ? null : opt.value)}
+                                          className="text-sentinel-amber hover:text-sentinel-amber/80 transition-colors p-1 rounded hover:bg-sentinel-amber/10"
+                                          title="API configuration"
+                                        >
+                                          <Key className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
                                       <Switch checked={!!isEnabled} onCheckedChange={() => existingSource && toggleSource(existingSource)} />
                                       <button onClick={() => existingSource && deleteSource(existingSource)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -641,21 +660,23 @@ export default function SettingsPage() {
                                       ))}
                                     </ol>
                                   )}
-                                  {opt.tier === "api" && !isAdded && (
-                                    <div className="flex gap-2 mt-1">
+                                  {opt.tier === "api" && (
+                                    <div className="flex gap-2 mt-1 flex-wrap">
                                       <Button size="sm" variant="outline" className="text-xs h-7 gap-1.5" onClick={() => navigate("/settings?tab=connections")}>
-                                        <Plug className="h-3 w-3" /> Go to Connections
+                                        <Plug className="h-3 w-3" /> {isAdded ? "Configure API Key" : "Go to Connections"}
                                       </Button>
-                                      <Button size="sm" className="text-xs h-7 gap-1.5" onClick={async () => {
-                                        if (!currentOrg) return;
-                                        const { data } = await supabase.from("sources").insert({ org_id: currentOrg.id, type: opt.value, enabled: true }).select("id, type, enabled").single();
-                                        if (data) {
-                                          setSources(prev => [...prev, data]);
-                                          toast({ title: "Source enabled", description: `${opt.label} enabled with web fallback. Add API key for full coverage.` });
-                                        }
-                                      }}>
-                                        <Zap className="h-3 w-3" /> Enable with Fallback
-                                      </Button>
+                                      {!isAdded && (
+                                        <Button size="sm" className="text-xs h-7 gap-1.5" onClick={async () => {
+                                          if (!currentOrg) return;
+                                          const { data } = await supabase.from("sources").insert({ org_id: currentOrg.id, type: opt.value, enabled: true }).select("id, type, enabled").single();
+                                          if (data) {
+                                            setSources(prev => [...prev, data]);
+                                            toast({ title: "Source enabled", description: `${opt.label} enabled with web fallback. Add API key for full coverage.` });
+                                          }
+                                        }}>
+                                          <Zap className="h-3 w-3" /> Enable with Fallback
+                                        </Button>
+                                      )}
                                     </div>
                                   )}
                                   {opt.tier === "manual" && (
