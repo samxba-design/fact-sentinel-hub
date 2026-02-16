@@ -85,9 +85,6 @@ export default function LiveThreatFeed() {
           <Radio className="h-4 w-4 text-primary" />
           Recent Scan Detections
         </span>
-        <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
-          AI-Simulated
-        </Badge>
       </div>
       <div className="space-y-2 max-h-[320px] overflow-y-auto">
         <AnimatePresence initial={false}>
