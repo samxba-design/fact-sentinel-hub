@@ -31,7 +31,7 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isSuperAdmin } = useAuth();
   const { orgs, loading: orgLoading } = useOrg();
 
   if (authLoading || (user && orgLoading)) {
@@ -51,7 +51,8 @@ function AppRoutes() {
     );
   }
 
-  if (orgs.length === 0) {
+  // Super admins can bypass onboarding to access admin panel
+  if (orgs.length === 0 && !isSuperAdmin) {
     return (
       <Routes>
         <Route path="/onboarding" element={<OnboardingPage />} />
