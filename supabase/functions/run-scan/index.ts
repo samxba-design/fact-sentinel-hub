@@ -42,10 +42,20 @@ function isJunkContent(text: string): boolean {
     "blocked by an extension", "enable javascript", "access denied",
     "403 forbidden", "captcha", "please verify you are a human",
     "cloudflare", "just a moment", "checking your browser", "ray id",
-    "please turn javascript on", "ERR_BLOCKED",
+    "please turn javascript on", "ERR_BLOCKED", "error 403",
+    "that's an error", "you do not have access", "skip navigation",
+    "sign in to youtube", "playback doesn't begin", "try restarting your device",
+    "videos you watch may be added", "tap to unmute", "search with your voice",
+    "cookie policy", "accept cookies", "we use cookies",
+    "page not found", "404 not found", "500 internal server error",
   ];
   const lower = text.toLowerCase();
-  return blockers.some(b => lower.includes(b));
+  // If 2+ blockers match, definitely junk
+  const matchCount = blockers.filter(b => lower.includes(b)).length;
+  if (matchCount >= 2) return true;
+  // Single match + short content = junk
+  if (matchCount >= 1 && text.length < 200) return true;
+  return false;
 }
 
 // Classify source from URL
@@ -215,6 +225,8 @@ Deno.serve(async (req) => {
             keywords: keywords?.length > 0 ? keywords : ["brand"],
             limit: 15,
             include_comments: true,
+            date_from,
+            date_to,
           });
           if (ytResult.success && ytResult.results) {
             allResults.push(...ytResult.results);
@@ -251,8 +263,22 @@ Deno.serve(async (req) => {
     await Promise.all(scanPromises);
 
     // === CLEAN & FILTER results before AI analysis ===
+    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
+    const dateToMs = date_to ? new Date(date_to).getTime() : 0;
     const cleanedResults: RawResult[] = [];
     for (const r of allResults) {
+      // Enforce date range across ALL sources
+      if (dateFromMs > 0 && r.posted_at) {
+        const postedMs = new Date(r.posted_at).getTime();
+        if (postedMs < dateFromMs) {
+          console.log("Filtering out-of-range result:", r.url, r.posted_at);
+          continue;
+        }
+      }
+      if (dateToMs > 0 && r.posted_at) {
+        const postedMs = new Date(r.posted_at).getTime();
+        if (postedMs > dateToMs) continue;
+      }
       const cleaned = cleanContent(r.content || "");
       if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {
         console.log("Filtering out blocked/junk content from:", r.url);
