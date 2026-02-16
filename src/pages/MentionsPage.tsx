@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
-  Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2
+  Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
+  Ban, Globe, BarChart3, X
 } from "lucide-react";
 import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,6 +98,9 @@ export default function MentionsPage() {
   const [addMentionOpen, setAddMentionOpen] = useState(false);
   const [groupByNarrative, setGroupByNarrative] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [ignoredSources, setIgnoredSources] = useState<{ id: string; domain: string; reason: string | null }[]>([]);
+  const [showSourcePanel, setShowSourcePanel] = useState(false);
+  const [domainFilter, setDomainFilter] = useState<string | null>(null);
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
@@ -148,6 +153,54 @@ export default function MentionsPage() {
       }
     });
   }, [currentOrg, scanFilter, daysParam]);
+
+  // Load ignored sources
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase
+      .from("ignored_sources")
+      .select("id, domain, reason")
+      .eq("org_id", currentOrg.id)
+      .then(({ data }) => setIgnoredSources(data || []));
+  }, [currentOrg]);
+
+  // Extract domain from URL
+  const getDomain = (url: string | null): string => {
+    if (!url) return "unknown";
+    try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
+  };
+
+  const ignoreSource = async (domain: string, reason?: string) => {
+    if (!currentOrg) return;
+    const { error } = await supabase.from("ignored_sources").insert({
+      org_id: currentOrg.id,
+      domain,
+      reason: reason || null,
+      created_by: null,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        toast({ title: "Already ignored", description: `${domain} is already on your ignore list.` });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+      return;
+    }
+    setIgnoredSources(prev => [...prev, { id: crypto.randomUUID(), domain, reason: reason || null }]);
+    toast({ title: "Source ignored", description: `${domain} will be hidden from future results.` });
+  };
+
+  const unignoreSource = async (domain: string) => {
+    if (!currentOrg) return;
+    const { error } = await supabase.from("ignored_sources").delete()
+      .eq("org_id", currentOrg.id).eq("domain", domain);
+    if (!error) {
+      setIgnoredSources(prev => prev.filter(s => s.domain !== domain));
+      toast({ title: "Source restored", description: `${domain} will appear in results again.` });
+    }
+  };
+
+  const ignoredDomains = new Set(ignoredSources.map(s => s.domain));
 
   const updateMentionStatus = async (mentionId: string, newStatus: string) => {
     const { error } = await supabase.from("mentions").update({ status: newStatus }).eq("id", mentionId);
@@ -219,6 +272,11 @@ export default function MentionsPage() {
 
   const filtered = mentions.filter(m => {
     const mStatus = m.status || "new";
+    // Filter out ignored source domains
+    const domain = getDomain(m.url);
+    if (ignoredDomains.has(domain)) return false;
+    // Domain-level filter from source panel
+    if (domainFilter && domain !== domainFilter) return false;
     if (statusFilter === "active" && (mStatus === "ignored" || mStatus === "snoozed" || mStatus === "resolved")) return false;
     if (statusFilter !== "active" && statusFilter !== "all" && mStatus !== statusFilter) return false;
     if (severityFilter !== "all" && m.severity !== severityFilter) return false;
@@ -230,6 +288,24 @@ export default function MentionsPage() {
     }
     return true;
   });
+
+  // Source breakdown stats (from unfiltered, non-ignored mentions)
+  const sourceBreakdown = useMemo(() => {
+    const domainMap = new Map<string, { count: number; negCount: number; source: string; latestUrl: string | null }>();
+    for (const m of mentions) {
+      const domain = getDomain(m.url);
+      if (ignoredDomains.has(domain)) continue;
+      const mStatus = m.status || "new";
+      if (mStatus === "ignored" || mStatus === "resolved") continue;
+      const existing = domainMap.get(domain) || { count: 0, negCount: 0, source: m.source, latestUrl: m.url };
+      existing.count++;
+      if (m.sentiment_label === "negative" || m.sentiment_label === "mixed") existing.negCount++;
+      domainMap.set(domain, existing);
+    }
+    return [...domainMap.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 20);
+  }, [mentions, ignoredDomains]);
 
   const selectAll = () => {
     if (selected.size === filtered.length) {
@@ -339,15 +415,22 @@ export default function MentionsPage() {
         }
       }
     }
-    // Check for duplicate content
-    const contentMap = new Map<string, number>();
+    // Check for duplicate content across DIFFERENT domains only
+    const contentMap = new Map<string, { count: number; domains: Set<string> }>();
     filtered.forEach(m => {
       const key = cleanPreview(m.content).slice(0, 80).toLowerCase();
-      if (key.length > 30) contentMap.set(key, (contentMap.get(key) || 0) + 1);
+      const domain = getDomain(m.url);
+      if (key.length > 30) {
+        const entry = contentMap.get(key) || { count: 0, domains: new Set() };
+        entry.count++;
+        entry.domains.add(domain);
+        contentMap.set(key, entry);
+      }
     });
-    const dupes = [...contentMap.entries()].filter(([, c]) => c >= 3);
+    // Only flag as coordinated if duplicate content appears across 3+ DIFFERENT domains
+    const dupes = [...contentMap.entries()].filter(([, v]) => v.domains.size >= 3);
     if (dupes.length > 0) {
-      warnings.push(`Duplicate content detected across ${dupes.reduce((s, [, c]) => s + c, 0)} mentions — may indicate bot or copy-paste coordination`);
+      warnings.push(`Similar content detected across ${dupes[0][1].domains.size} different sources — may indicate coordinated activity`);
     }
     // Check if many flagged as coordinated
     const coordCount = filtered.filter(m => (m.flags as any)?.coordinated).length;
@@ -480,6 +563,13 @@ export default function MentionsPage() {
                   {mStatus !== "snoozed" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "snoozed")}><Clock className="h-3.5 w-3.5 mr-2" /> Snooze</DropdownMenuItem>}
                   {mStatus !== "resolved" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "resolved")}><CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Resolved</DropdownMenuItem>}
                   {mStatus !== "new" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "new")}>Reopen</DropdownMenuItem>}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    const d = getDomain(m.url);
+                    if (d !== "unknown") ignoreSource(d, `Ignored from mention by ${m.author_name || "unknown"}`);
+                  }}>
+                    <Ban className="h-3.5 w-3.5 mr-2" /> Ignore this source ({getDomain(m.url)})
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => deleteMention(m.id)} className="text-destructive focus:text-destructive">
                     <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
                   </DropdownMenuItem>
@@ -590,8 +680,110 @@ export default function MentionsPage() {
         >
           <Network className="h-3.5 w-3.5" /> Group by Theme
         </Button>
+        <Button
+          size="sm"
+          variant={showSourcePanel ? "default" : "outline"}
+          onClick={() => setShowSourcePanel(!showSourcePanel)}
+          className="h-9 text-xs gap-1.5"
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> Sources
+          {ignoredSources.length > 0 && (
+            <Badge variant="secondary" className="text-[9px] h-4 px-1">{ignoredSources.length} blocked</Badge>
+          )}
+        </Button>
         <SavedFilters currentFilters={currentFilters} onApply={applyFilters} />
       </div>
+
+      {/* Domain filter indicator */}
+      {domainFilter && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+          <Globe className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs text-primary">Filtered to: <strong>{domainFilter}</strong></span>
+          <Button size="sm" variant="ghost" onClick={() => setDomainFilter(null)} className="h-5 w-5 p-0">
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Source Breakdown Panel */}
+      {showSourcePanel && (
+        <Card className="p-4 bg-card border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" /> Source Breakdown
+            </h3>
+            <Button size="sm" variant="ghost" onClick={() => setShowSourcePanel(false)} className="h-6 w-6 p-0">
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          
+          {sourceBreakdown.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No source data available.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {sourceBreakdown.map(([domain, stats]) => (
+                <div key={domain} className="flex items-center gap-2 group">
+                  <button
+                    onClick={() => setDomainFilter(domainFilter === domain ? null : domain)}
+                    className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
+                      domainFilter === domain ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <SourceBadge source={stats.source} />
+                    <span className="text-xs text-foreground truncate flex-1">{domain}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{stats.count}</span>
+                    {stats.negCount > 0 && (
+                      <span className="text-[10px] font-mono text-destructive">{stats.negCount} neg</span>
+                    )}
+                    {/* Bar */}
+                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${(stats.count / (sourceBreakdown[0]?.[1]?.count || 1)) * 100}%` }}
+                      />
+                    </div>
+                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                        onClick={() => ignoreSource(domain)}
+                      >
+                        <Ban className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Block this source</TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Ignored Sources */}
+          {ignoredSources.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-border">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Ban className="h-3 w-3" /> Blocked Sources ({ignoredSources.length})
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {ignoredSources.map(s => (
+                  <Badge
+                    key={s.domain}
+                    variant="outline"
+                    className="text-[10px] text-muted-foreground cursor-pointer hover:border-destructive/30 hover:text-foreground transition-colors"
+                    onClick={() => unignoreSource(s.domain)}
+                    title="Click to unblock"
+                  >
+                    <Ban className="h-2.5 w-2.5 mr-1" /> {s.domain} ×
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Select all */}
       {filtered.length > 0 && (
