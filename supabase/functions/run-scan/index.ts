@@ -18,6 +18,23 @@ interface RawResult {
   posted_at?: string;
   metrics?: { likes?: number; shares?: number; comments?: number };
   subreddit?: string;
+  date_verified?: boolean;
+  date_source?: string;
+  matched_query?: string;
+}
+
+// Group keywords by type for focused searches
+function groupKeywords(allKeywords: { value: string; type: string }[]): { brand: string[]; risk: string[]; product: string[] } {
+  const brand: string[] = [];
+  const risk: string[] = [];
+  const product: string[] = [];
+  for (const kw of allKeywords) {
+    if (kw.type === "brand" || kw.type === "alias") brand.push(kw.value);
+    else if (kw.type === "risk") risk.push(kw.value);
+    else if (kw.type === "product") product.push(kw.value);
+    else brand.push(kw.value); // default to brand
+  }
+  return { brand, risk, product };
 }
 
 // Clean raw markdown/HTML into usable text
@@ -162,7 +179,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) throw new Error("Unauthorized");
 
-    const { org_id, keywords, sources, date_from, date_to, review_urls, sentiment_filter } = await req.json();
+    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter } = await req.json();
+    // rawKeywords can be string[] (legacy) or we load structured keywords from DB
     if (!org_id) throw new Error("org_id required");
 
     // Get org domain to filter out self-published content
@@ -191,8 +209,19 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!membership) throw new Error("Not a member of this org");
 
-    // Create scan_run
-    const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter };
+    // Load structured keywords from DB for smart grouping
+    const { data: keywordRows } = await supabase
+      .from("keywords")
+      .select("value, type")
+      .eq("org_id", org_id)
+      .eq("status", "active");
+    
+    const structuredKws = keywordRows || [];
+    const keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
+    const kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
+    
+    // Create scan_run with keyword groups for transparency
+    const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter, keyword_groups: kwGroups };
     const { data: scanRun, error: scanErr } = await supabase
       .from("scan_runs")
       .insert({
@@ -208,12 +237,13 @@ Deno.serve(async (req) => {
     // Collect results from real sources
     const allResults: RawResult[] = [];
     const errors: string[] = [];
+    const scanLog: { source: string; query: string; found: number }[] = [];
     const selectedSources: string[] = sources || ["news"];
 
     // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout per source
+      const timeout = setTimeout(() => controller.abort(), 30000);
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
           method: "POST",
@@ -230,26 +260,79 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Run all source scans in PARALLEL to avoid timeout
+    // Run all source scans in PARALLEL
     const scanPromises: Promise<void>[] = [];
+    const brandKws = kwGroups.brand.length > 0 ? kwGroups.brand.slice(0, 5) : keywords.slice(0, 5);
 
-    // Web/News via Firecrawl
+    // === SMART KEYWORD GROUPING for Web/News ===
     if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
+      // Search 1: Brand/alias keywords (core identity search)
       scanPromises.push((async () => {
         try {
           const webResult = await callFunction("scan-web", {
-            keywords: keywords?.length > 0 ? keywords : ["brand"],
-            limit: 10,
+            keywords: brandKws,
+            limit: 15,
             tbs: dateToTbs(date_from),
-            date_from, // pass through for secondary metadata-based date filtering
+            date_from,
+            accept_undated: true,
           });
           if (webResult.success && webResult.results) {
             allResults.push(...webResult.results);
+            scanLog.push({ source: "web-brand", query: webResult.query_used || brandKws.join(" OR "), found: webResult.results.length });
           } else if (webResult.error) {
-            errors.push(`Web: ${webResult.error}`);
+            errors.push(`Web (brand): ${webResult.error}`);
           }
         } catch (e: any) {
-          errors.push(`Web: ${e.name === "AbortError" ? "Timed out" : e.message}`);
+          errors.push(`Web (brand): ${e.name === "AbortError" ? "Timed out" : e.message}`);
+        }
+      })());
+
+      // Search 2: Brand + Risk keywords (reputation threat search)
+      if (kwGroups.risk.length > 0 && kwGroups.brand.length > 0) {
+        const primaryBrand = kwGroups.brand[0];
+        const riskQueries = kwGroups.risk.slice(0, 4).map(r => `"${primaryBrand}" "${r}"`);
+        scanPromises.push((async () => {
+          try {
+            const webResult = await callFunction("scan-web", {
+              keywords: riskQueries,
+              limit: 10,
+              tbs: dateToTbs(date_from),
+              date_from,
+              accept_undated: true,
+            });
+            if (webResult.success && webResult.results) {
+              allResults.push(...webResult.results);
+              scanLog.push({ source: "web-risk", query: webResult.query_used || riskQueries.join(" OR "), found: webResult.results.length });
+            } else if (webResult.error) {
+              errors.push(`Web (risk): ${webResult.error}`);
+            }
+          } catch (e: any) {
+            errors.push(`Web (risk): ${e.name === "AbortError" ? "Timed out" : e.message}`);
+          }
+        })());
+      }
+    }
+
+    // === Google News via Firecrawl with site filter ===
+    if (selectedSources.includes("google-news")) {
+      scanPromises.push((async () => {
+        try {
+          const gnResult = await callFunction("scan-web", {
+            keywords: brandKws.slice(0, 3),
+            sites: ["reuters.com", "bloomberg.com", "cnbc.com", "bbc.com", "techcrunch.com", "forbes.com", "coindesk.com", "cointelegraph.com"],
+            limit: 10,
+            tbs: dateToTbs(date_from),
+            date_from,
+            accept_undated: true,
+          });
+          if (gnResult.success && gnResult.results) {
+            allResults.push(...gnResult.results);
+            scanLog.push({ source: "google-news", query: gnResult.query_used || "", found: gnResult.results.length });
+          } else if (gnResult.error) {
+            errors.push(`Google News: ${gnResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Google News: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
       })());
     }
@@ -258,17 +341,17 @@ Deno.serve(async (req) => {
     if (selectedSources.includes("reddit")) {
       scanPromises.push((async () => {
         try {
-          // Map date range to Reddit time_filter
           const diffDays = date_from ? (Date.now() - new Date(date_from).getTime()) / (1000 * 60 * 60 * 24) : 7;
           const redditTimeFilter = diffDays <= 1 ? "day" : diffDays <= 7 ? "week" : diffDays <= 30 ? "month" : "year";
           const redditResult = await callFunction("scan-reddit", {
             org_id,
-            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            keywords: brandKws,
             limit: 25,
             time_filter: redditTimeFilter,
           });
           if (redditResult.success && redditResult.results) {
             allResults.push(...redditResult.results);
+            scanLog.push({ source: "reddit", query: brandKws.join(" OR "), found: redditResult.results.length });
           } else if (redditResult.error) {
             errors.push(`Reddit: ${redditResult.error}`);
           }
@@ -284,13 +367,14 @@ Deno.serve(async (req) => {
         try {
           const twitterResult = await callFunction("scan-twitter", {
             org_id,
-            keywords: keywords?.length > 0 ? keywords : ["brand"],
-            max_results: 10,
+            keywords: brandKws,
+            max_results: 15,
             date_from,
             date_to,
           });
           if (twitterResult.success && twitterResult.results) {
             allResults.push(...twitterResult.results);
+            scanLog.push({ source: "twitter", query: "", found: twitterResult.results.length });
           } else if (twitterResult.error) {
             errors.push(`Twitter: ${twitterResult.error}`);
           }
@@ -306,7 +390,7 @@ Deno.serve(async (req) => {
         try {
           const ytResult = await callFunction("scan-youtube", {
             org_id,
-            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            keywords: brandKws,
             limit: 15,
             include_comments: true,
             date_from,
@@ -314,6 +398,7 @@ Deno.serve(async (req) => {
           });
           if (ytResult.success && ytResult.results) {
             allResults.push(...ytResult.results);
+            scanLog.push({ source: "youtube", query: "", found: ytResult.results.length });
           } else if (ytResult.error) {
             errors.push(`YouTube: ${ytResult.error}`);
           }
@@ -328,12 +413,13 @@ Deno.serve(async (req) => {
       scanPromises.push((async () => {
         try {
           const reviewResult = await callFunction("scan-reviews", {
-            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            keywords: brandKws,
             review_urls: review_urls || [],
             limit: 10,
           });
           if (reviewResult.success && reviewResult.results) {
             allResults.push(...reviewResult.results);
+            scanLog.push({ source: "reviews", query: "", found: reviewResult.results.length });
           } else if (reviewResult.error) {
             errors.push(`Reviews: ${reviewResult.error}`);
           }
@@ -518,8 +604,14 @@ Return ONLY valid JSON, no markdown.`,
     });
 
     const mentionRows = filteredResults.map(({ result: r, analysis }) => {
-      // Use AI-generated clean summary instead of raw scraped text
       const cleanSummary = analysis.clean_summary || r.content || "";
+      // Store date verification and matched query info in flags
+      const flags = {
+        ...(analysis.flags || {}),
+        date_verified: r.date_verified ?? true,
+        date_source: r.date_source || "unknown",
+        matched_query: r.matched_query || "",
+      };
       return {
         org_id,
         scan_run_id: scanRun.id,
@@ -537,7 +629,7 @@ Return ONLY valid JSON, no markdown.`,
         posted_at: r.posted_at || null,
         url: r.url || null,
         metrics: r.metrics || {},
-        flags: analysis.flags || {},
+        flags,
         status: "new",
         owner_user_id: user.id,
       };
@@ -698,6 +790,8 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
         ai_filtered: cleanedResults.length - filteredResults.length,
         negative_pct: Math.round((negCount / mentionRows.length) * 100),
         emergencies: emergencyCount,
+        scan_log: scanLog,
+        keyword_groups: kwGroups,
         errors: errors.length > 0 ? errors : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

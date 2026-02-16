@@ -63,6 +63,7 @@ function classifySourceFromUrl(url: string): string {
   if (lower.includes("t.me") || lower.includes("telegram")) return "telegram";
   if (lower.includes("medium.com") || lower.includes("substack.com") || lower.includes("blog")) return "blog";
   if (lower.includes("forum") || lower.includes("community") || lower.includes("discuss")) return "forum";
+  if (lower.includes("news.google.com")) return "google-news";
   return "news";
 }
 
@@ -78,6 +79,10 @@ function extractDateFromMetadata(metadata: any): string | null {
     metadata["date"],
     metadata.modifiedTime,
     metadata["article:modified_time"],
+    metadata["og:updated_time"],
+    metadata["dcterms.date"],
+    metadata["sailthru.date"],
+    metadata["DC.date.issued"],
   ];
 
   for (const raw of dateFields) {
@@ -97,10 +102,9 @@ function extractDateFromMetadata(metadata: any): string | null {
 function extractDateFromContent(text: string): string | null {
   if (!text || text.length < 20) return null;
   
-  // Only check the first ~500 chars where dates typically appear (byline area)
-  const header = text.slice(0, 500);
+  // Check the first ~800 chars where dates typically appear (byline/header area)
+  const header = text.slice(0, 800);
   
-  // Common patterns: "December 15, 2025", "Dec 15, 2025", "15 December 2025"
   const monthNames = "(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
   
   const patterns = [
@@ -113,18 +117,35 @@ function extractDateFromContent(text: string): string | null {
     // "12/15/2025" or "12-15-2025"
     /\b(0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])[-/](20[12]\d)\b/,
     // "Published: Dec 2025", "Updated December 2025"
-    new RegExp(`(?:Published|Updated|Posted|Date)[:\\s]+(${monthNames})\\s+(\\d{1,2}),?\\s+(20[12]\\d)`, "i"),
+    new RegExp(`(?:Published|Updated|Posted|Date|Modified)[:\\s]+(${monthNames})\\s+(\\d{1,2}),?\\s+(20[12]\\d)`, "i"),
+    // Relative dates in text: "2 days ago", "3 hours ago" etc.
+    /(\d{1,2})\s+(hours?|days?|weeks?|months?)\s+ago/i,
   ];
 
   for (const pattern of patterns) {
     const match = header.match(pattern);
     if (match) {
+      // Handle relative dates
+      if (match[0].toLowerCase().includes("ago")) {
+        const num = parseInt(match[1]);
+        const unit = match[2].toLowerCase();
+        const now = Date.now();
+        let ms = 0;
+        if (unit.startsWith("hour")) ms = num * 3600000;
+        else if (unit.startsWith("day")) ms = num * 86400000;
+        else if (unit.startsWith("week")) ms = num * 7 * 86400000;
+        else if (unit.startsWith("month")) ms = num * 30 * 86400000;
+        return new Date(now - ms).toISOString();
+      }
+      
       try {
-        const d = new Date(match[0].replace(/Published|Updated|Posted|Date|[:\\s]+/gi, "").trim());
+        // Try parsing the matched date string
+        const cleanedMatch = match[0].replace(/Published|Updated|Posted|Date|Modified|[:\\s]+/gi, " ").trim();
+        const d = new Date(cleanedMatch);
         if (!isNaN(d.getTime()) && d.getFullYear() >= 2015 && d.getTime() <= Date.now() + 86400000) {
           return d.toISOString();
         }
-        // Try the full matched string directly
+        // Try joining capture groups
         const d2 = new Date(match.slice(1).join(" "));
         if (!isNaN(d2.getTime()) && d2.getFullYear() >= 2015 && d2.getTime() <= Date.now() + 86400000) {
           return d2.toISOString();
@@ -133,6 +154,31 @@ function extractDateFromContent(text: string): string | null {
     }
   }
 
+  return null;
+}
+
+// Also try to extract date from the URL itself (common pattern: /2025/12/15/)
+function extractDateFromUrl(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/(20[12]\d)\/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\//);
+  if (match) {
+    try {
+      const d = new Date(`${match[1]}-${match[2]}-${match[3]}`);
+      if (!isNaN(d.getTime()) && d.getTime() <= Date.now() + 86400000) {
+        return d.toISOString();
+      }
+    } catch { /* skip */ }
+  }
+  // Also try /2025/12/ without day
+  const match2 = url.match(/\/(20[12]\d)\/(0[1-9]|1[0-2])\//);
+  if (match2) {
+    try {
+      const d = new Date(`${match2[1]}-${match2[2]}-15`);
+      if (!isNaN(d.getTime()) && d.getTime() <= Date.now() + 86400000) {
+        return d.toISOString();
+      }
+    } catch { /* skip */ }
+  }
   return null;
 }
 
@@ -151,7 +197,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { keywords, sites, limit, tbs, date_from } = await req.json();
+    const { keywords, sites, limit, tbs, date_from, accept_undated } = await req.json();
     if (!keywords || keywords.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: "Keywords required" }),
@@ -163,11 +209,11 @@ Deno.serve(async (req) => {
     const siteFilter = sites?.length > 0 ? ` site:${sites.join(" OR site:")}` : "";
     const searchQuery = `${query}${siteFilter}`;
 
-    console.log("Firecrawl search:", searchQuery, "tbs:", tbs);
+    console.log("Firecrawl search:", searchQuery, "tbs:", tbs, "limit:", limit);
 
     const searchBody: any = {
       query: searchQuery,
-      limit: limit || 10,
+      limit: limit || 15,
       scrapeOptions: { formats: ["markdown"] },
     };
 
@@ -224,10 +270,12 @@ Deno.serve(async (req) => {
           return null;
         }
 
-        // Extract publish date: try metadata first, then content text
+        // Extract publish date: try metadata → URL → content text
         const metadataDate = extractDateFromMetadata(item.metadata);
-        const contentDate = !metadataDate ? extractDateFromContent(rawContent) : null;
-        const publishDate = metadataDate || contentDate;
+        const urlDate = !metadataDate ? extractDateFromUrl(url) : null;
+        const contentDate = !metadataDate && !urlDate ? extractDateFromContent(rawContent) : null;
+        const publishDate = metadataDate || urlDate || contentDate;
+        const dateSource = metadataDate ? "metadata" : urlDate ? "url" : contentDate ? "content" : "none";
         
         // If we have a publish date AND a date_from filter, reject articles outside the range
         if (publishDate && dateFromMs > 0) {
@@ -238,8 +286,10 @@ Deno.serve(async (req) => {
           }
         }
         
-        // If NO date found at all and date_from is set, reject — we can't verify recency
-        if (!publishDate && dateFromMs > 0) {
+        // CHANGED: Accept undated articles when accept_undated is true (default behavior now)
+        // Mark them with date_verified: false so the UI can show a badge
+        const shouldAcceptUndated = accept_undated !== false; // default true
+        if (!publishDate && dateFromMs > 0 && !shouldAcceptUndated) {
           console.log("Filtering undated article (can't verify recency):", url);
           return null;
         }
@@ -253,12 +303,15 @@ Deno.serve(async (req) => {
             try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
           })(),
           posted_at: publishDate,
+          date_verified: !!publishDate,
+          date_source: dateSource,
+          matched_query: keywords.join(", "),
         };
       })
       .filter(Boolean);
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ success: true, results, query_used: searchQuery }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

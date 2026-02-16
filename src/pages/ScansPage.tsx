@@ -166,17 +166,24 @@ export default function ScansPage() {
       const dupes = data.duplicates_removed || 0;
       const aiFiltered = data.ai_filtered || 0;
       const created = data.mentions_created || 0;
+      const scanLogEntries = data.scan_log || [];
+      const kwGroupsUsed = data.keyword_groups || {};
+
+      const sourceBreakdown = scanLogEntries.map((s: any) => `${s.source}: ${s.found} found`).join(", ");
 
       const details = [
         `${created} mentions saved`,
-        totalFound > created ? `${totalFound} total found` : null,
+        totalFound > created ? `${totalFound} total found across sources` : null,
+        sourceBreakdown ? `Sources: ${sourceBreakdown}` : null,
         filtered > 0 ? `${filtered} filtered (junk/out-of-range)` : null,
         dupes > 0 ? `${dupes} duplicates removed` : null,
         aiFiltered > 0 ? `${aiFiltered} removed by AI quality filter` : null,
+        kwGroupsUsed.brand?.length ? `Brand keywords: ${kwGroupsUsed.brand.slice(0, 3).join(", ")}` : null,
+        kwGroupsUsed.risk?.length ? `Risk keywords: ${kwGroupsUsed.risk.slice(0, 3).join(", ")}` : null,
       ].filter(Boolean).join(" · ");
 
       toast({
-        title: "Auto-scan complete!",
+        title: `Auto-scan complete! ${created} mentions found`,
         description: details,
       });
       setScanProgress("");
