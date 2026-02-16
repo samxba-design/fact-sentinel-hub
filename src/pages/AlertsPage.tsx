@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Bell, BellRing, Check, X, AlertTriangle, TrendingUp, Siren, Zap,
   Settings2, Activity, Clock, Shield, Save, Loader2, ExternalLink,
-  Eye, Filter,
+  Filter, ChevronRight, Eye, Info,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -30,28 +29,38 @@ interface Alert {
   created_at: string | null;
 }
 
-const ALERT_ICONS: Record<string, any> = {
-  mention_spike: TrendingUp,
-  negative_spike: AlertTriangle,
-  critical_mention: Siren,
-  viral_risk: Zap,
+const ALERT_META: Record<string, { icon: any; color: string; label: string; description: string; mentionsLink: string }> = {
+  mention_spike: {
+    icon: TrendingUp,
+    color: "text-primary",
+    label: "Volume Spike",
+    description: "Unusual increase in mention volume — indicates growing attention on your brand.",
+    mentionsLink: "/mentions?days=1",
+  },
+  negative_spike: {
+    icon: AlertTriangle,
+    color: "text-sentinel-amber",
+    label: "Negative Sentiment Surge",
+    description: "Sudden rise in negative mentions — may signal emerging criticism or a PR issue.",
+    mentionsLink: "/mentions?sentiment=negative&days=1",
+  },
+  critical_mention: {
+    icon: Siren,
+    color: "text-sentinel-red",
+    label: "Critical Threat",
+    description: "High-severity mentions detected — potential crisis requiring immediate attention.",
+    mentionsLink: "/mentions?severity=critical&days=1",
+  },
+  viral_risk: {
+    icon: Zap,
+    color: "text-sentinel-red",
+    label: "Viral Risk",
+    description: "Content with high engagement velocity — could spread rapidly across platforms.",
+    mentionsLink: "/mentions?severity=critical&days=1",
+  },
 };
 
-const ALERT_COLORS: Record<string, string> = {
-  mention_spike: "text-primary",
-  negative_spike: "text-sentinel-amber",
-  critical_mention: "text-sentinel-red",
-  viral_risk: "text-sentinel-red",
-};
-
-const ALERT_DESCRIPTIONS: Record<string, string> = {
-  mention_spike: "Unusual increase in mention volume detected",
-  negative_spike: "Surge in negative sentiment mentions",
-  critical_mention: "Critical-severity mentions requiring immediate attention",
-  viral_risk: "Content flagged with potential to go viral",
-};
-
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_STYLES: Record<string, string> = {
   active: "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5",
   new: "border-primary/30 text-primary bg-primary/5",
   acknowledged: "border-sentinel-amber/30 text-sentinel-amber bg-sentinel-amber/5",
@@ -113,23 +122,13 @@ export default function AlertsPage() {
     });
   }, [currentOrg]);
 
-  const dismissAlert = async (alertId: string) => {
-    const { error } = await supabase.from("alerts").update({ status: "dismissed" }).eq("id", alertId);
+  const updateStatus = async (alertId: string, status: string) => {
+    const { error } = await supabase.from("alerts").update({ status }).eq("id", alertId);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: "dismissed" } : a));
-      toast({ title: "Alert dismissed" });
-    }
-  };
-
-  const acknowledgeAlert = async (alertId: string) => {
-    const { error } = await supabase.from("alerts").update({ status: "acknowledged" }).eq("id", alertId);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: "acknowledged" } : a));
-      toast({ title: "Alert acknowledged" });
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status } : a));
+      toast({ title: status === "dismissed" ? "Alert dismissed" : "Alert acknowledged" });
     }
   };
 
@@ -204,18 +203,18 @@ export default function AlertsPage() {
         steps={[
           {
             icon: <Activity className="h-4 w-4 text-primary" />,
-            title: "1. Automated Detection",
-            description: "Spike detection runs every 15 minutes, checking for mention volume spikes (>3x increase), negative sentiment surges, critical threats, and viral potential.",
+            title: "1. Scans Collect Mentions",
+            description: "Auto-scans run on your chosen schedule (e.g. daily) to discover new mentions across all configured sources. This is what uses your scan quota.",
           },
           {
             icon: <Bell className="h-4 w-4 text-primary" />,
-            title: "2. Alert Triggers",
-            description: "When thresholds are exceeded, alerts are created and email notifications are sent to configured recipients. Duplicate alerts are suppressed within 24 hours.",
+            title: "2. Anomaly Detection Analyzes Results",
+            description: "After each scan, the system checks for unusual patterns — volume spikes (3x+ increase), negative sentiment surges, critical threats, and viral potential. This analysis is lightweight and doesn't consume extra quota.",
           },
           {
             icon: <Settings2 className="h-4 w-4 text-primary" />,
-            title: "3. Configure & Respond",
-            description: "Set scan frequency, alert emails, and quiet hours below. Acknowledge or dismiss alerts as you triage them. Linked mentions can be viewed in the Risk Console.",
+            title: "3. Alerts Notify You",
+            description: "When thresholds are exceeded, alerts appear here and email notifications are sent. Click any alert to see the specific mentions that triggered it.",
           },
         ]}
         integrations={[
@@ -224,8 +223,21 @@ export default function AlertsPage() {
           { label: "Escalations", to: "/escalations", description: "Escalated tickets" },
           { label: "Settings → Notifications", to: "/settings?tab=notifications", description: "Email preferences" },
         ]}
-        tip="Alerts are automatically deduplicated — you won't receive duplicate alerts for the same spike within a 24-hour window."
+        tip="Only auto-scans use your scan quota. Anomaly detection runs automatically on existing data at no extra cost."
       />
+
+      {/* How It Works Banner */}
+      <Card className="bg-primary/5 border-primary/20 p-4">
+        <div className="flex gap-3">
+          <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-card-foreground">What triggers alerts?</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              After each scan, the system analyzes your mentions for anomalies. <strong>Volume spikes</strong> fire when new mentions exceed 3× your recent average. <strong>Negative surges</strong> detect sudden drops in sentiment. <strong>Critical threats</strong> flag severe mentions. <strong>Viral risks</strong> identify high-engagement content. Only scans use your quota — analysis is free.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* Monitoring Configuration */}
       <Card className="bg-card border-border p-5 space-y-4">
@@ -237,16 +249,16 @@ export default function AlertsPage() {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground flex items-center gap-1">
               Auto-Scan Frequency
-              <InfoTooltip text="How often the system automatically scans for new mentions across all your configured sources." />
+              <InfoTooltip text="How often the system scans for new mentions. Each scan uses 1 unit of your quota. Anomaly detection runs automatically after each scan at no extra cost." />
             </Label>
             <Select value={scanSchedule} onValueChange={setScanSchedule}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="manual">Manual only</SelectItem>
-                <SelectItem value="6h">Every 6 hours</SelectItem>
-                <SelectItem value="12h">Every 12 hours</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="manual">Manual only (no quota used)</SelectItem>
+                <SelectItem value="6h">Every 6 hours (~4/day)</SelectItem>
+                <SelectItem value="12h">Every 12 hours (~2/day)</SelectItem>
+                <SelectItem value="daily">Daily (~1/day)</SelectItem>
+                <SelectItem value="weekly">Weekly (~1/week)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -254,7 +266,7 @@ export default function AlertsPage() {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground flex items-center gap-1">
               Alert Emails
-              <InfoTooltip text="Comma-separated email addresses that receive alert notifications when spikes or critical mentions are detected." />
+              <InfoTooltip text="Comma-separated email addresses that receive alert notifications when anomalies are detected." />
             </Label>
             <Input
               placeholder="team@example.com"
@@ -303,7 +315,7 @@ export default function AlertsPage() {
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-sentinel-emerald animate-pulse" />
-            Spike detection: Active (every 15 min)
+            Anomaly detection: Active after each scan
           </span>
           {quietStart != null && quietEnd != null && (
             <span className="flex items-center gap-1.5">
@@ -314,21 +326,24 @@ export default function AlertsPage() {
         </div>
       </Card>
 
-      {/* Alert Type Summary */}
+      {/* Alert Type Summary Cards */}
       {activeCount > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { type: "mention_spike", label: "Volume Spikes", icon: TrendingUp, color: "text-primary" },
-            { type: "negative_spike", label: "Sentiment Surges", icon: AlertTriangle, color: "text-sentinel-amber" },
-            { type: "critical_mention", label: "Critical Threats", icon: Siren, color: "text-sentinel-red" },
-            { type: "viral_risk", label: "Viral Risks", icon: Zap, color: "text-sentinel-red" },
-          ].map(t => (
-            <Card key={t.type} className="bg-card border-border p-4 text-center">
-              <t.icon className={`h-5 w-5 mx-auto ${t.color}`} />
-              <div className="text-xl font-bold font-mono text-card-foreground mt-2">{alertTypeCounts[t.type] || 0}</div>
-              <div className="text-[10px] text-muted-foreground mt-1">{t.label}</div>
-            </Card>
-          ))}
+          {Object.entries(ALERT_META).map(([type, meta]) => {
+            const Icon = meta.icon;
+            const count = alertTypeCounts[type] || 0;
+            return (
+              <Card
+                key={type}
+                className={`bg-card border-border p-4 text-center transition-all cursor-pointer hover:border-primary/30 hover:-translate-y-0.5 ${count > 0 ? "" : "opacity-50"}`}
+                onClick={() => count > 0 ? navigate(meta.mentionsLink) : undefined}
+              >
+                <Icon className={`h-5 w-5 mx-auto ${meta.color}`} />
+                <div className="text-xl font-bold font-mono text-card-foreground mt-2">{count}</div>
+                <div className="text-[10px] text-muted-foreground mt-1">{meta.label}</div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -358,67 +373,82 @@ export default function AlertsPage() {
         </h3>
 
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg mb-2" />)
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg mb-2" />)
         ) : filteredAlerts.length === 0 ? (
           <div className="text-center py-8">
             <Bell className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
-              {filterStatus === "all" ? "No alerts yet. The system checks for spikes every 15 minutes after scans run." : `No ${filterStatus} alerts.`}
+              {filterStatus === "all" ? "No alerts yet. Run a scan — anomaly detection will analyze the results automatically." : `No ${filterStatus} alerts.`}
             </p>
           </div>
         ) : (
           <div className="space-y-2">
             {filteredAlerts.map(alert => {
-              const Icon = ALERT_ICONS[alert.type] || Bell;
-              const color = ALERT_COLORS[alert.type] || "text-primary";
+              const meta = ALERT_META[alert.type] || { icon: Bell, color: "text-primary", label: alert.type, description: "", mentionsLink: "/mentions" };
+              const Icon = meta.icon;
               const payload = alert.payload as any || {};
               const isActive = alert.status === "active" || alert.status === "new";
               return (
                 <div
                   key={alert.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    isActive ? "bg-muted/30 border-border" : "bg-muted/10 border-border/50 opacity-70"
+                  className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
+                    isActive ? "bg-muted/30 border-border hover:bg-muted/50" : "bg-muted/10 border-border/50 opacity-70"
                   }`}
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Icon className={`h-5 w-5 shrink-0 ${color}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-card-foreground">{payload.message || ALERT_DESCRIPTIONS[alert.type] || alert.type}</div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-muted-foreground">
-                          {alert.triggered_at ? format(new Date(alert.triggered_at), "MMM d, h:mm a") : "—"}
-                        </span>
-                        {payload.multiplier && (
-                          <Badge variant="outline" className="text-[9px] h-4">{payload.multiplier}x spike</Badge>
-                        )}
-                        {payload.negative_count && (
-                          <Badge variant="outline" className="text-[9px] h-4">{payload.negative_count} negative</Badge>
-                        )}
-                        {payload.critical_count && (
-                          <Badge variant="outline" className="text-[9px] h-4">{payload.critical_count} critical</Badge>
-                        )}
-                        {payload.viral_count && (
-                          <Badge variant="outline" className="text-[9px] h-4">{payload.viral_count} viral</Badge>
-                        )}
-                      </div>
+                  <div className={`p-2 rounded-lg mt-0.5 ${
+                    alert.type === "critical_mention" || alert.type === "viral_risk" ? "bg-sentinel-red/10" :
+                    alert.type === "negative_spike" ? "bg-sentinel-amber/10" : "bg-primary/10"
+                  }`}>
+                    <Icon className={`h-4 w-4 ${meta.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-card-foreground">{meta.label}</span>
+                      <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_STYLES[alert.status || "active"]}`}>
+                        {alert.status || "active"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {payload.message || meta.description}
+                    </p>
+                    <div className="flex items-center gap-3 pt-1">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {alert.triggered_at ? format(new Date(alert.triggered_at), "MMM d, h:mm a") : "—"}
+                      </span>
+                      {payload.multiplier && (
+                        <Badge variant="outline" className="text-[9px] h-4">{payload.multiplier}x volume increase</Badge>
+                      )}
+                      {payload.negative_count && (
+                        <Badge variant="outline" className="text-[9px] h-4">{payload.negative_count} negative mentions</Badge>
+                      )}
+                      {payload.critical_count && (
+                        <Badge variant="outline" className="text-[9px] h-4">{payload.critical_count} critical mentions</Badge>
+                      )}
+                      {payload.viral_count && (
+                        <Badge variant="outline" className="text-[9px] h-4">{payload.viral_count} viral signals</Badge>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_COLORS[alert.status || "active"]}`}>
-                      {alert.status || "active"}
-                    </Badge>
+                  <div className="flex items-center gap-1 shrink-0">
                     {isActive && (
                       <>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => acknowledgeAlert(alert.id)} title="Acknowledge">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => updateStatus(alert.id, "acknowledged")} title="Acknowledge">
                           <Check className="h-3.5 w-3.5 text-sentinel-emerald" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => dismissAlert(alert.id)} title="Dismiss">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => updateStatus(alert.id, "dismissed")} title="Dismiss">
                           <X className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                       </>
                     )}
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => navigate("/risk-console")} title="View in Risk Console">
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1 text-xs text-primary"
+                      onClick={() => navigate(meta.mentionsLink)}
+                      title="View the mentions that triggered this alert"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> View Mentions
                     </Button>
                   </div>
                 </div>
