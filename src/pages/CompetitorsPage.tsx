@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye } from "lucide-react";
+import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye, Loader2, User } from "lucide-react";
 import PageGuide from "@/components/PageGuide";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -60,7 +60,7 @@ export default function CompetitorsPage() {
   const [newNotes, setNewNotes] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [compareMode, setCompareMode] = useState(false);
-
+  const [scanningId, setScanningId] = useState<string | null>(null);
   useEffect(() => {
     if (!currentOrg) return;
     loadCompetitors();
@@ -171,6 +171,34 @@ export default function CompetitorsPage() {
 
   const viewNarratives = (comp: Competitor) => {
     navigate(`/narratives?search=${encodeURIComponent(comp.name)}`);
+  };
+
+  const viewProfile = (comp: Competitor) => {
+    navigate(`/competitors/${encodeURIComponent(comp.name)}`);
+  };
+
+  const scanCompetitor = async (comp: Competitor) => {
+    if (!currentOrg) return;
+    setScanningId(comp.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-scan", {
+        body: {
+          org_id: currentOrg.id,
+          keywords: [comp.name],
+          sources: ["news", "google-news", "reddit", "social"],
+        },
+      });
+      if (error) throw error;
+      toast({
+        title: "Competitor scan complete",
+        description: `Found ${data?.mentions_created || 0} new mentions for "${comp.name}"`,
+      });
+      loadCompetitors();
+    } catch (err: any) {
+      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+    } finally {
+      setScanningId(null);
+    }
   };
 
   const sentimentIcon = (s: Competitor["sentiment"]) => {
@@ -390,7 +418,7 @@ export default function CompetitorsPage() {
       ) : (
         <div className="grid gap-4">
           {filtered.map(comp => (
-            <Card key={comp.id} className="hover:border-primary/30 transition-colors">
+            <Card key={comp.id} className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => viewProfile(comp)}>
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -406,7 +434,7 @@ export default function CompetitorsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
                     <button onClick={() => viewMentions(comp)} className="text-center hover:opacity-70 transition-opacity cursor-pointer">
                       <p className="text-lg font-bold text-foreground">{comp.mentionCount}</p>
                       <p className="text-xs text-muted-foreground">Mentions</p>
@@ -419,6 +447,16 @@ export default function CompetitorsPage() {
                       {sentimentIcon(comp.sentiment)}
                       <span className="ml-1 capitalize">{comp.sentiment}</span>
                     </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => scanCompetitor(comp)}
+                      disabled={scanningId === comp.id}
+                      className="hidden sm:flex"
+                    >
+                      {scanningId === comp.id ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Scan className="h-3.5 w-3.5 mr-1.5" />}
+                      Scan
+                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -427,6 +465,12 @@ export default function CompetitorsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => viewProfile(comp)}>
+                          <User className="h-4 w-4 mr-2" /> View Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => scanCompetitor(comp)} disabled={scanningId === comp.id}>
+                          <Scan className="h-4 w-4 mr-2" /> {scanningId === comp.id ? "Scanning..." : "Scan Now"}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => viewMentions(comp)}>
                           <Eye className="h-4 w-4 mr-2" /> View Mentions
                         </DropdownMenuItem>

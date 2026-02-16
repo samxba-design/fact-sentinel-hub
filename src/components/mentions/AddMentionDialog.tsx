@@ -169,6 +169,21 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
     if (!currentOrg || !content.trim()) return;
     setSaving(true);
     try {
+      // URL dedup check: prevent adding duplicate URLs
+      if (url.trim()) {
+        const normalizedUrl = url.trim().toLowerCase().replace(/\/$/, "");
+        const { data: existing } = await supabase
+          .from("mentions")
+          .select("id")
+          .eq("org_id", currentOrg.id)
+          .eq("url", normalizedUrl)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          toast({ title: "Duplicate URL", description: "A mention with this URL already exists in your library.", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+      }
       const { error } = await supabase.from("mentions").insert({
         org_id: currentOrg.id,
         source,

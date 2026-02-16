@@ -758,7 +758,44 @@ Return ONLY valid JSON, no markdown.`,
       });
     }
 
-    const mentionRows = filteredResults.map(({ result: r, analysis }) => {
+    // === URL DEDUP: Check existing mentions in DB to avoid re-adding ===
+    const candidateUrls = filteredResults
+      .map(({ result: r }) => r.url?.toLowerCase().replace(/\/$/, ""))
+      .filter(Boolean) as string[];
+    
+    const existingUrlSet = new Set<string>();
+    if (candidateUrls.length > 0) {
+      // Query in batches of 50 to avoid URL list being too long
+      for (let i = 0; i < candidateUrls.length; i += 50) {
+        const batch = candidateUrls.slice(i, i + 50);
+        const { data: existingMentions } = await supabase
+          .from("mentions")
+          .select("url")
+          .eq("org_id", org_id)
+          .in("url", batch);
+        if (existingMentions) {
+          for (const m of existingMentions) {
+            if (m.url) existingUrlSet.add(m.url.toLowerCase().replace(/\/$/, ""));
+          }
+        }
+      }
+      if (existingUrlSet.size > 0) {
+        console.log(`URL dedup: found ${existingUrlSet.size} existing URLs, will skip duplicates`);
+      }
+    }
+
+    // Filter out already-existing URLs
+    const dedupedResults = filteredResults.filter(({ result: r }) => {
+      if (!r.url) return true; // keep mentions without URLs
+      const normalized = r.url.toLowerCase().replace(/\/$/, "");
+      if (existingUrlSet.has(normalized)) {
+        console.log("Skipping duplicate URL (already in DB):", r.url);
+        return false;
+      }
+      return true;
+    });
+
+    const mentionRows = dedupedResults.map(({ result: r, analysis }) => {
       const cleanSummary = analysis.clean_summary || r.content || "";
       // Store date verification and matched query info in flags
       const flags = {
