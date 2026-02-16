@@ -461,30 +461,23 @@ export default function MentionDetailPage() {
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
-            {(() => {
-              // Show real publish date only if it differs from created_at by >60s
-              const hasRealPostDate = mention.posted_at && mention.created_at &&
-                Math.abs(new Date(mention.posted_at).getTime() - new Date(mention.created_at).getTime()) > 60000;
-              return (
-                <>
-                  {hasRealPostDate && (
-                    <span className="flex items-center gap-1">
-                      <CalendarClock className="h-3 w-3" />
-                      Published {format(new Date(mention.posted_at!), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
-                  )}
-                  {!hasRealPostDate && (
-                    <span className="text-muted-foreground/60 italic">Publish date unknown</span>
-                  )}
-                  {mention.created_at && (
-                    <span className="flex items-center gap-1 text-muted-foreground/60">
-                      <Eye className="h-3 w-3" />
-                      Detected {format(new Date(mention.created_at), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
-                  )}
-                </>
-              );
-            })()}
+            {mention.posted_at ? (
+              <span className="flex items-center gap-1 font-medium text-foreground">
+                <CalendarClock className="h-3 w-3 text-primary" />
+                Published {format(new Date(mention.posted_at), "MMM d, yyyy 'at' h:mm a")}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/60 italic flex items-center gap-1">
+                <CalendarClock className="h-3 w-3" />
+                Publish date unknown
+              </span>
+            )}
+            {mention.created_at && (
+              <span className="flex items-center gap-1 text-muted-foreground/60">
+                <Eye className="h-3 w-3" />
+                Detected {format(new Date(mention.created_at), "MMM d, yyyy 'at' h:mm a")}
+              </span>
+            )}
             {mention.language && (
               <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{mention.language.toUpperCase()}</span>
             )}

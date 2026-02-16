@@ -456,11 +456,6 @@ export default function MentionsPage() {
     const mStatus = m.status || "new";
     const statusInfo = statusLabels[mStatus];
     const isSelected = selected.has(m.id);
-    
-    // Determine if posted_at is a real publish date or just the scan time
-    // If posted_at is null or within 60s of created_at, it's unknown
-    const hasRealPostDate = m.posted_at && m.created_at && 
-      Math.abs(new Date(m.posted_at).getTime() - new Date(m.created_at).getTime()) > 60000;
 
     return (
       <Card
@@ -499,14 +494,19 @@ export default function MentionsPage() {
                 >
                   {m.author_name || m.author_handle || "Unknown"}
                 </span>
-                {/* Published date - only show if we have a real publish date */}
-                {hasRealPostDate && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1" title={`Published: ${format(new Date(m.posted_at!), "PPp")}`}>
+                {/* Published date */}
+                {m.posted_at ? (
+                  <span className="text-xs text-foreground/80 font-medium flex items-center gap-1" title={`Published: ${format(new Date(m.posted_at), "PPp")}`}>
+                    <CalendarClock className="h-3 w-3 text-primary" />
+                    {format(new Date(m.posted_at), "MMM d, yyyy")}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50 italic flex items-center gap-1">
                     <CalendarClock className="h-3 w-3" />
-                    Published {format(new Date(m.posted_at!), "MMM d, yyyy")}
+                    Date unknown
                   </span>
                 )}
-                {/* Detected date - always show */}
+                {/* Detected date */}
                 <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5" title={m.created_at ? `Detected: ${format(new Date(m.created_at), "PPp")}` : undefined}>
                   <Eye className="h-2.5 w-2.5" /> Detected {timeAgo(m.created_at)}
                 </span>
