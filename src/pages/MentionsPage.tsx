@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2 } from "lucide-react";
+import {
+  Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
+  MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
+  Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2
+} from "lucide-react";
 import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -16,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import BulkActionsBar from "@/components/mentions/BulkActionsBar";
 import SavedFilters from "@/components/mentions/SavedFilters";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
+import { format } from "date-fns";
 
 interface Mention {
   id: string;
@@ -26,11 +31,18 @@ interface Mention {
   sentiment_label: string | null;
   severity: string | null;
   posted_at: string | null;
+  created_at: string | null;
   author_follower_count: number | null;
   flags: any;
   status: string | null;
   scan_run_id: string | null;
   url: string | null;
+}
+
+interface NarrativeInfo {
+  mention_id: string;
+  narrative_id: string;
+  narratives: { name: string } | null;
 }
 
 const severityColors: Record<string, string> = {
@@ -53,12 +65,27 @@ const statusLabels: Record<string, { label: string; icon: any; class: string }> 
   resolved: { label: "Resolved", icon: CheckCircle2, class: "text-sentinel-emerald" },
 };
 
+// Clean junk content for preview
+function cleanPreview(raw: string | null): string {
+  if (!raw) return "No content";
+  let text = raw;
+  text = text.replace(/!\[.*?\]\(data:.*?\)/g, "");
+  text = text.replace(/\[([^\]]*)\]\(https?:[^)]*\)/g, "$1");
+  text = text.replace(/https?:\/\/\S+/g, "");
+  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+  text = text.replace(/[#*_~`>]/g, "");
+  text = text.replace(/\s+/g, " ").trim();
+  if (text.length < 20) return "Content not extractable — click to view source";
+  return text;
+}
+
 export default function MentionsPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [mentions, setMentions] = useState<Mention[]>([]);
+  const [narrativeLinks, setNarrativeLinks] = useState<NarrativeInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
@@ -67,6 +94,8 @@ export default function MentionsPage() {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addMentionOpen, setAddMentionOpen] = useState(false);
+  const [groupByNarrative, setGroupByNarrative] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
@@ -89,14 +118,12 @@ export default function MentionsPage() {
     setLoading(true);
     let query = supabase
       .from("mentions")
-      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, author_follower_count, flags, status, scan_run_id, url")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("posted_at", { ascending: false })
       .limit(200);
 
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
-
-    // Apply days filter from URL param
     if (daysParam) {
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
@@ -104,8 +131,21 @@ export default function MentionsPage() {
     }
 
     query.then(({ data }) => {
-      setMentions(data || []);
+      const mentionData = data || [];
+      setMentions(mentionData);
       setLoading(false);
+
+      // Load narrative links for grouping
+      if (mentionData.length > 0) {
+        const ids = mentionData.map(m => m.id);
+        supabase
+          .from("mention_narratives")
+          .select("mention_id, narrative_id, narratives(name)")
+          .in("mention_id", ids)
+          .then(({ data: links }) => {
+            setNarrativeLinks((links as any) || []);
+          });
+      }
     });
   }, [currentOrg, scanFilter, daysParam]);
 
@@ -128,20 +168,6 @@ export default function MentionsPage() {
       setSelected(prev => { const n = new Set(prev); n.delete(mentionId); return n; });
       toast({ title: "Mention deleted" });
     }
-  };
-
-  // Clean junk content for preview
-  const cleanPreview = (raw: string | null): string => {
-    if (!raw) return "No content";
-    let text = raw;
-    text = text.replace(/!\[.*?\]\(data:.*?\)/g, "");
-    text = text.replace(/\[([^\]]*)\]\(https?:[^)]*\)/g, "$1");
-    text = text.replace(/https?:\/\/\S+/g, "");
-    text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
-    text = text.replace(/[#*_~`>]/g, "");
-    text = text.replace(/\s+/g, " ").trim();
-    if (text.length < 20) return "Content not extractable — click to view source";
-    return text;
   };
 
   const handleBulkAction = async (action: string) => {
@@ -191,14 +217,6 @@ export default function MentionsPage() {
     });
   };
 
-  const selectAll = () => {
-    if (selected.size === filtered.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map(m => m.id)));
-    }
-  };
-
   const filtered = mentions.filter(m => {
     const mStatus = m.status || "new";
     if (statusFilter === "active" && (mStatus === "ignored" || mStatus === "snoozed" || mStatus === "resolved")) return false;
@@ -212,6 +230,41 @@ export default function MentionsPage() {
     }
     return true;
   });
+
+  const selectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(m => m.id)));
+    }
+  };
+
+  // Build narrative groups
+  const narrativeGroups = useMemo(() => {
+    if (!groupByNarrative) return null;
+    const groups: Record<string, { name: string; mentionIds: Set<string> }> = {};
+    const ungrouped = new Set(filtered.map(m => m.id));
+
+    for (const link of narrativeLinks) {
+      if (!ungrouped.has(link.mention_id)) continue;
+      const name = (link.narratives as any)?.name || "Unknown Narrative";
+      if (!groups[link.narrative_id]) {
+        groups[link.narrative_id] = { name, mentionIds: new Set() };
+      }
+      groups[link.narrative_id].mentionIds.add(link.mention_id);
+      ungrouped.delete(link.mention_id);
+    }
+
+    return { groups, ungroupedIds: ungrouped };
+  }, [groupByNarrative, filtered, narrativeLinks]);
+
+  const toggleGroupCollapse = (id: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const uniqueSources = [...new Set(mentions.map(m => m.source))];
 
@@ -259,7 +312,7 @@ export default function MentionsPage() {
     setLoading(true);
     let query = supabase
       .from("mentions")
-      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, author_follower_count, flags, status, scan_run_id, url")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("posted_at", { ascending: false })
       .limit(200);
@@ -270,6 +323,173 @@ export default function MentionsPage() {
       query = query.gte("posted_at", daysAgo.toISOString());
     }
     query.then(({ data }) => { setMentions(data || []); setLoading(false); });
+  };
+
+  // Detect coordinated patterns - mentions from same time window with same sentiment
+  const coordWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    // Check for burst of same-sentiment mentions in short window
+    const negMentions = filtered.filter(m => m.sentiment_label === "negative");
+    if (negMentions.length >= 5) {
+      const times = negMentions.map(m => new Date(m.posted_at || "").getTime()).filter(t => t > 0).sort();
+      if (times.length >= 5) {
+        const span = times[times.length - 1] - times[0];
+        if (span < 3600000) { // All within 1 hour
+          warnings.push(`${negMentions.length} negative mentions detected within the same hour — possible coordinated FUD campaign`);
+        }
+      }
+    }
+    // Check for duplicate content
+    const contentMap = new Map<string, number>();
+    filtered.forEach(m => {
+      const key = cleanPreview(m.content).slice(0, 80).toLowerCase();
+      if (key.length > 30) contentMap.set(key, (contentMap.get(key) || 0) + 1);
+    });
+    const dupes = [...contentMap.entries()].filter(([, c]) => c >= 3);
+    if (dupes.length > 0) {
+      warnings.push(`Duplicate content detected across ${dupes.reduce((s, [, c]) => s + c, 0)} mentions — may indicate bot or copy-paste coordination`);
+    }
+    // Check if many flagged as coordinated
+    const coordCount = filtered.filter(m => (m.flags as any)?.coordinated).length;
+    if (coordCount >= 3) {
+      warnings.push(`${coordCount} mentions flagged as potentially coordinated activity by AI analysis`);
+    }
+    return warnings;
+  }, [filtered]);
+
+  // Render a single mention card
+  const renderMention = (m: Mention) => {
+    const flags = m.flags as any || {};
+    const mStatus = m.status || "new";
+    const statusInfo = statusLabels[mStatus];
+    const isSelected = selected.has(m.id);
+    const postedDate = m.posted_at ? format(new Date(m.posted_at), "MMM d, yyyy") : null;
+    const detectedDate = m.created_at ? format(new Date(m.created_at), "MMM d, yyyy") : null;
+    const sameDay = postedDate === detectedDate;
+
+    return (
+      <Card
+        key={m.id}
+        className={`bg-card border-border p-5 hover:border-primary/30 transition-colors ${
+          mStatus === "ignored" ? "opacity-50" : mStatus === "snoozed" ? "opacity-70" : ""
+        } ${isSelected ? "ring-1 ring-primary/40" : ""} ${
+          flags.coordinated ? "border-l-2 border-l-sentinel-amber" : ""
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => toggleSelect(m.id)}
+            className="mt-1 shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="flex-1 flex items-start justify-between gap-4 min-w-0">
+            <div className="flex-1 space-y-2 min-w-0 cursor-pointer" onClick={() => navigate(`/mentions/${m.id}`)}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <SourceBadge source={m.source} />
+                <span
+                  className="text-xs text-primary hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate to people page filtered by this author
+                    navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`);
+                  }}
+                >
+                  {m.author_name || m.author_handle || "Unknown"}
+                </span>
+                {/* Dual timestamp: posted vs detected */}
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <CalendarClock className="h-3 w-3" />
+                  {m.posted_at ? (
+                    <span title={`Originally posted: ${format(new Date(m.posted_at), "PPp")}`}>
+                      Posted {timeAgo(m.posted_at)}
+                    </span>
+                  ) : "Unknown date"}
+                </span>
+                {!sameDay && detectedDate && (
+                  <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5" title={`Detected by scan: ${format(new Date(m.created_at!), "PPp")}`}>
+                    <Eye className="h-2.5 w-2.5" /> Detected {timeAgo(m.created_at)}
+                  </span>
+                )}
+                {flags.emergency && (
+                  <Badge className="bg-sentinel-red/10 text-sentinel-red border-sentinel-red/30 text-[10px]">
+                    <AlertTriangle className="h-3 w-3 mr-1" />Emergency
+                  </Badge>
+                )}
+                {flags.false_claim && (
+                  <Badge className="bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30 text-[10px]">
+                    <Flag className="h-3 w-3 mr-1" />False Claim
+                  </Badge>
+                )}
+                {flags.coordinated && (
+                  <Badge className="bg-sentinel-purple/10 text-sentinel-purple border-sentinel-purple/30 text-[10px]">
+                    <Network className="h-3 w-3 mr-1" />Coordinated
+                  </Badge>
+                )}
+                {flags.bot_likely && (
+                  <Badge className="bg-muted text-muted-foreground border-border text-[10px]">Bot Likely</Badge>
+                )}
+                {statusInfo && (
+                  <Badge variant="outline" className={`text-[10px] ${statusInfo.class}`}>
+                    <statusInfo.icon className="h-3 w-3 mr-1" />{statusInfo.label}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-card-foreground line-clamp-2">{cleanPreview(m.content)}</p>
+              {m.url && (
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="h-3 w-3" /> View source
+                </a>
+              )}
+            </div>
+            <div className="flex items-start gap-3 shrink-0">
+              <div className="text-right space-y-2">
+                <Badge variant="outline" className={`text-[10px] ${severityColors[m.severity || "low"]}`}>{m.severity || "low"}</Badge>
+                <div className={`text-xs font-medium ${sentimentColors[m.sentiment_label || "neutral"]}`}>{m.sentiment_label || "neutral"}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{formatReach(m.author_follower_count)} reach</div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/respond?mention=${m.id}`); }}
+                >
+                  <MessageCircleReply className="h-3 w-3 mr-1" /> Draft Reply
+                </Button>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={e => e.stopPropagation()}>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate(`/mentions/${m.id}`)}>View Details</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/respond`)}>
+                    <MessageCircleReply className="h-3.5 w-3.5 mr-2" /> Draft Response
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`)}>
+                    <User2 className="h-3.5 w-3.5 mr-2" /> View Author Profile
+                  </DropdownMenuItem>
+                  {mStatus !== "ignored" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "ignored")}><EyeOff className="h-3.5 w-3.5 mr-2" /> Ignore</DropdownMenuItem>}
+                  {mStatus !== "snoozed" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "snoozed")}><Clock className="h-3.5 w-3.5 mr-2" /> Snooze</DropdownMenuItem>}
+                  {mStatus !== "resolved" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "resolved")}><CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Resolved</DropdownMenuItem>}
+                  {mStatus !== "new" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "new")}>Reopen</DropdownMenuItem>}
+                  <DropdownMenuItem onClick={() => deleteMention(m.id)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
   };
 
   return (
@@ -285,6 +505,21 @@ export default function MentionsPage() {
       </div>
 
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} onCreated={refetchMentions} />
+
+      {/* Coordinated FUD / suspicious pattern warnings */}
+      {coordWarnings.length > 0 && (
+        <div className="space-y-2">
+          {coordWarnings.map((w, i) => (
+            <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-sentinel-amber/5 border border-sentinel-amber/20">
+              <AlertCircle className="h-4 w-4 text-sentinel-amber mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-sentinel-amber">Suspicious Pattern Detected</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{w}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(scanFilter || hasUrlFilters) && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -347,6 +582,14 @@ export default function MentionsPage() {
             <SelectItem value="mixed">Mixed</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          size="sm"
+          variant={groupByNarrative ? "default" : "outline"}
+          onClick={() => setGroupByNarrative(!groupByNarrative)}
+          className="h-9 text-xs gap-1.5"
+        >
+          <Network className="h-3.5 w-3.5" /> Group by Theme
+        </Button>
         <SavedFilters currentFilters={currentFilters} onApply={applyFilters} />
       </div>
 
@@ -384,101 +627,49 @@ export default function MentionsPage() {
               </Button>
             )}
           </div>
-        ) : (
-          filtered.map(m => {
-            const flags = m.flags as any || {};
-            const mStatus = m.status || "new";
-            const statusInfo = statusLabels[mStatus];
-            const isSelected = selected.has(m.id);
-            return (
-              <Card
-                key={m.id}
-                className={`bg-card border-border p-5 hover:border-primary/30 transition-colors ${
-                  mStatus === "ignored" ? "opacity-50" : mStatus === "snoozed" ? "opacity-70" : ""
-                } ${isSelected ? "ring-1 ring-primary/40" : ""}`}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleSelect(m.id)}
-                    className="mt-1 shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex-1 flex items-start justify-between gap-4 min-w-0">
-                    <div className="flex-1 space-y-2 min-w-0 cursor-pointer" onClick={() => navigate(`/mentions/${m.id}`)}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <SourceBadge source={m.source} />
-                        <span className="text-xs text-muted-foreground">by {m.author_name || m.author_handle || "Unknown"}</span>
-                        <span className="text-xs text-muted-foreground">· {timeAgo(m.posted_at)}</span>
-                        {flags.emergency && (
-                          <Badge className="bg-sentinel-red/10 text-sentinel-red border-sentinel-red/30 text-[10px]">
-                            <AlertTriangle className="h-3 w-3 mr-1" />Emergency
-                          </Badge>
-                        )}
-                        {flags.false_claim && (
-                          <Badge className="bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30 text-[10px]">
-                            <Flag className="h-3 w-3 mr-1" />False Claim
-                          </Badge>
-                        )}
-                        {statusInfo && (
-                          <Badge variant="outline" className={`text-[10px] ${statusInfo.class}`}>
-                            <statusInfo.icon className="h-3 w-3 mr-1" />{statusInfo.label}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-card-foreground line-clamp-2">{cleanPreview(m.content)}</p>
-                      {m.url && (
-                        <a
-                          href={m.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3" /> View source
-                        </a>
-                      )}
-                    </div>
-                    <div className="flex items-start gap-3 shrink-0">
-                      <div className="text-right space-y-2">
-                        <Badge variant="outline" className={`text-[10px] ${severityColors[m.severity || "low"]}`}>{m.severity || "low"}</Badge>
-                        <div className={`text-xs font-medium ${sentimentColors[m.sentiment_label || "neutral"]}`}>{m.sentiment_label || "neutral"}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">{formatReach(m.author_follower_count)} reach</div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/respond?mention=${m.id}`); }}
-                        >
-                          <MessageCircleReply className="h-3 w-3 mr-1" /> Draft Reply
-                        </Button>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={e => e.stopPropagation()}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/mentions/${m.id}`)}>View Details</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/respond`)}>
-                            <MessageCircleReply className="h-3.5 w-3.5 mr-2" /> Draft Response
-                          </DropdownMenuItem>
-                          {mStatus !== "ignored" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "ignored")}><EyeOff className="h-3.5 w-3.5 mr-2" /> Ignore</DropdownMenuItem>}
-                          {mStatus !== "snoozed" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "snoozed")}><Clock className="h-3.5 w-3.5 mr-2" /> Snooze</DropdownMenuItem>}
-                          {mStatus !== "resolved" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "resolved")}><CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Resolved</DropdownMenuItem>}
-                          {mStatus !== "new" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "new")}>Reopen</DropdownMenuItem>}
-                          <DropdownMenuItem onClick={() => deleteMention(m.id)} className="text-destructive focus:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
+        ) : groupByNarrative && narrativeGroups ? (
+          <>
+            {/* Grouped by narrative */}
+            {Object.entries(narrativeGroups.groups).map(([narrativeId, group]) => {
+              const groupMentions = filtered.filter(m => group.mentionIds.has(m.id));
+              if (groupMentions.length === 0) return null;
+              const isCollapsed = collapsedGroups.has(narrativeId);
+              return (
+                <div key={narrativeId} className="space-y-2">
+                  <button
+                    onClick={() => toggleGroupCollapse(narrativeId)}
+                    className="flex items-center gap-2 w-full text-left p-2 rounded-md hover:bg-muted/50 transition-colors"
+                  >
+                    {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    <Network className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-sm font-medium text-foreground">{group.name}</span>
+                    <Badge variant="secondary" className="text-[10px]">{groupMentions.length}</Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto h-6 text-[10px] text-primary"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/narratives`); }}
+                    >
+                      View Narrative →
+                    </Button>
+                  </button>
+                  {!isCollapsed && groupMentions.map(renderMention)}
                 </div>
-              </Card>
-            );
-          })
+              );
+            })}
+            {/* Ungrouped mentions */}
+            {narrativeGroups.ungroupedIds.size > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2">
+                  <span className="text-sm font-medium text-muted-foreground">Unclustered</span>
+                  <Badge variant="secondary" className="text-[10px]">{narrativeGroups.ungroupedIds.size}</Badge>
+                </div>
+                {filtered.filter(m => narrativeGroups.ungroupedIds.has(m.id)).map(renderMention)}
+              </div>
+            )}
+          </>
+        ) : (
+          filtered.map(renderMention)
         )}
       </div>
     </div>

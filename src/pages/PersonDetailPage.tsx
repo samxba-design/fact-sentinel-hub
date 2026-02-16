@@ -10,8 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   User2, ArrowLeft, MessageSquareWarning, Globe, Shield,
-  TrendingUp, Users, Gauge, Hash, ExternalLink
+  TrendingUp, Users, Gauge, Hash, ExternalLink, StickyNote, Plus
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -272,12 +273,23 @@ export default function PersonDetailPage() {
             </div>
           )}
 
-          {orgPerson?.evidence && (
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">Evidence</h3>
-              <p className="text-xs text-card-foreground">{orgPerson.evidence}</p>
-            </div>
-          )}
+          {/* Notes / Evidence */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <StickyNote className="h-3.5 w-3.5" /> Monitoring Notes
+            </h3>
+            <Textarea
+              placeholder="Add notes about this person — why they're tracked, known affiliations, past incidents..."
+              value={orgPerson?.evidence || ""}
+              onChange={async (e) => {
+                if (!id || !currentOrg || !orgPerson) return;
+                const val = e.target.value;
+                setOrgPerson({ ...orgPerson, evidence: val });
+                await supabase.from("org_people").update({ evidence: val }).eq("person_id", id).eq("org_id", currentOrg.id);
+              }}
+              className="min-h-[80px] text-sm"
+            />
+          </div>
         </Card>
 
         {/* Sentiment chart */}

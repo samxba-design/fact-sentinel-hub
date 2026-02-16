@@ -240,13 +240,18 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a sentiment analysis engine. Analyze each mention and return structured data.
+            content: `You are a sentiment analysis engine specializing in reputation threat detection. Analyze each mention and return structured data.
 For each mention, determine:
 - sentiment_label: "positive", "negative", "neutral", or "mixed"
 - sentiment_score: number between -1 (very negative) and 1 (very positive)
 - sentiment_confidence: number between 0 and 1
 - severity: "low", "medium", "high", or "critical" based on reputational risk
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
+
+IMPORTANT for coordinated/bot detection:
+- Set coordinated=true if multiple mentions share near-identical phrasing, appear to push the same narrative simultaneously, or show signs of an organized campaign
+- Set bot_likely=true if the content appears auto-generated, uses suspicious patterns, or the author seems non-human
+- Set viral_potential=true if the content has high engagement potential or emotional charge
 
 Return a JSON array matching the input order:
 { "analyses": [ { "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }

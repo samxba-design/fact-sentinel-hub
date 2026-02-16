@@ -69,6 +69,8 @@ export default function ScansPage() {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [autoScanning, setAutoScanning] = useState(false);
+  const [scanDatePickerOpen, setScanDatePickerOpen] = useState(false);
+  const [scanDateRange, setScanDateRange] = useState<string>("7days");
 
   // Builder state
   const [selectedSources, setSelectedSources] = useState<string[]>(["news"]);
@@ -95,13 +97,12 @@ export default function ScansPage() {
 
   useEffect(() => { fetchRuns(); }, [fetchRuns]);
 
-  // Auto scan: automatically uses all org keywords + all connected sources
-  const runAutoScan = async () => {
+  // Auto scan with date range
+  const runAutoScan = async (dateRange?: string) => {
     if (!currentOrg) return;
     setAutoScanning(true);
     setScanProgress("Preparing intelligent auto-scan...");
     try {
-      // Load all keywords and connected providers in parallel
       const [kwRes, provRes, customSourcesRes] = await Promise.all([
         supabase.from("keywords").select("value").eq("org_id", currentOrg.id).limit(50),
         supabase.from("org_api_keys").select("provider").eq("org_id", currentOrg.id),
@@ -119,27 +120,39 @@ export default function ScansPage() {
       const connectedProviders = [...new Set((provRes.data || []).map(k => k.provider))];
       const customTypes = (customSourcesRes.data || []).map(s => s.type);
 
-      // Auto-select: all free sources + any connected paid sources + custom sources
       const autoSources = ["news", "blogs", "forums", "reviews", "google-news"];
       if (connectedProviders.includes("twitter")) autoSources.push("twitter");
       if (connectedProviders.includes("reddit")) autoSources.push("reddit");
       if (connectedProviders.includes("youtube")) autoSources.push("youtube");
-      // Include custom source types
       customTypes.forEach(t => { if (!autoSources.includes(t)) autoSources.push(t); });
 
       const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const range = dateRange || scanDateRange;
+      let dateFrom: Date;
+      switch (range) {
+        case "today":
+          dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case "7days":
+          dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "30days":
+          dateFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          dateFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      }
 
       setTimeout(() => setScanProgress("Scanning all connected sources..."), 1500);
       setTimeout(() => setScanProgress("Analyzing sentiment & detecting threats..."), 4000);
-      setTimeout(() => setScanProgress("Clustering narratives with AI..."), 7000);
+      setTimeout(() => setScanProgress("Detecting coordinated patterns & clustering narratives..."), 7000);
 
       const { data, error } = await supabase.functions.invoke("run-scan", {
         body: {
           org_id: currentOrg.id,
           keywords: autoKeywords,
           sources: autoSources,
-          date_from: weekAgo.toISOString().split("T")[0],
+          date_from: dateFrom.toISOString().split("T")[0],
           date_to: now.toISOString().split("T")[0],
         },
       });
@@ -148,9 +161,10 @@ export default function ScansPage() {
 
       toast({
         title: "Auto-scan complete!",
-        description: `Found ${data.mentions_created || 0} mentions across ${autoSources.length} sources using ${autoKeywords.length} keywords.`,
+        description: `Found ${data.mentions_created || 0} mentions across ${autoSources.length} sources.`,
       });
       setScanProgress("");
+      setScanDatePickerOpen(false);
       fetchRuns();
     } catch (err: any) {
       toast({ title: "Auto-scan failed", description: err.message, variant: "destructive" });
@@ -325,7 +339,7 @@ export default function ScansPage() {
           <Button variant="outline" onClick={() => setBuilderOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />Custom Scan
           </Button>
-          <Button onClick={runAutoScan} disabled={autoScanning || scanning} className="gap-2">
+          <Button onClick={() => setScanDatePickerOpen(true)} disabled={autoScanning || scanning} className="gap-2">
             {autoScanning ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -392,7 +406,7 @@ export default function ScansPage() {
               Run an auto-scan to instantly search all connected sources with your tracked keywords, or build a custom scan with specific parameters.
             </p>
             <div className="flex gap-3">
-              <Button onClick={runAutoScan} disabled={autoScanning} className="gap-2">
+              <Button onClick={() => setScanDatePickerOpen(true)} disabled={autoScanning} className="gap-2">
                 {autoScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {autoScanning ? "Scanning..." : "Auto Scan — Full Coverage"}
               </Button>
@@ -730,6 +744,49 @@ export default function ScansPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto Scan Date Range Picker */}
+      <Dialog open={scanDatePickerOpen} onOpenChange={setScanDatePickerOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Auto Scan — Choose Time Range
+            </DialogTitle>
+            <DialogDescription>
+              Select how far back to scan. Narrower ranges find fresher threats faster. Wider ranges catch more but may include older content.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            {[
+              { value: "today", label: "Today only", desc: "Just today's content — fastest scan" },
+              { value: "7days", label: "Last 7 days", desc: "Recommended — catches recent activity" },
+              { value: "30days", label: "Last 30 days", desc: "Wider net — more results, some older" },
+              { value: "everything", label: "Everything", desc: "No date filter — comprehensive but slower" },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setScanDateRange(opt.value)}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                  scanDateRange === opt.value
+                    ? "bg-primary/10 border-primary/30"
+                    : "bg-card border-border hover:border-primary/20"
+                }`}
+              >
+                <div className="text-sm font-medium text-foreground">{opt.label}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setScanDatePickerOpen(false)}>Cancel</Button>
+            <Button onClick={() => runAutoScan()} disabled={autoScanning} className="gap-2">
+              {autoScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {autoScanning ? "Scanning..." : "Start Scan"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
