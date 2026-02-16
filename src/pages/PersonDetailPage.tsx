@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -171,11 +172,14 @@ export default function PersonDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: "People", href: "/people" },
+        { label: person.name },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/people")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
         <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
           <User2 className="h-6 w-6 text-primary" />
         </div>

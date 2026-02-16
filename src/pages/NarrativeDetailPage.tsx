@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -127,11 +128,14 @@ export default function NarrativeDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: "Narratives", href: "/narratives" },
+        { label: narrative.name },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/narratives")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <Network className="h-5 w-5 text-primary" />
