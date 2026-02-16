@@ -136,6 +136,9 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
       else if (urlLower.includes("reddit.com")) detectedSource = "reddit";
       else if (urlLower.includes("youtube.com")) detectedSource = "youtube";
       else if (urlLower.includes("linkedin.com")) detectedSource = "linkedin";
+      else if (urlLower.includes("facebook.com") || urlLower.includes("fb.com")) detectedSource = "facebook";
+      else if (urlLower.includes("tiktok.com")) detectedSource = "tiktok";
+      else if (urlLower.includes("discord.com") || urlLower.includes("discord.gg")) detectedSource = "discord";
       else if (urlLower.includes("trustpilot.com")) detectedSource = "trustpilot";
       else if (urlLower.includes("g2.com")) detectedSource = "g2";
       else if (urlLower.includes("glassdoor.com")) detectedSource = "glassdoor";
@@ -245,6 +248,14 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
               <p className="text-[10px] text-muted-foreground">
                 Paste any URL and AI will extract the content, sentiment, and details for your review.
               </p>
+              {url.trim() && /facebook\.com|fb\.com|linkedin\.com|tiktok\.com|discord\.(com|gg)/i.test(url) && !aiExtracted && (
+                <div className="flex items-start gap-2 mt-2 rounded-md bg-sentinel-amber/10 border border-sentinel-amber/30 p-2.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-sentinel-amber mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    <strong className="text-foreground">This platform requires login for most content.</strong> We'll attempt to extract public content, but if the post is behind a login wall, extraction may fail. In that case, switch to the <strong>Fully Manual</strong> tab and paste the text content directly.
+                  </p>
+                </div>
+              )}
             </div>
 
             {aiExtracted && (

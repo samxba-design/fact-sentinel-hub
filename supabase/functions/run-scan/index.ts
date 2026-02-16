@@ -417,8 +417,9 @@ Deno.serve(async (req) => {
       })());
     }
 
-    // === Social Media via web search (Twitter/X, LinkedIn, Facebook) ===
-    if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin", "facebook"].includes(s))) {
+    // === Social Media via web search (Twitter/X, LinkedIn) ===
+    // Note: Facebook is manual-only — no public search API or scraping available
+    if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin"].includes(s))) {
       scanPromises.push((async () => {
         try {
           const socialQueries = brandKws.slice(0, 3).map(k => `${k} social media discussion`);
