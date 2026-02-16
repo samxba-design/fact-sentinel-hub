@@ -21,6 +21,55 @@ interface RawResult {
   subreddit?: string;
 }
 
+// Clean raw markdown/HTML into usable text
+function cleanContent(raw: string): string {
+  let text = raw;
+  text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
+  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
+  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  text = text.replace(/https?:\/\/\S+/g, "");
+  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+  text = text.replace(/<[^>]+>/g, " ");
+  text = text.replace(/[#*_~`>|]/g, "");
+  text = text.replace(/[-=]{3,}/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+// Detect blocked/error pages
+function isJunkContent(text: string): boolean {
+  const blockers = [
+    "blocked by an extension", "enable javascript", "access denied",
+    "403 forbidden", "captcha", "please verify you are a human",
+    "cloudflare", "just a moment", "checking your browser", "ray id",
+    "please turn javascript on", "ERR_BLOCKED",
+  ];
+  const lower = text.toLowerCase();
+  return blockers.some(b => lower.includes(b));
+}
+
+// Classify source from URL
+function classifySource(url: string, fallback: string): string {
+  if (!url) return fallback;
+  const lower = url.toLowerCase();
+  if (lower.includes("trustpilot.com")) return "trustpilot";
+  if (lower.includes("g2.com")) return "g2";
+  if (lower.includes("glassdoor.com")) return "glassdoor";
+  if (lower.includes("capterra.com")) return "capterra";
+  if (lower.includes("twitter.com") || lower.includes("x.com")) return "twitter";
+  if (lower.includes("reddit.com")) return "reddit";
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
+  if (lower.includes("facebook.com")) return "facebook";
+  if (lower.includes("linkedin.com")) return "linkedin";
+  if (lower.includes("medium.com") || lower.includes("substack.com") || lower.includes("blog")) return "blog";
+  if (lower.includes("forum") || lower.includes("community") || lower.includes("discuss")) return "forum";
+  // Known news outlets override "review" label
+  const newsOutlets = ["bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "nytimes.com", "theguardian.com", 
+    "bloomberg.com", "forbes.com", "techcrunch.com", "wsj.com", "ft.com", "cnbc.com", "apnews.com"];
+  if (newsOutlets.some(n => lower.includes(n))) return "news";
+  return fallback;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -201,8 +250,23 @@ Deno.serve(async (req) => {
     // Wait for all sources in parallel
     await Promise.all(scanPromises);
 
-    if (allResults.length === 0) {
-      // Update scan as failed
+    // === CLEAN & FILTER results before AI analysis ===
+    const cleanedResults: RawResult[] = [];
+    for (const r of allResults) {
+      const cleaned = cleanContent(r.content || "");
+      if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {
+        console.log("Filtering out blocked/junk content from:", r.url);
+        continue;
+      }
+      if (cleaned.length < 40) {
+        console.log("Filtering out low-quality content:", r.url);
+        continue;
+      }
+      const correctedSource = classifySource(r.url || "", r.source);
+      cleanedResults.push({ ...r, content: cleaned.slice(0, 800), source: correctedSource });
+    }
+
+    if (cleanedResults.length === 0) {
       await supabase
         .from("scan_runs")
         .update({
@@ -221,7 +285,7 @@ Deno.serve(async (req) => {
           negative_pct: 0,
           emergencies: 0,
           errors,
-          message: errors.length > 0 ? errors.join("; ") : "No results found",
+          message: errors.length > 0 ? errors.join("; ") : "No quality results found — sources may have blocked access",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -260,8 +324,8 @@ Return ONLY valid JSON, no markdown.`,
           },
           {
             role: "user",
-            content: `Analyze these ${allResults.length} mentions:\n${JSON.stringify(
-              allResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 300) }))
+            content: `Analyze these ${cleanedResults.length} mentions:\n${JSON.stringify(
+              cleanedResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 300) }))
             )}`,
           },
         ],
@@ -282,7 +346,7 @@ Return ONLY valid JSON, no markdown.`,
     }
 
     // Insert mentions with real data + AI analysis
-    const mentionRows = allResults.map((r, i) => {
+    const mentionRows = cleanedResults.map((r, i) => {
       const analysis = analyses[i] || {};
       return {
         org_id,
@@ -339,8 +403,8 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
             },
             {
               role: "user",
-              content: `Cluster these ${allResults.length} mentions into narrative themes:\n${JSON.stringify(
-                allResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 200) }))
+              content: `Cluster these ${cleanedResults.length} mentions into narrative themes:\n${JSON.stringify(
+                cleanedResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 200) }))
               )}`,
             },
           ],

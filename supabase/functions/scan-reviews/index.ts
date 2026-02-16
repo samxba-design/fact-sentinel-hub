@@ -5,6 +5,55 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Detect actual source type from URL (not blindly trust scan label)
+function classifySourceFromUrl(url: string): string {
+  if (!url) return "news";
+  const lower = url.toLowerCase();
+  if (lower.includes("trustpilot.com")) return "trustpilot";
+  if (lower.includes("g2.com")) return "g2";
+  if (lower.includes("glassdoor.com")) return "glassdoor";
+  if (lower.includes("capterra.com")) return "capterra";
+  if (lower.includes("yelp.com")) return "yelp";
+  if (lower.includes("bbb.org")) return "bbb";
+  // If not a known review site, classify more accurately
+  if (lower.includes("bbc.com") || lower.includes("bbc.co.uk")) return "news";
+  if (lower.includes("cnn.com") || lower.includes("reuters.com") || lower.includes("nytimes.com")) return "news";
+  if (lower.includes("theguardian.com") || lower.includes("bloomberg.com")) return "news";
+  if (lower.includes("forbes.com") || lower.includes("techcrunch.com")) return "news";
+  if (lower.includes("blog") || lower.includes("medium.com")) return "blog";
+  if (lower.includes("forum") || lower.includes("community")) return "forum";
+  if (lower.includes("reddit.com")) return "reddit";
+  if (lower.includes("twitter.com") || lower.includes("x.com")) return "twitter";
+  // Generic sites that showed up in review search aren't necessarily reviews
+  return "news";
+}
+
+// Clean raw markdown into usable text
+function cleanExtractedContent(raw: string): string {
+  let text = raw;
+  text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
+  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
+  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  text = text.replace(/https?:\/\/\S+/g, "");
+  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+  text = text.replace(/<[^>]+>/g, " ");
+  text = text.replace(/[#*_~`>|]/g, "");
+  text = text.replace(/[-=]{3,}/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+function isBlockedOrErrorContent(text: string): boolean {
+  const blockers = [
+    "blocked by an extension", "enable javascript", "access denied",
+    "403 forbidden", "captcha", "please verify you are a human",
+    "cloudflare", "just a moment", "checking your browser", "ray id",
+    "please turn javascript on", "ERR_BLOCKED", "not available in your region",
+  ];
+  const lower = text.toLowerCase();
+  return blockers.some(b => lower.includes(b));
+}
+
 // Scan review sites (Trustpilot, G2, Glassdoor) using Firecrawl
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -50,25 +99,44 @@ Deno.serve(async (req) => {
         }),
       });
 
-      const searchData = await searchRes.json();
-      if (searchRes.ok && searchData.data) {
-        for (const item of searchData.data) {
-          const url = item.url || "";
-          let platform = "review";
-          if (url.includes("trustpilot.com")) platform = "trustpilot";
-          else if (url.includes("g2.com")) platform = "g2";
-          else if (url.includes("glassdoor.com")) platform = "glassdoor";
-          else if (url.includes("capterra.com")) platform = "capterra";
+      // Validate JSON response
+      const ct = searchRes.headers.get("content-type");
+      if (!ct?.includes("application/json")) {
+        console.error("Non-JSON response from Firecrawl search");
+      } else {
+        const searchData = await searchRes.json();
+        if (searchRes.ok && searchData.data) {
+          for (const item of searchData.data) {
+            const url = item.url || "";
+            const rawContent = item.markdown || item.description || "";
+            
+            // Skip blocked/error pages
+            if (isBlockedOrErrorContent(rawContent)) {
+              console.log("Skipping blocked page:", url);
+              continue;
+            }
 
-          results.push({
-            source: platform,
-            content: item.markdown?.slice(0, 600) || item.description || "",
-            title: item.title || "",
-            url,
-            author_name: platform.charAt(0).toUpperCase() + platform.slice(1),
-            posted_at: new Date().toISOString(),
-            metrics: {},
-          });
+            const cleaned = cleanExtractedContent(rawContent);
+            if (cleaned.length < 40) {
+              console.log("Skipping low-quality content:", url);
+              continue;
+            }
+
+            // Classify based on ACTUAL URL, not assumed review
+            const platform = classifySourceFromUrl(url);
+
+            results.push({
+              source: platform,
+              content: cleaned.slice(0, 600),
+              title: item.title || "",
+              url,
+              author_name: (() => {
+                try { return new URL(url).hostname.replace("www.", ""); } catch { return platform; }
+              })(),
+              posted_at: new Date().toISOString(),
+              metrics: {},
+            });
+          }
         }
       }
     }
@@ -90,21 +158,27 @@ Deno.serve(async (req) => {
             }),
           });
 
+          const ct = scrapeRes.headers.get("content-type");
+          if (!ct?.includes("application/json")) continue;
+
           const scrapeData = await scrapeRes.json();
           if (scrapeRes.ok) {
-            const content = scrapeData.data?.markdown || scrapeData.markdown || "";
-            let platform = "review";
-            if (url.includes("trustpilot.com")) platform = "trustpilot";
-            else if (url.includes("g2.com")) platform = "g2";
-            else if (url.includes("glassdoor.com")) platform = "glassdoor";
-            else if (url.includes("capterra.com")) platform = "capterra";
+            const rawContent = scrapeData.data?.markdown || scrapeData.markdown || "";
+            if (isBlockedOrErrorContent(rawContent)) continue;
+
+            const cleaned = cleanExtractedContent(rawContent);
+            if (cleaned.length < 40) continue;
+
+            const platform = classifySourceFromUrl(url);
 
             results.push({
               source: platform,
-              content: content.slice(0, 600),
+              content: cleaned.slice(0, 600),
               title: scrapeData.data?.metadata?.title || scrapeData.metadata?.title || "",
               url,
-              author_name: platform.charAt(0).toUpperCase() + platform.slice(1),
+              author_name: (() => {
+                try { return new URL(url).hostname.replace("www.", ""); } catch { return platform; }
+              })(),
               posted_at: new Date().toISOString(),
               metrics: {},
             });

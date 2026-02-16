@@ -6,6 +6,38 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Detect if content is blocked/error junk
+function isJunkContent(text: string): boolean {
+  const blockers = [
+    "blocked by an extension", "enable javascript", "access denied",
+    "403 forbidden", "captcha", "please verify you are a human",
+    "cloudflare", "just a moment", "checking your browser", "ray id",
+    "please turn javascript on", "ERR_BLOCKED", "not available in your region",
+    "cookie policy", "we use cookies", "accept cookies",
+  ];
+  const lower = text.toLowerCase();
+  const matchCount = blockers.filter(b => lower.includes(b)).length;
+  // If multiple blockers match, or content is very short, it's junk
+  if (matchCount >= 2) return true;
+  if (text.length < 50 && matchCount >= 1) return true;
+  return false;
+}
+
+// Clean content before sending to AI
+function cleanForAI(raw: string): string {
+  let text = raw;
+  text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
+  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
+  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  text = text.replace(/https?:\/\/\S+/g, "");
+  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+  text = text.replace(/<[^>]+>/g, " ");
+  text = text.replace(/[#*_~`>|]/g, "");
+  text = text.replace(/[-=]{3,}/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -17,6 +49,20 @@ Deno.serve(async (req) => {
 
     const { content, source, severity, sentiment, author } = await req.json();
     if (!content) throw new Error("content required");
+
+    // Clean content first
+    const cleaned = cleanForAI(content);
+
+    // Detect junk/blocked content BEFORE sending to AI
+    if (isJunkContent(cleaned) || cleaned.length < 30) {
+      return new Response(JSON.stringify({
+        summary: "The original content could not be properly extracted — the source page may have blocked automated access or requires JavaScript.",
+        impact: "Unable to assess impact without readable content. Review the original source manually.",
+        action: "Click 'View original source' to read the content directly and assess whether it requires a response.",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -38,15 +84,15 @@ Deno.serve(async (req) => {
                 properties: {
                   summary: {
                     type: "string",
-                    description: "2-3 sentence plain-language summary of what is being said",
+                    description: "2-3 sentence plain-language summary of what is being said. Focus on the actual claims, opinions, or news being reported. Do NOT describe the webpage structure or navigation elements.",
                   },
                   impact: {
                     type: "string",
-                    description: "1-2 sentences on how this could impact the brand's reputation",
+                    description: "1-2 sentences on how this could impact the brand's reputation, specifically and concretely",
                   },
                   action: {
                     type: "string",
-                    description: "1-2 sentences recommending what the team should do",
+                    description: "1-2 sentences recommending what the team should do, be specific and actionable",
                   },
                 },
                 required: ["summary", "impact", "action"],
@@ -59,11 +105,17 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a reputation intelligence analyst. Analyze the mention and provide a clear summary for a communications team. Be direct and actionable. Source: ${source || "unknown"}, Severity: ${severity || "unknown"}, Sentiment: ${sentiment || "unknown"}, Author: ${author || "unknown"}.`,
+            content: `You are a reputation intelligence analyst. Analyze the mention and provide a clear summary for a communications team. Be direct and actionable.
+
+IMPORTANT RULES:
+- Focus ONLY on the substantive content — what claims are being made, what opinions are expressed, what news is being reported
+- NEVER mention website navigation, cookies, HTML structure, or page layout in your analysis
+- If the content seems to be website boilerplate rather than actual article content, say so clearly
+- Source: ${source || "unknown"}, Severity: ${severity || "unknown"}, Sentiment: ${sentiment || "unknown"}, Author: ${author || "unknown"}.`,
           },
           {
             role: "user",
-            content: content.slice(0, 2000),
+            content: cleaned.slice(0, 2000),
           },
         ],
       }),
@@ -101,8 +153,8 @@ Deno.serve(async (req) => {
     // Fallback: try parsing content directly
     const rawContent = data.choices?.[0]?.message?.content || "";
     try {
-      const cleaned = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+      const contentCleaned = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const parsed = JSON.parse(contentCleaned);
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
