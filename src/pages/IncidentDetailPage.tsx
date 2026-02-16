@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -188,11 +189,14 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: "Incidents", href: "/incidents" },
+        { label: incident.name },
+      ]} />
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/incidents")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Incidents
-        </Button>
+      <div className="flex items-center justify-end">
         <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
           <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
         </Button>

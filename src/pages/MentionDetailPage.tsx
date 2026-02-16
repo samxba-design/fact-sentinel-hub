@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -182,11 +183,14 @@ export default function MentionDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: "Mentions", href: "/mentions" },
+        { label: mention.author_name || mention.author_handle || "Mention Detail" },
+      ]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/mentions")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Mentions
-        </Button>
         <div className="flex items-center gap-2">
           {mention.status && mention.status !== "new" && (
             <Badge variant="outline" className={`text-xs ${
