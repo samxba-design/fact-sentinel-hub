@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2 } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2, Filter } from "lucide-react";
 import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -71,7 +71,8 @@ export default function ScansPage() {
   const [autoScanning, setAutoScanning] = useState(false);
   const [scanDatePickerOpen, setScanDatePickerOpen] = useState(false);
   const [scanDateRange, setScanDateRange] = useState<string>("7days");
-
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
+  const [customSentimentFilter, setCustomSentimentFilter] = useState<string>("all");
   // Builder state
   const [selectedSources, setSelectedSources] = useState<string[]>(["news"]);
   const [keywordInput, setKeywordInput] = useState("");
@@ -154,6 +155,7 @@ export default function ScansPage() {
           sources: autoSources,
           date_from: dateFrom.toISOString().split("T")[0],
           date_to: now.toISOString().split("T")[0],
+          sentiment_filter: sentimentFilter,
         },
       });
       if (error) throw new Error(error.message);
@@ -239,6 +241,7 @@ export default function ScansPage() {
           sources: selectedSources,
           date_from: dateFrom,
           date_to: dateTo,
+          sentiment_filter: customSentimentFilter,
         },
       });
       if (error) throw new Error(error.message);
@@ -640,6 +643,37 @@ export default function ScansPage() {
 
             <Separator />
 
+            {/* Sentiment Filter */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Filter className="h-3 w-3" /> Sentiment Filter
+              </Label>
+              <div className="flex gap-2">
+                {[
+                  { value: "all", label: "All", desc: "Everything" },
+                  { value: "negative", label: "Negative", desc: "Threats & risks" },
+                  { value: "positive", label: "Positive", desc: "Good coverage" },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setCustomSentimentFilter(opt.value)}
+                    className={`flex-1 px-3 py-2 text-xs rounded-md border transition-colors ${
+                      customSentimentFilter === opt.value
+                        ? opt.value === "negative" ? "bg-destructive/10 border-destructive/30 text-destructive"
+                        : opt.value === "positive" ? "bg-sentinel-emerald/10 border-sentinel-emerald/30 text-sentinel-emerald"
+                        : "bg-primary/10 border-primary/30 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/20"
+                    }`}
+                  >
+                    <div className="font-medium">{opt.label}</div>
+                    <div className="text-[10px] opacity-70">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Scan Progress */}
             {scanning && scanProgress && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -780,6 +814,36 @@ export default function ScansPage() {
               </button>
             ))}
           </div>
+          
+          {/* Sentiment Filter */}
+          <div className="space-y-2 mt-4">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Filter className="h-3 w-3" /> What to look for
+            </Label>
+            <div className="flex gap-2">
+              {[
+                { value: "all", label: "Everything", desc: "All mentions" },
+                { value: "negative", label: "Threats Only", desc: "Negative & mixed" },
+                { value: "positive", label: "Positive Only", desc: "Good press" },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSentimentFilter(opt.value)}
+                  className={`flex-1 px-3 py-2 text-xs rounded-md border transition-colors ${
+                    sentimentFilter === opt.value
+                      ? opt.value === "negative" ? "bg-destructive/10 border-destructive/30 text-destructive"
+                      : opt.value === "positive" ? "bg-sentinel-emerald/10 border-sentinel-emerald/30 text-sentinel-emerald"
+                      : "bg-primary/10 border-primary/30 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/20"
+                  }`}
+                >
+                  <div className="font-medium">{opt.label}</div>
+                  <div className="text-[10px] opacity-70">{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setScanDatePickerOpen(false)}>Cancel</Button>
             <Button onClick={() => runAutoScan()} disabled={autoScanning} className="gap-2">
