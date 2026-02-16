@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
+import SuggestCompetitorsDialog from "@/components/competitors/SuggestCompetitorsDialog";
 
 interface Competitor {
   id: string;
@@ -137,10 +138,12 @@ export default function CompetitorsPage() {
           <h1 className="text-2xl font-bold text-foreground">Competitor Analysis</h1>
           <p className="text-sm text-muted-foreground mt-1">Track competitors across your monitored landscape</p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Add Competitor</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <SuggestCompetitorsDialog onAdded={loadCompetitors} />
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" />Add Manually</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Competitor</DialogTitle>
@@ -164,7 +167,8 @@ export default function CompetitorsPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats */}

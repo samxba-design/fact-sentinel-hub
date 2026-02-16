@@ -26,6 +26,7 @@ import GettingStartedChecklist from "@/components/dashboard/GettingStartedCheckl
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget";
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
+import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
 
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
@@ -223,6 +224,7 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last {rangeDays} days</p>
         </div>
         <div className="flex items-center gap-2">
+          <ReportGeneratorDialog />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
             {DATE_RANGES.map(r => (
