@@ -10,6 +10,8 @@ import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -241,10 +243,41 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <Badge variant="outline" className={`${incidentMode ? "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5" : "border-sentinel-amber/30 text-sentinel-amber bg-sentinel-amber/5"}`}>
-            <Flame className="h-3 w-3 mr-1" />
-            Incident Mode: {incidentMode ? "On" : "Off"}
-          </Badge>
+          <TooltipProvider>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all cursor-default ${
+                  incidentMode 
+                    ? "border-sentinel-red/40 bg-sentinel-red/10" 
+                    : "border-border bg-card hover:border-muted-foreground/30"
+                }`}>
+                  <Flame className={`h-4 w-4 ${incidentMode ? "text-sentinel-red" : "text-muted-foreground"}`} />
+                  <div className="flex flex-col">
+                    <span className={`text-xs font-medium leading-none ${incidentMode ? "text-sentinel-red" : "text-card-foreground"}`}>
+                      Incident Mode
+                    </span>
+                  </div>
+                  <Switch
+                    checked={incidentMode}
+                    onCheckedChange={async (checked) => {
+                      if (!currentOrg) return;
+                      setIncidentMode(checked);
+                      await supabase.from("organizations").update({ incident_mode: checked }).eq("id", currentOrg.id);
+                    }}
+                    className="ml-1"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] bg-popover border-border text-popover-foreground z-50">
+                <p className="text-xs font-medium mb-1">
+                  {incidentMode ? "🔴 Incident Mode Active" : "Incident Mode Off"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, scan frequency increases, alerts escalate faster, and the dashboard prioritizes critical threats. Toggle on during active crises.
+                </p>
+              </TooltipContent>
+            </UiTooltip>
+          </TooltipProvider>
         </div>
       </div>
 
