@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Siren, Plus, Clock, User2 } from "lucide-react";
+import { Siren, Plus, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
 
 interface Incident {
   id: string;
@@ -15,25 +17,33 @@ interface Incident {
   description: string | null;
 }
 
+const statusColors: Record<string, string> = {
+  active: "border-sentinel-red/30 text-sentinel-red",
+  monitoring: "border-sentinel-amber/30 text-sentinel-amber",
+  resolved: "border-sentinel-emerald/30 text-sentinel-emerald",
+};
+
 export default function IncidentsPage() {
   const { currentOrg } = useOrg();
+  const navigate = useNavigate();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchIncidents = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
-    supabase
+    const { data } = await supabase
       .from("incidents")
       .select("id, name, status, started_at, description")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setIncidents(data || []);
-        setLoading(false);
-      });
+      .limit(50);
+    setIncidents(data || []);
+    setLoading(false);
   }, [currentOrg]);
+
+  useEffect(() => { fetchIncidents(); }, [fetchIncidents]);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -42,7 +52,7 @@ export default function IncidentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Incidents</h1>
           <p className="text-sm text-muted-foreground mt-1">War room for active incidents</p>
         </div>
-        <Button><Plus className="h-4 w-4 mr-2" />New Incident</Button>
+        <Button onClick={() => setFormOpen(true)}><Plus className="h-4 w-4 mr-2" />New Incident</Button>
       </div>
 
       <div className="space-y-3">
@@ -54,12 +64,16 @@ export default function IncidentsPage() {
           </Card>
         ) : (
           incidents.map(inc => (
-            <Card key={inc.id} className={`bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer ${
-              inc.status === "active" ? "sentinel-glow-red" : ""
-            }`}>
+            <Card
+              key={inc.id}
+              className={`bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer ${
+                inc.status === "active" ? "sentinel-glow-red" : ""
+              }`}
+              onClick={() => navigate(`/incidents/${inc.id}`)}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <Siren className={`h-5 w-5 ${inc.status === "active" ? "text-sentinel-red animate-pulse-glow" : "text-muted-foreground"}`} />
+                  <Siren className={`h-5 w-5 ${inc.status === "active" ? "text-sentinel-red animate-pulse" : "text-muted-foreground"}`} />
                   <div>
                     <div className="text-sm font-medium text-card-foreground">{inc.name}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
@@ -67,9 +81,7 @@ export default function IncidentsPage() {
                     </div>
                   </div>
                 </div>
-                <Badge variant="outline" className={`text-[10px] capitalize ${
-                  inc.status === "active" ? "border-sentinel-red/30 text-sentinel-red" : "border-sentinel-emerald/30 text-sentinel-emerald"
-                }`}>
+                <Badge variant="outline" className={`text-[10px] capitalize ${statusColors[inc.status || "active"]}`}>
                   {inc.status || "active"}
                 </Badge>
               </div>
@@ -77,6 +89,12 @@ export default function IncidentsPage() {
           ))
         )}
       </div>
+
+      <IncidentFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSaved={fetchIncidents}
+      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import NarrativesPage from "@/pages/NarrativesPage";
 import PeoplePage from "@/pages/PeoplePage";
 import RiskConsolePage from "@/pages/RiskConsolePage";
 import IncidentsPage from "@/pages/IncidentsPage";
+import IncidentDetailPage from "@/pages/IncidentDetailPage";
 import RespondPage from "@/pages/RespondPage";
 import ApprovedFactsPage from "@/pages/ApprovedFactsPage";
 import ApprovedTemplatesPage from "@/pages/ApprovedTemplatesPage";
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/risk-console" element={<RiskConsolePage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
+        <Route path="/incidents/:id" element={<IncidentDetailPage />} />
         <Route path="/respond" element={<RespondPage />} />
         <Route path="/approved-facts" element={<ApprovedFactsPage />} />
         <Route path="/approved-templates" element={<ApprovedTemplatesPage />} />
