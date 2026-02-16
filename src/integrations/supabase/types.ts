@@ -517,6 +517,56 @@ export type Database = {
           },
         ]
       }
+      internal_contacts: {
+        Row: {
+          created_at: string | null
+          department: string | null
+          email: string | null
+          id: string
+          is_department_lead: boolean | null
+          name: string
+          notes: string | null
+          org_id: string
+          phone: string | null
+          role_title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          department?: string | null
+          email?: string | null
+          id?: string
+          is_department_lead?: boolean | null
+          name: string
+          notes?: string | null
+          org_id: string
+          phone?: string | null
+          role_title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          department?: string | null
+          email?: string | null
+          id?: string
+          is_department_lead?: boolean | null
+          name?: string
+          notes?: string | null
+          org_id?: string
+          phone?: string | null
+          role_title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keywords: {
         Row: {
           created_at: string | null

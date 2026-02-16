@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug } from "lucide-react";
+import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +24,7 @@ interface Source { id: string; type: string; enabled: boolean | null }
 
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -409,7 +410,12 @@ export default function SettingsPage() {
         {/* ALERTS TAB */}
         <TabsContent value="alerts">
           <Card className="bg-card border-border p-6 space-y-5">
-            <h3 className="text-sm font-medium text-card-foreground">Alert & Scan Configuration</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-card-foreground">Alert & Scan Configuration</h3>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate("/contacts")}>
+                <Users className="h-3 w-3 mr-1" /> Manage Contacts
+              </Button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">

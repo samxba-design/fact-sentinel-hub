@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Send, Pencil, Trash2 } from "lucide-react";
+import ContactPopover from "@/components/contacts/ContactPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -106,7 +107,9 @@ export default function EscalationDetailSheet({ open, onOpenChange, escalation, 
               {(escalation.status || "open").replace("_", " ")}
             </Badge>
             {escalation.department && (
-              <Badge variant="secondary" className="text-[10px]">{escalation.department}</Badge>
+              <ContactPopover department={escalation.department}>
+                <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-secondary/80">{escalation.department}</Badge>
+              </ContactPopover>
             )}
           </div>
 
