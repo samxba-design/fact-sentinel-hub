@@ -13,6 +13,7 @@ import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import UpgradeBanner from "@/components/UpgradeBanner";
 
 interface ScanRun {
   id: string;
@@ -135,6 +136,7 @@ export default function ScansPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <UpgradeBanner feature="Unlimited Scans" className="mb-2" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Scans</h1>

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import UpgradeBanner from "@/components/UpgradeBanner";
 import { formatDistanceToNow } from "date-fns";
 
 interface RiskMention {
@@ -124,6 +125,7 @@ export default function RiskConsolePage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <UpgradeBanner feature="Risk Console" className="mb-2" />
       <div>
         <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
         <p className="text-sm text-muted-foreground mt-1">Triage and manage operational risks, spikes, and alerts</p>
