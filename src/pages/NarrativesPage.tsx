@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Network, ArrowUpRight, Scan } from "lucide-react";
+import { Network, Scan, Brain, Layers, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import PageGuide from "@/components/PageGuide";
 
 interface Narrative {
   id: string;
@@ -54,6 +55,35 @@ export default function NarrativesPage() {
         <h1 className="text-2xl font-bold text-foreground">Narratives</h1>
         <p className="text-sm text-muted-foreground mt-1">Narrative intelligence and propagation tracking</p>
       </div>
+
+      <PageGuide
+        title="How Narratives Work"
+        subtitle="AI-powered clustering of mentions into thematic stories"
+        steps={[
+          {
+            icon: <Scan className="h-4 w-4 text-primary" />,
+            title: "1. Run a Scan",
+            description: "Scans collect mentions from news, social media, forums, and review sites across your tracked keywords.",
+          },
+          {
+            icon: <Brain className="h-4 w-4 text-primary" />,
+            title: "2. AI Clusters Patterns",
+            description: "AI analyzes all mentions and groups related ones into narrative themes — like 'Security breach rumors' or 'Pricing complaints'.",
+          },
+          {
+            icon: <BarChart3 className="h-4 w-4 text-primary" />,
+            title: "3. Track Propagation",
+            description: "Monitor how narratives grow over time with confidence scores, first/last seen dates, and linked mentions. Set status to Active, Watch, or Resolved.",
+          },
+        ]}
+        integrations={[
+          { label: "Scans", to: "/scans", description: "Trigger narrative detection" },
+          { label: "Mentions", to: "/mentions", description: "See linked mentions" },
+          { label: "Incidents", to: "/incidents", description: "Link to incidents" },
+          { label: "Respond", to: "/respond", description: "Draft narrative responses" },
+        ]}
+        tip="Narratives are automatically created and updated each time you run a scan. The more scans you run, the better the AI gets at tracking narrative evolution and identifying new themes."
+      />
 
       <div className="space-y-3">
         {loading ? (

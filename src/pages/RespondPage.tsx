@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import PageGuide from "@/components/PageGuide";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -118,6 +119,35 @@ export default function RespondPage() {
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
         <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>
       </div>
+
+      <PageGuide
+        title="How the Response Engine Works"
+        subtitle="AI drafts grounded exclusively in your approved facts — never hallucinated"
+        steps={[
+          {
+            icon: <AlertTriangle className="h-4 w-4 text-primary" />,
+            title: "1. Paste the Content",
+            description: "Paste the negative post, comment, or article you need to respond to. Select the platform and your response intent.",
+          },
+          {
+            icon: <BookCheck className="h-4 w-4 text-primary" />,
+            title: "2. AI Extracts & Matches",
+            description: "AI extracts claims from the text, then matches each claim against your approved facts library. If any claims can't be matched, the response is blocked and an escalation ticket is auto-created.",
+          },
+          {
+            icon: <MessageCircleReply className="h-4 w-4 text-primary" />,
+            title: "3. Draft or Escalate",
+            description: "If all claims match, a response is generated using only approved facts and templates. You can link narratives, incidents, or mentions for additional context.",
+          },
+        ]}
+        integrations={[
+          { label: "Approved Facts", to: "/approved-facts", description: "Ground truth library" },
+          { label: "Templates", to: "/approved-templates", description: "Response templates" },
+          { label: "Escalations", to: "/escalations", description: "Blocked response tickets" },
+          { label: "Mentions", to: "/mentions", description: "Link source mentions" },
+        ]}
+        tip="The more approved facts you add, the fewer responses get blocked. Link related narratives or incidents to give the AI better context for nuanced responses."
+      />
 
       {factsCount === 0 && (
         <Card className="border-sentinel-amber/30 bg-sentinel-amber/5 p-5 space-y-3">

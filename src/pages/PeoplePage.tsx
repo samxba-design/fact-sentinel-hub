@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User2, Plus } from "lucide-react";
+import { User2, Plus, Eye, Layers, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddPersonDialog from "@/components/people/AddPersonDialog";
 import EmptyState from "@/components/EmptyState";
+import PageGuide from "@/components/PageGuide";
 
 interface PersonRow {
   person_id: string;
@@ -57,6 +58,34 @@ export default function PeoplePage() {
           <Plus className="h-4 w-4 mr-2" /> Add Person
         </Button>
       </div>
+
+      <PageGuide
+        title="How People Tracking Works"
+        subtitle="Monitor key individuals across your reputation landscape"
+        steps={[
+          {
+            icon: <User2 className="h-4 w-4 text-primary" />,
+            title: "1. Add Key People",
+            description: "Add executives, influencers, or public figures. Assign a monitoring tier (Executive, Spokesperson, etc.) to prioritize tracking.",
+          },
+          {
+            icon: <Eye className="h-4 w-4 text-primary" />,
+            title: "2. Auto-Linked Mentions",
+            description: "When scans detect mentions of tracked people, they're automatically linked to their profile — building a cross-platform exposure timeline.",
+          },
+          {
+            icon: <TrendingUp className="h-4 w-4 text-primary" />,
+            title: "3. Track Sentiment & Exposure",
+            description: "Each person's profile shows sentiment trends, follower reach, social handles, and all linked mentions across platforms.",
+          },
+        ]}
+        integrations={[
+          { label: "Mentions", to: "/mentions", description: "See people-linked mentions" },
+          { label: "Scans", to: "/scans", description: "Scans auto-detect people" },
+          { label: "Contacts", to: "/contacts", description: "Internal directory" },
+        ]}
+        tip="People with higher tiers (Executive, Spokesperson) are given priority in risk scoring. Add social handles to improve cross-platform matching accuracy."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
