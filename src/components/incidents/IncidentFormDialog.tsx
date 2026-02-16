@@ -6,11 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, X, Link2, AlertTriangle } from "lucide-react";
+import { Loader2, X, Link2, AlertTriangle, ChevronDown, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface IncidentFormDialogProps {
   open: boolean;
@@ -24,10 +28,10 @@ interface IncidentFormDialogProps {
   } | null;
 }
 
-interface SearchResult {
+interface SelectableItem {
   id: string;
   label: string;
-  type: "mention" | "narrative";
+  sublabel?: string;
 }
 
 export default function IncidentFormDialog({ open, onOpenChange, onSaved, editData }: IncidentFormDialogProps) {
@@ -38,66 +42,66 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("active");
+  const [severity, setSeverity] = useState("high");
 
   // Linking
-  const [linkSearch, setLinkSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [linkedMentions, setLinkedMentions] = useState<SearchResult[]>([]);
-  const [linkedNarratives, setLinkedNarratives] = useState<SearchResult[]>([]);
+  const [allMentions, setAllMentions] = useState<SelectableItem[]>([]);
+  const [allNarratives, setAllNarratives] = useState<SelectableItem[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [linkedMentionIds, setLinkedMentionIds] = useState<Set<string>>(new Set());
+  const [linkedNarrativeIds, setLinkedNarrativeIds] = useState<Set<string>>(new Set());
+  const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
+  const [narrativePopoverOpen, setNarrativePopoverOpen] = useState(false);
 
   const isEdit = !!editData;
 
+  // Load available mentions & narratives when dialog opens
   useEffect(() => {
-    if (open) {
-      setName(editData?.name || "");
-      setDescription(editData?.description || "");
-      setStatus(editData?.status || "active");
-      setLinkedMentions([]);
-      setLinkedNarratives([]);
-      setLinkSearch("");
-      setSearchResults([]);
+    if (!open || !currentOrg) return;
+    setName(editData?.name || "");
+    setDescription(editData?.description || "");
+    setStatus(editData?.status || "active");
+    setSeverity("high");
+    setLinkedMentionIds(new Set());
+    setLinkedNarrativeIds(new Set());
+
+    if (!isEdit) {
+      setLoadingOptions(true);
+      Promise.all([
+        supabase.from("mentions").select("id, content, source, author_name, severity")
+          .eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
+        supabase.from("narratives").select("id, name, status")
+          .eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
+      ]).then(([mentionsRes, narrativesRes]) => {
+        setAllMentions((mentionsRes.data || []).map(m => ({
+          id: m.id,
+          label: (m.content || "").slice(0, 80) || "No content",
+          sublabel: `${m.source}${m.author_name ? ` · ${m.author_name}` : ""}${m.severity ? ` · ${m.severity}` : ""}`,
+        })));
+        setAllNarratives((narrativesRes.data || []).map(n => ({
+          id: n.id,
+          label: n.name,
+          sublabel: n.status || "active",
+        })));
+        setLoadingOptions(false);
+      });
     }
-  }, [open, editData]);
+  }, [open, editData, currentOrg, isEdit]);
 
-  const handleSearch = useCallback(async (q: string) => {
-    if (!currentOrg || q.length < 2) { setSearchResults([]); return; }
-    setSearching(true);
-    const [mentionsRes, narrativesRes] = await Promise.all([
-      supabase.from("mentions").select("id, content, author_name, source")
-        .eq("org_id", currentOrg.id).ilike("content", `%${q}%`).limit(5),
-      supabase.from("narratives").select("id, name")
-        .eq("org_id", currentOrg.id).ilike("name", `%${q}%`).limit(5),
-    ]);
-    const results: SearchResult[] = [
-      ...(mentionsRes.data || []).map(m => ({
-        id: m.id,
-        label: `[${m.source}] ${(m.content || "").slice(0, 60)}...`,
-        type: "mention" as const,
-      })),
-      ...(narrativesRes.data || []).map(n => ({
-        id: n.id,
-        label: n.name,
-        type: "narrative" as const,
-      })),
-    ];
-    setSearchResults(results);
-    setSearching(false);
-  }, [currentOrg]);
+  const toggleMention = (id: string) => {
+    setLinkedMentionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
-  useEffect(() => {
-    const t = setTimeout(() => handleSearch(linkSearch), 300);
-    return () => clearTimeout(t);
-  }, [linkSearch, handleSearch]);
-
-  const addLink = (item: SearchResult) => {
-    if (item.type === "mention" && !linkedMentions.find(m => m.id === item.id)) {
-      setLinkedMentions(prev => [...prev, item]);
-    } else if (item.type === "narrative" && !linkedNarratives.find(n => n.id === item.id)) {
-      setLinkedNarratives(prev => [...prev, item]);
-    }
-    setLinkSearch("");
-    setSearchResults([]);
+  const toggleNarrative = (id: string) => {
+    setLinkedNarrativeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -125,9 +129,8 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
           .select().single();
         if (error) throw error;
 
-        // Link mentions and narratives
-        const mentionInserts = linkedMentions.map(m => ({ incident_id: data.id, mention_id: m.id }));
-        const narrativeInserts = linkedNarratives.map(n => ({ incident_id: data.id, narrative_id: n.id }));
+        const mentionInserts = [...linkedMentionIds].map(mid => ({ incident_id: data.id, mention_id: mid }));
+        const narrativeInserts = [...linkedNarrativeIds].map(nid => ({ incident_id: data.id, narrative_id: nid }));
 
         await supabase.from("incident_events").insert({
           incident_id: data.id, event_type: "created", description: "Incident created",
@@ -149,9 +152,12 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
     }
   };
 
+  const selectedMentions = allMentions.filter(m => linkedMentionIds.has(m.id));
+  const selectedNarratives = allNarratives.filter(n => linkedNarrativeIds.has(n.id));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Incident" : "New Incident"}</DialogTitle>
         </DialogHeader>
@@ -164,16 +170,31 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
             <Label>Description</Label>
             <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Context about the incident..." rows={3} />
           </div>
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="monitoring">Monitoring</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">🔴 Active</SelectItem>
+                  <SelectItem value="monitoring">🟡 Monitoring</SelectItem>
+                  <SelectItem value="resolved">🟢 Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Severity</Label>
+              <Select value={severity} onValueChange={setSeverity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="critical">🚨 Critical</SelectItem>
+                  <SelectItem value="high">🔴 High</SelectItem>
+                  <SelectItem value="medium">🟡 Medium</SelectItem>
+                  <SelectItem value="low">🟢 Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Value proposition */}
@@ -187,49 +208,115 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
             </div>
           </div>
 
-          {/* Link mentions & narratives */}
+          {/* Link mentions & narratives with dropdowns */}
           {!isEdit && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="flex items-center gap-2">
-                <Link2 className="h-3.5 w-3.5" /> Link Mentions & Narratives
+                <Link2 className="h-3.5 w-3.5" /> Link Evidence
               </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={linkSearch}
-                  onChange={e => setLinkSearch(e.target.value)}
-                  placeholder="Search mentions or narratives to link..."
-                  className="pl-9 text-sm"
-                />
-                {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-              </div>
-              {searchResults.length > 0 && (
-                <div className="border border-border rounded-lg bg-card max-h-40 overflow-y-auto">
-                  {searchResults.map(r => (
-                    <button key={r.id} onClick={() => addLink(r)}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 flex items-center gap-2 border-b border-border last:border-0">
-                      <Badge variant="outline" className="text-[8px] shrink-0">{r.type}</Badge>
-                      <span className="truncate text-foreground">{r.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {(linkedMentions.length > 0 || linkedNarratives.length > 0) && (
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {linkedMentions.map(m => (
-                    <Badge key={m.id} variant="secondary" className="text-[10px] gap-1 pr-1">
-                      📌 {m.label.slice(0, 30)}...
-                      <button onClick={() => setLinkedMentions(p => p.filter(x => x.id !== m.id))}><X className="h-3 w-3" /></button>
-                    </Badge>
-                  ))}
-                  {linkedNarratives.map(n => (
-                    <Badge key={n.id} variant="secondary" className="text-[10px] gap-1 pr-1">
-                      🧵 {n.label.slice(0, 30)}
-                      <button onClick={() => setLinkedNarratives(p => p.filter(x => x.id !== n.id))}><X className="h-3 w-3" /></button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+
+              <Tabs defaultValue="narratives" className="w-full">
+                <TabsList className="w-full grid grid-cols-2">
+                  <TabsTrigger value="narratives" className="text-xs">
+                    Narratives {linkedNarrativeIds.size > 0 && <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{linkedNarrativeIds.size}</Badge>}
+                  </TabsTrigger>
+                  <TabsTrigger value="mentions" className="text-xs">
+                    Mentions {linkedMentionIds.size > 0 && <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{linkedMentionIds.size}</Badge>}
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="narratives" className="space-y-2 mt-2">
+                  {loadingOptions ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading narratives...</div>
+                  ) : (
+                    <>
+                      <Popover open={narrativePopoverOpen} onOpenChange={setNarrativePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between text-xs font-normal h-9">
+                            {linkedNarrativeIds.size === 0 ? "Select narratives to link..." : `${linkedNarrativeIds.size} narrative${linkedNarrativeIds.size > 1 ? "s" : ""} selected`}
+                            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search narratives..." className="text-xs" />
+                            <CommandList>
+                              <CommandEmpty className="text-xs py-3 text-center">No narratives found.</CommandEmpty>
+                              <CommandGroup>
+                                {allNarratives.map(n => (
+                                  <CommandItem key={n.id} value={n.label} onSelect={() => toggleNarrative(n.id)} className="text-xs cursor-pointer">
+                                    <Check className={cn("h-3.5 w-3.5 mr-2 shrink-0", linkedNarrativeIds.has(n.id) ? "opacity-100" : "opacity-0")} />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="truncate block">{n.label}</span>
+                                      <span className="text-[10px] text-muted-foreground capitalize">{n.sublabel}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {selectedNarratives.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedNarratives.map(n => (
+                            <Badge key={n.id} variant="secondary" className="text-[10px] gap-1 pr-1">
+                              🧵 {n.label.slice(0, 30)}
+                              <button onClick={() => toggleNarrative(n.id)}><X className="h-3 w-3" /></button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="mentions" className="space-y-2 mt-2">
+                  {loadingOptions ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading mentions...</div>
+                  ) : (
+                    <>
+                      <Popover open={mentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between text-xs font-normal h-9">
+                            {linkedMentionIds.size === 0 ? "Select mentions to link..." : `${linkedMentionIds.size} mention${linkedMentionIds.size > 1 ? "s" : ""} selected`}
+                            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search mentions..." className="text-xs" />
+                            <CommandList>
+                              <CommandEmpty className="text-xs py-3 text-center">No mentions found.</CommandEmpty>
+                              <CommandGroup>
+                                {allMentions.map(m => (
+                                  <CommandItem key={m.id} value={m.label} onSelect={() => toggleMention(m.id)} className="text-xs cursor-pointer">
+                                    <Check className={cn("h-3.5 w-3.5 mr-2 shrink-0", linkedMentionIds.has(m.id) ? "opacity-100" : "opacity-0")} />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="truncate block">{m.label}</span>
+                                      <span className="text-[10px] text-muted-foreground">{m.sublabel}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {selectedMentions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedMentions.map(m => (
+                            <Badge key={m.id} variant="secondary" className="text-[10px] gap-1 pr-1">
+                              📌 {m.label.slice(0, 30)}...
+                              <button onClick={() => toggleMention(m.id)}><X className="h-3 w-3" /></button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 
