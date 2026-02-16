@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, BellRing, Settings2, ChevronRight, AlertTriangle, TrendingUp, Siren, Zap, Activity } from "lucide-react";
+import { Bell, BellRing, Settings2, ChevronRight, AlertTriangle, TrendingUp, Siren, Zap, Activity, Pause, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import InfoTooltip from "@/components/InfoTooltip";
+import { useToast } from "@/hooks/use-toast";
 
 interface Alert {
   id: string;
@@ -64,9 +66,11 @@ const SCHEDULE_LABELS: Record<string, string> = {
 export default function MonitoringWidget() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [schedule, setSchedule] = useState<ScheduleInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -93,8 +97,25 @@ export default function MonitoringWidget() {
   }, [currentOrg]);
 
   const activeCount = alerts.length;
-  const scheduleLabel = schedule?.scan_schedule ? SCHEDULE_LABELS[schedule.scan_schedule] || schedule.scan_schedule : "Not configured";
-  const isMonitoring = schedule?.scan_schedule && schedule.scan_schedule !== "manual";
+  const isPaused = schedule?.scan_schedule === "paused";
+  const isMonitoring = schedule?.scan_schedule && schedule.scan_schedule !== "manual" && schedule.scan_schedule !== "paused";
+  const scheduleLabel = isPaused ? "Paused" : (schedule?.scan_schedule ? SCHEDULE_LABELS[schedule.scan_schedule] || schedule.scan_schedule : "Not configured");
+
+  const togglePause = async () => {
+    if (!currentOrg) return;
+    setToggling(true);
+    const newSchedule = isPaused ? "daily" : "paused";
+    const { data: existing } = await supabase.from("tracking_profiles").select("id").eq("org_id", currentOrg.id).maybeSingle();
+    const payload = { scan_schedule: newSchedule, updated_at: new Date().toISOString() };
+    if (existing) {
+      await supabase.from("tracking_profiles").update(payload).eq("org_id", currentOrg.id);
+    } else {
+      await supabase.from("tracking_profiles").insert({ ...payload, org_id: currentOrg.id });
+    }
+    setSchedule(prev => prev ? { ...prev, scan_schedule: newSchedule } : { scan_schedule: newSchedule, quiet_hours_start: null, quiet_hours_end: null });
+    toast({ title: newSchedule === "paused" ? "All monitoring paused" : "Monitoring resumed" });
+    setToggling(false);
+  };
 
   return (
     <Card className="bg-card border-border p-5 space-y-4">
@@ -113,26 +134,47 @@ export default function MonitoringWidget() {
         </Button>
       </div>
 
-      {/* Schedule Status */}
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
-        <div className={`p-1.5 rounded-md ${isMonitoring ? "bg-sentinel-emerald/10" : "bg-muted"}`}>
-          <Activity className={`h-4 w-4 ${isMonitoring ? "text-sentinel-emerald" : "text-muted-foreground"}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-card-foreground">Auto-scan:</span>
-            <Badge variant={isMonitoring ? "default" : "outline"} className="text-[10px] h-5">
-              {scheduleLabel}
-            </Badge>
+      {/* Pause Banner */}
+      {isPaused && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-sentinel-amber/10 border border-sentinel-amber/20">
+          <Pause className="h-4 w-4 text-sentinel-amber" />
+          <div className="flex-1">
+            <p className="text-xs font-medium text-sentinel-amber">Monitoring Paused</p>
+            <p className="text-[10px] text-muted-foreground">No auto-scans or anomaly detection running. You can still run manual scans.</p>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Anomaly detection checks for unusual patterns between scans
-          </p>
+          <Button size="sm" variant="outline" className="text-xs h-7 gap-1 shrink-0 border-sentinel-amber/30 text-sentinel-amber hover:bg-sentinel-amber/10" onClick={togglePause} disabled={toggling}>
+            <Play className="h-3 w-3" /> Resume
+          </Button>
         </div>
-        <Button size="sm" variant="outline" className="text-xs h-7 gap-1 shrink-0" onClick={() => navigate("/alerts")}>
-          <Settings2 className="h-3 w-3" /> Configure
-        </Button>
-      </div>
+      )}
+
+      {/* Schedule Status */}
+      {!isPaused && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
+          <div className={`p-1.5 rounded-md ${isMonitoring ? "bg-sentinel-emerald/10" : "bg-muted"}`}>
+            <Activity className={`h-4 w-4 ${isMonitoring ? "text-sentinel-emerald" : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-card-foreground">Auto-scan:</span>
+              <Badge variant={isMonitoring ? "default" : "outline"} className="text-[10px] h-5">
+                {scheduleLabel}
+              </Badge>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Anomaly detection checks for unusual patterns between scans
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button size="sm" variant="ghost" className="text-xs h-7 gap-1 text-muted-foreground hover:text-sentinel-amber" onClick={togglePause} disabled={toggling} title="Pause all monitoring">
+              <Pause className="h-3 w-3" />
+            </Button>
+            <Button size="sm" variant="outline" className="text-xs h-7 gap-1" onClick={() => navigate("/alerts")}>
+              <Settings2 className="h-3 w-3" /> Configure
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Active Alerts */}
       {loading ? (

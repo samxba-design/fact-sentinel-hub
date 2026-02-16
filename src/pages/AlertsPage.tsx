@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Bell, BellRing, Check, X, AlertTriangle, TrendingUp, Siren, Zap,
   Settings2, Activity, Clock, Shield, Save, Loader2, ExternalLink,
-  Filter, ChevronRight, Eye, Info,
+  Filter, ChevronRight, Eye, Info, Pause, Play,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -164,7 +165,33 @@ export default function AlertsPage() {
   });
 
   const activeCount = alerts.filter(a => a.status === "active" || a.status === "new").length;
-  const isMonitoring = scanSchedule && scanSchedule !== "manual";
+  const isPaused = scanSchedule === "paused";
+  const isMonitoring = scanSchedule && scanSchedule !== "manual" && scanSchedule !== "paused";
+
+  const [prevSchedule, setPrevSchedule] = useState<string | null>(null);
+
+  const togglePause = async () => {
+    if (!currentOrg) return;
+    setSaving(true);
+    let newSchedule: string;
+    if (isPaused) {
+      // Resume to previous schedule or default to daily
+      newSchedule = prevSchedule && prevSchedule !== "paused" ? prevSchedule : "daily";
+    } else {
+      setPrevSchedule(scanSchedule);
+      newSchedule = "paused";
+    }
+    setScanSchedule(newSchedule);
+    const { data: existing } = await supabase.from("tracking_profiles").select("id").eq("org_id", currentOrg.id).maybeSingle();
+    const payload = { scan_schedule: newSchedule, updated_at: new Date().toISOString() };
+    if (existing) {
+      await supabase.from("tracking_profiles").update(payload).eq("org_id", currentOrg.id);
+    } else {
+      await supabase.from("tracking_profiles").insert({ ...payload, org_id: currentOrg.id });
+    }
+    toast({ title: newSchedule === "paused" ? "All monitoring paused" : "Monitoring resumed" });
+    setSaving(false);
+  };
 
   const alertTypeCounts = alerts.reduce<Record<string, number>>((acc, a) => {
     if (a.status === "active" || a.status === "new") {
@@ -239,10 +266,39 @@ export default function AlertsPage() {
         </div>
       </Card>
 
+      {/* Pause / Resume Toggle */}
+      <Card className={`border p-4 ${isPaused ? "bg-sentinel-amber/10 border-sentinel-amber/30" : "bg-sentinel-emerald/5 border-sentinel-emerald/20"}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {isPaused ? <Pause className="h-5 w-5 text-sentinel-amber" /> : <Play className="h-5 w-5 text-sentinel-emerald" />}
+            <div>
+              <p className="text-sm font-medium text-card-foreground">
+                {isPaused ? "All Monitoring Paused" : "Monitoring Active"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isPaused
+                  ? "Auto-scans and anomaly detection are stopped. You can still run manual scans from the Scans page."
+                  : "Auto-scans run on schedule and anomaly detection analyzes results automatically."
+                }
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground hidden sm:block">{isPaused ? "Paused" : "Active"}</span>
+            <Switch
+              checked={!isPaused}
+              onCheckedChange={() => togglePause()}
+              disabled={saving}
+            />
+          </div>
+        </div>
+      </Card>
+
       {/* Monitoring Configuration */}
-      <Card className="bg-card border-border p-5 space-y-4">
+      <Card className={`bg-card border-border p-5 space-y-4 ${isPaused ? "opacity-60 pointer-events-none" : ""}`}>
         <h3 className="text-sm font-medium text-card-foreground flex items-center gap-2">
           <Settings2 className="h-4 w-4 text-primary" /> Monitoring Configuration
+          {isPaused && <Badge variant="outline" className="text-[10px] text-sentinel-amber border-sentinel-amber/30">Paused</Badge>}
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -310,13 +366,15 @@ export default function AlertsPage() {
 
         <div className="flex items-center gap-4 pt-2 border-t border-border text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${isMonitoring ? "bg-sentinel-emerald animate-pulse" : "bg-muted-foreground"}`} />
-            Auto-scan: {isMonitoring ? SCHEDULE_LABELS[scanSchedule] || scanSchedule : "Disabled"}
+            <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-sentinel-amber" : isMonitoring ? "bg-sentinel-emerald animate-pulse" : "bg-muted-foreground"}`} />
+            {isPaused ? "Paused" : `Auto-scan: ${isMonitoring ? SCHEDULE_LABELS[scanSchedule] || scanSchedule : "Disabled"}`}
           </span>
-          <span className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-sentinel-emerald animate-pulse" />
-            Anomaly detection: Active after each scan
-          </span>
+          {!isPaused && (
+            <span className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-sentinel-emerald animate-pulse" />
+              Anomaly detection: Active after each scan
+            </span>
+          )}
           {quietStart != null && quietEnd != null && (
             <span className="flex items-center gap-1.5">
               <Clock className="h-3 w-3" />
