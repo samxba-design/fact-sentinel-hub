@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Scan, Siren, AlertTriangle, CheckCircle2, Activity } from "lucide-react";
+import InfoTooltip from "@/components/InfoTooltip";
 import { formatDistanceToNow } from "date-fns";
 
 interface TimelineEvent {
@@ -99,6 +100,7 @@ export default function ActivityTimeline() {
     <Card className="bg-card border-border p-5 space-y-3">
       <span className="text-sm font-medium text-card-foreground flex items-center gap-2">
         <Activity className="h-4 w-4 text-primary" /> Recent Activity
+        <InfoTooltip text="Timeline of recent platform events — scans completed, incidents created, and escalations raised. Click any event to navigate to its details." />
       </span>
       <div className="space-y-1">
         {events.map((e) => {

@@ -8,6 +8,7 @@ import SourceBadge from "@/components/SourceBadge";
 import { Radio, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import InfoTooltip from "@/components/InfoTooltip";
 
 interface LiveMention {
   id: string;
@@ -83,6 +84,7 @@ export default function LiveThreatFeed() {
         <span className="text-sm font-medium text-card-foreground flex items-center gap-2">
           <Radio className="h-4 w-4 text-primary" />
           Recent Scan Detections
+          <InfoTooltip text="Live feed of the latest mentions detected by your scans. Critical and high-severity items glow to indicate urgency. Click any item to view details." />
         </span>
       </div>
       {feed.length === 0 ? (
