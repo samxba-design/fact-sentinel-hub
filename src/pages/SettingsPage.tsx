@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,16 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Show success toast after Stripe checkout redirect
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      toast({ title: "Subscription activated!", description: "Welcome to Pro. Your subscription is now active." });
+      searchParams.delete("success");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
