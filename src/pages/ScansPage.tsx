@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,6 +44,9 @@ export default function ScansPage() {
   const [loading, setLoading] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Builder state
   const [selectedSources, setSelectedSources] = useState<string[]>(["twitter", "reddit", "news"]);
@@ -137,6 +140,43 @@ export default function ScansPage() {
     }
   };
 
+  const deleteScan = async (scanId: string) => {
+    setDeleting(true);
+    try {
+      // Delete mentions from this scan first, then the scan run
+      await supabase.from("mentions").delete().eq("scan_run_id", scanId);
+      const { error } = await supabase.from("scan_runs").delete().eq("id", scanId);
+      if (error) throw error;
+      setRuns(prev => prev.filter(r => r.id !== scanId));
+      toast({ title: "Scan deleted", description: "Scan and its mentions have been removed." });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const deleteAllScans = async () => {
+    if (!currentOrg) return;
+    setDeleting(true);
+    try {
+      // Delete all mentions from scans, then all scan runs
+      const scanIds = runs.map(r => r.id);
+      if (scanIds.length > 0) {
+        await supabase.from("mentions").delete().in("scan_run_id", scanIds);
+      }
+      await supabase.from("scan_runs").delete().eq("org_id", currentOrg.id);
+      setRuns([]);
+      toast({ title: "All scans deleted", description: "All scan data has been reset." });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+      setDeleteAllOpen(false);
+    }
+  };
+
   const formatDate = (d: string | null) =>
     d ? format(new Date(d), "MMM d, yyyy h:mm a") : "—";
 
@@ -148,9 +188,16 @@ export default function ScansPage() {
           <h1 className="text-2xl font-bold text-foreground">Scans</h1>
           <p className="text-sm text-muted-foreground mt-1">Run and manage source scans</p>
         </div>
-        <Button onClick={() => setBuilderOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />New Scan
-        </Button>
+        <div className="flex items-center gap-2">
+          {runs.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setDeleteAllOpen(true)} className="text-destructive hover:text-destructive">
+              <Trash2 className="h-4 w-4 mr-2" />Reset All
+            </Button>
+          )}
+          <Button onClick={() => setBuilderOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />New Scan
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -167,11 +214,13 @@ export default function ScansPage() {
             return (
               <Card
                 key={run.id}
-                className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
-                onClick={() => navigate(`/mentions?scan=${run.id}`)}
+                className="bg-card border-border p-5 hover:border-primary/30 transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div
+                    className="flex items-center gap-4 flex-1 cursor-pointer"
+                    onClick={() => navigate(`/mentions?scan=${run.id}`)}
+                  >
                     <Scan className="h-5 w-5 text-primary" />
                     <div>
                       <div className="text-sm font-medium text-card-foreground">
@@ -204,6 +253,14 @@ export default function ScansPage() {
                     <div className="flex items-center gap-1.5">
                       <StatusIcon className={`h-4 w-4 ${sc.className}`} />
                     </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(run.id); }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -211,6 +268,44 @@ export default function ScansPage() {
           })
         )}
       </div>
+
+      {/* Delete single scan confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Scan</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this scan and all its associated mentions. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteTarget && deleteScan(deleteTarget)} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete all scans confirmation */}
+      <Dialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset All Scans</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all {runs.length} scans and their associated mentions. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAllOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={deleteAllScans} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Scan Builder Dialog */}
       <Dialog open={builderOpen} onOpenChange={setBuilderOpen}>
