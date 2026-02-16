@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X, Sparkles
+  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown
 } from "lucide-react";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +104,7 @@ export default function MentionsPage() {
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
   const [sourceIntelDomain, setSourceIntelDomain] = useState<string | null>(null);
   const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"detected" | "published">("detected");
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
@@ -290,6 +291,20 @@ export default function MentionsPage() {
       return m.content?.toLowerCase().includes(q) || m.author_name?.toLowerCase().includes(q);
     }
     return true;
+  }).sort((a, b) => {
+    if (sortBy === "published") {
+      const aDate = a.posted_at ? new Date(a.posted_at).getTime() : 0;
+      const bDate = b.posted_at ? new Date(b.posted_at).getTime() : 0;
+      // Mentions with no published date go to the end
+      if (aDate === 0 && bDate === 0) return 0;
+      if (aDate === 0) return 1;
+      if (bDate === 0) return -1;
+      return bDate - aDate;
+    }
+    // Default: sort by detected (created_at)
+    const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bDate - aDate;
   });
 
   // Source breakdown stats (from unfiltered, non-ignored mentions)
@@ -481,14 +496,39 @@ export default function MentionsPage() {
           <div className="flex-1 flex items-start justify-between gap-4 min-w-0">
             <div className="flex-1 space-y-2 min-w-0 cursor-pointer" onClick={() => navigate(`/mentions/${m.id}`)}>
               <div className="flex items-center gap-2 flex-wrap">
-                <SourceBadge source={m.source} onClick={(e) => { e.stopPropagation(); const d = getDomain(m.url); if (d !== "unknown") openSourceIntel(d); }} />
+                <SourceBadge source={m.source} />
                 {m.url && getDomain(m.url) !== "unknown" && (
-                  <span
-                    className="text-[10px] text-muted-foreground hover:text-primary cursor-pointer transition-colors"
-                    onClick={(e) => { e.stopPropagation(); openSourceIntel(getDomain(m.url)); }}
-                  >
-                    {getDomain(m.url)}
-                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <span
+                        className="text-[10px] text-muted-foreground hover:text-primary cursor-pointer transition-colors inline-flex items-center gap-0.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {getDomain(m.url)}
+                        <ChevronDown className="h-2.5 w-2.5" />
+                      </span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem onClick={() => openSourceIntel(getDomain(m.url))}>
+                        <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> Source Intelligence
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDomainFilter(getDomain(m.url))}>
+                        <Globe className="h-3.5 w-3.5 mr-2" /> Filter by this source
+                      </DropdownMenuItem>
+                      {m.url && (
+                        <DropdownMenuItem onClick={() => window.open(m.url!, "_blank")}>
+                          <ExternalLink className="h-3.5 w-3.5 mr-2" /> Visit {getDomain(m.url)}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => ignoreSource(getDomain(m.url), `Blocked from mention card`)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Ban className="h-3.5 w-3.5 mr-2" /> Block this source
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 <span
                   className="text-xs text-primary hover:underline cursor-pointer"
@@ -691,6 +731,16 @@ export default function MentionsPage() {
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
             {uniqueSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as "detected" | "published")}>
+          <SelectTrigger className="w-36">
+            <ArrowUpDown className="h-3 w-3 mr-1" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="detected">Sort: Detected</SelectItem>
+            <SelectItem value="published">Sort: Published</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sentimentFilter} onValueChange={setSentimentFilter}>

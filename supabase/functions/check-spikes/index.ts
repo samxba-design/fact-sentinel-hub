@@ -31,16 +31,17 @@ Deno.serve(async (req) => {
       const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
       const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-      // Count mentions in last 1 hour vs previous 1 hour
+      // Use created_at (ingestion time) for spike detection — this measures real-time velocity
+      // posted_at (publication date) is unreliable for velocity since old articles can be discovered
       const [recentRes, prevRes, dailyNegRes, criticalRes] = await Promise.all([
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).gte("posted_at", oneHourAgo),
+          .eq("org_id", org.id).gte("created_at", oneHourAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).gte("posted_at", twoHoursAgo).lt("posted_at", oneHourAgo),
+          .eq("org_id", org.id).gte("created_at", twoHoursAgo).lt("created_at", oneHourAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).eq("sentiment_label", "negative").gte("posted_at", twentyFourHoursAgo),
+          .eq("org_id", org.id).eq("sentiment_label", "negative").gte("created_at", twentyFourHoursAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).eq("severity", "critical").gte("posted_at", twentyFourHoursAgo),
+          .eq("org_id", org.id).eq("severity", "critical").gte("created_at", twentyFourHoursAgo),
       ]);
 
       const recentCount = recentRes.count ?? 0;
@@ -49,7 +50,8 @@ Deno.serve(async (req) => {
       const criticalCount = criticalRes.count ?? 0;
 
       // Spike detection: >3x increase in mentions hour-over-hour (min 5 mentions)
-      if (recentCount >= 5 && prevCount > 0 && recentCount / prevCount >= 3) {
+      // AND require that previous hour had real traffic (not just comparing scan vs no-scan)
+      if (recentCount >= 5 && prevCount >= 2 && recentCount / prevCount >= 3) {
         alerts.push({
           org_id: org.id,
           type: "mention_spike",

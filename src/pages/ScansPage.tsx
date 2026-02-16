@@ -161,9 +161,23 @@ export default function ScansPage() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
+      const totalFound = data.total_found || data.mentions_created || 0;
+      const filtered = data.filtered_out || 0;
+      const dupes = data.duplicates_removed || 0;
+      const aiFiltered = data.ai_filtered || 0;
+      const created = data.mentions_created || 0;
+
+      const details = [
+        `${created} mentions saved`,
+        totalFound > created ? `${totalFound} total found` : null,
+        filtered > 0 ? `${filtered} filtered (junk/out-of-range)` : null,
+        dupes > 0 ? `${dupes} duplicates removed` : null,
+        aiFiltered > 0 ? `${aiFiltered} removed by AI quality filter` : null,
+      ].filter(Boolean).join(" · ");
+
       toast({
         title: "Auto-scan complete!",
-        description: `Found ${data.mentions_created || 0} mentions across ${autoSources.length} sources.`,
+        description: details,
       });
       setScanProgress("");
       setScanDatePickerOpen(false);
