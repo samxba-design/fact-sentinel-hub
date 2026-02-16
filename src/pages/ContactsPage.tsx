@@ -11,8 +11,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Plus, Search, Users, Mail, Phone, Building2, Crown, Pencil, Trash2, Loader2, UserCheck
+  Plus, Search, Users, Mail, Phone, Building2, Crown, Pencil, Trash2, Loader2, UserCheck, TicketCheck, Bell, Link2
 } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
@@ -122,6 +123,34 @@ export default function ContactsPage() {
           <Plus className="h-4 w-4 mr-2" /> Add Contact
         </Button>
       </div>
+
+      <PageGuide
+        title="How Contacts Work"
+        subtitle="Internal directory for escalation routing and team coordination"
+        steps={[
+          {
+            icon: <Users className="h-4 w-4 text-primary" />,
+            title: "1. Build Your Directory",
+            description: "Add internal contacts with department, role, email, and phone. Mark department leads for automatic escalation routing.",
+          },
+          {
+            icon: <TicketCheck className="h-4 w-4 text-primary" />,
+            title: "2. Escalation Routing",
+            description: "When escalation tickets are created, they're routed to the relevant department lead. Contacts appear as clickable popovers across the platform.",
+          },
+          {
+            icon: <Bell className="h-4 w-4 text-primary" />,
+            title: "3. Alert Notifications",
+            description: "Department leads receive alert emails for critical threats in their area. Configure notification preferences per contact.",
+          },
+        ]}
+        integrations={[
+          { label: "Escalations", to: "/escalations", description: "Ticket routing" },
+          { label: "Settings → Team", to: "/settings?tab=team", description: "Manage team roles" },
+          { label: "Settings → Alerts", to: "/settings?tab=alerts", description: "Alert email config" },
+        ]}
+        tip="Mark at least one department lead per key department (Legal, Communications, Executive) to enable smart escalation routing."
+      />
 
       {/* Department leads summary */}
       {departmentLeads.length > 0 && (

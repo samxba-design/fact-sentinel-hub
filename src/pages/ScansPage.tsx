@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2 } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -334,6 +335,35 @@ export default function ScansPage() {
           </Button>
         </div>
       </div>
+
+      <PageGuide
+        title="How Scans Work"
+        subtitle="Search the web, social media, forums, and review sites for mentions of your brand"
+        steps={[
+          {
+            icon: <Sparkles className="h-4 w-4 text-primary" />,
+            title: "Auto Scan",
+            description: "One click to scan all connected sources using all your tracked keywords. The fastest way to get comprehensive coverage.",
+          },
+          {
+            icon: <Settings2 className="h-4 w-4 text-primary" />,
+            title: "Custom Scan",
+            description: "Build a targeted scan with specific keywords, sources, and date ranges. Great for investigating specific topics.",
+          },
+          {
+            icon: <Brain className="h-4 w-4 text-primary" />,
+            title: "AI Analysis",
+            description: "Each scan runs AI sentiment analysis, severity scoring, and narrative clustering. Results feed into Mentions, Narratives, and Risk Console.",
+          },
+        ]}
+        integrations={[
+          { label: "Mentions", to: "/mentions", description: "Scan results become mentions" },
+          { label: "Narratives", to: "/narratives", description: "AI clusters into narratives" },
+          { label: "Risk Console", to: "/risk-console", description: "High-severity alerts" },
+          { label: "Settings → Sources", to: "/settings?tab=sources", description: "Connect Twitter, Reddit, YouTube" },
+        ]}
+        tip="Connect Twitter, Reddit, or YouTube API keys in Settings → Sources to expand scan coverage beyond free web sources. Schedule recurring scans for hands-free monitoring."
+      />
 
       {/* Auto-scan progress banner */}
       {autoScanning && scanProgress && (

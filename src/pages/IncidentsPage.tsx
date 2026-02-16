@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Siren, Plus, Clock } from "lucide-react";
+import { Siren, Plus, Clock, Network, MessageSquare, Zap, Users, Scan } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
 import EmptyState from "@/components/EmptyState";
+import PageGuide from "@/components/PageGuide";
 
 interface Incident {
   id: string;
@@ -55,6 +56,35 @@ export default function IncidentsPage() {
         </div>
         <Button onClick={() => setFormOpen(true)}><Plus className="h-4 w-4 mr-2" />New Incident</Button>
       </div>
+
+      <PageGuide
+        title="How Incidents Work"
+        subtitle="Centralized war rooms for coordinated crisis response"
+        steps={[
+          {
+            icon: <Siren className="h-4 w-4 text-primary" />,
+            title: "1. Create an Incident",
+            description: "When a crisis emerges, create an incident to consolidate all related data — mentions, narratives, and stakeholders — in one place.",
+          },
+          {
+            icon: <Network className="h-4 w-4 text-primary" />,
+            title: "2. Link Evidence",
+            description: "Attach relevant mentions and narratives to the incident. This builds a timeline and helps your team understand the full picture.",
+          },
+          {
+            icon: <Users className="h-4 w-4 text-primary" />,
+            title: "3. Coordinate Response",
+            description: "Assign stakeholders, track events on the timeline, and use the response engine to draft approved replies. Incident Mode increases scan frequency.",
+          },
+        ]}
+        integrations={[
+          { label: "Mentions", to: "/mentions", description: "Link specific mentions" },
+          { label: "Narratives", to: "/narratives", description: "Track related narratives" },
+          { label: "Respond", to: "/respond", description: "Draft incident responses" },
+          { label: "Escalations", to: "/escalations", description: "Auto-created tickets" },
+        ]}
+        tip="Enable Incident Mode in settings to automatically increase scan frequency and prioritize critical threats on your dashboard during active crises."
+      />
 
       <div className="space-y-3">
         {loading ? (

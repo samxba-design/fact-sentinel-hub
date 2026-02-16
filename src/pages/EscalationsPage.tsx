@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TicketCheck, Plus, History, Settings2, Users, Mail } from "lucide-react";
+import { TicketCheck, Plus, History, Settings2, Users, Mail, AlertTriangle, MessageCircleReply, BookCheck } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import ContactPopover from "@/components/contacts/ContactPopover";
 import SmartLink from "@/components/SmartLink";
 import { supabase } from "@/integrations/supabase/client";
@@ -105,6 +106,35 @@ export default function EscalationsPage() {
         </div>
         <Button onClick={handleCreate}><Plus className="h-4 w-4 mr-2" />New Ticket</Button>
       </div>
+
+      <PageGuide
+        title="How Escalations Work"
+        subtitle="Human-in-the-loop workflow for blocked responses and critical threats"
+        steps={[
+          {
+            icon: <AlertTriangle className="h-4 w-4 text-primary" />,
+            title: "1. Auto-Created Tickets",
+            description: "When the response engine can't find matching facts for a claim, it blocks the draft and creates an escalation ticket automatically.",
+          },
+          {
+            icon: <Users className="h-4 w-4 text-primary" />,
+            title: "2. Routed to Teams",
+            description: "Tickets are assigned to department leads based on the claim category. Critical severity mentions also auto-escalate for immediate review.",
+          },
+          {
+            icon: <BookCheck className="h-4 w-4 text-primary" />,
+            title: "3. Resolve & Unblock",
+            description: "Add the missing approved facts, resolve the ticket, then re-run the response engine. The previously blocked draft will now succeed.",
+          },
+        ]}
+        integrations={[
+          { label: "Respond", to: "/respond", description: "Where drafts get blocked" },
+          { label: "Approved Facts", to: "/approved-facts", description: "Add missing facts" },
+          { label: "Contacts", to: "/contacts", description: "Department leads" },
+          { label: "Settings → Alerts", to: "/settings?tab=alerts", description: "Email notifications" },
+        ]}
+        tip="The fastest way to reduce escalations is to build a comprehensive approved facts library. Review blocked claims regularly to identify fact gaps."
+      />
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

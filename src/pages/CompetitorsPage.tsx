@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, ArrowUpDown } from "lucide-react";
+import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, ArrowUpDown, Scan, Sparkles } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -144,32 +145,60 @@ export default function CompetitorsPage() {
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />Add Manually</Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Competitor</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Competitor Name *</Label>
-                <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Acme Corp" />
-                <p className="text-xs text-muted-foreground mt-1">This name will be tracked across all scans and mentions</p>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Competitor</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Competitor Name *</Label>
+                  <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Acme Corp" />
+                  <p className="text-xs text-muted-foreground mt-1">This name will be tracked across all scans and mentions</p>
+                </div>
+                <div>
+                  <Label>Domain (optional)</Label>
+                  <Input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="acmecorp.com" />
+                </div>
+                <div>
+                  <Label>Notes (optional)</Label>
+                  <Textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Key things to watch for..." rows={3} />
+                </div>
+                <Button onClick={addCompetitor} disabled={!newName.trim()} className="w-full">
+                  Start Tracking
+                </Button>
               </div>
-              <div>
-                <Label>Domain (optional)</Label>
-                <Input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="acmecorp.com" />
-              </div>
-              <div>
-                <Label>Notes (optional)</Label>
-                <Textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Key things to watch for..." rows={3} />
-              </div>
-              <Button onClick={addCompetitor} disabled={!newName.trim()} className="w-full">
-                Start Tracking
-              </Button>
-            </div>
-          </DialogContent>
+            </DialogContent>
           </Dialog>
         </div>
       </div>
+
+      <PageGuide
+        title="How Competitor Analysis Works"
+        subtitle="Track rival brands across your entire monitored landscape"
+        steps={[
+          {
+            icon: <Target className="h-4 w-4 text-primary" />,
+            title: "1. Add Competitors",
+            description: "Add competitor names manually or use AI auto-detection to suggest rivals based on your industry and existing data.",
+          },
+          {
+            icon: <Scan className="h-4 w-4 text-primary" />,
+            title: "2. Tracked via Keywords",
+            description: "Competitors are stored as 'competitor' keywords. Every scan automatically searches for them alongside your brand keywords.",
+          },
+          {
+            icon: <TrendingUp className="h-4 w-4 text-primary" />,
+            title: "3. Compare & Analyze",
+            description: "See mention volume, narrative overlap, and sentiment breakdown per competitor. Identify when rivals are driving narrative changes.",
+          },
+        ]}
+        integrations={[
+          { label: "Scans", to: "/scans", description: "Competitors scanned automatically" },
+          { label: "Mentions", to: "/mentions", description: "Filter by competitor" },
+          { label: "Narratives", to: "/narratives", description: "Competitor narrative overlap" },
+        ]}
+        tip="Use AI Suggest to automatically discover competitors based on your organization's name, domain, and industry. The AI analyzes your existing data to recommend the most relevant rivals."
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

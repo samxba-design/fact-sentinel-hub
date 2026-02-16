@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
   Download, FileSpreadsheet, Clock, Loader2, CheckCircle2, Table2,
-  RefreshCw, Sheet, LogIn, LogOut, Mail, FileText, BarChart3,
+  RefreshCw, Sheet, LogIn, LogOut, Mail, FileText, BarChart3, Share2, Brain
 } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -190,6 +191,34 @@ export default function ExportsPage() {
           <p className="text-sm text-muted-foreground mt-1">Export data as CSV, sync to Google Sheets, or generate PDF reports</p>
         </div>
       </div>
+
+      <PageGuide
+        title="How Exports Work"
+        subtitle="Get your data out — CSV downloads, live Sheets sync, or AI-powered PDF reports"
+        steps={[
+          {
+            icon: <Download className="h-4 w-4 text-primary" />,
+            title: "CSV Download",
+            description: "Instantly download any data type as a CSV file. No setup required — select data types and click download.",
+          },
+          {
+            icon: <Sheet className="h-4 w-4 text-primary" />,
+            title: "Google Sheets Sync",
+            description: "Connect your Google account and sync data directly to a spreadsheet. Great for live dashboards and team sharing.",
+          },
+          {
+            icon: <Brain className="h-4 w-4 text-primary" />,
+            title: "PDF Reports",
+            description: "Generate AI-powered reports with executive summaries, sentiment analysis, and visual charts. Choose from Executive, Competitor, Incident, Weekly, or Full report types.",
+          },
+        ]}
+        integrations={[
+          { label: "Dashboard", to: "/dashboard", description: "Quick report generation" },
+          { label: "Mentions", to: "/mentions", description: "Export mention data" },
+          { label: "Settings → Integrations", to: "/settings?tab=integrations", description: "Google Sheets setup" },
+        ]}
+        tip="PDF reports are also accessible from the floating report button on the dashboard. Schedule weekly digests in Settings to automatically receive reports via email."
+      />
 
       {/* Mode selector */}
       <Tabs value={mode} onValueChange={v => setMode(v as ExportMode)}>

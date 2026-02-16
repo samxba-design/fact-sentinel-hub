@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X, Scan } from "lucide-react";
+import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X, Scan, Settings2, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import UpgradeBanner from "@/components/UpgradeBanner";
 import { formatDistanceToNow } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import PageGuide from "@/components/PageGuide";
 
 interface RiskMention {
   id: string;
@@ -161,6 +162,35 @@ export default function RiskConsolePage() {
           <Scan className="h-4 w-4 mr-2" /> Run New Scan
         </Button>
       </div>
+
+      <PageGuide
+        title="How the Risk Console Works"
+        subtitle="Real-time triage center for threats, spikes, and alerts"
+        steps={[
+          {
+            icon: <Scan className="h-4 w-4 text-primary" />,
+            title: "1. Automated Detection",
+            description: "After each scan, the system flags high/critical severity mentions, misinformation, regulatory risks, scams, and volume spikes automatically.",
+          },
+          {
+            icon: <Eye className="h-4 w-4 text-primary" />,
+            title: "2. Triage by Queue",
+            description: "Click queue cards to filter — Emergencies, High Severity, False Claims, Regulatory, Scams, or Spikes. Each queue surfaces different risk types.",
+          },
+          {
+            icon: <Settings2 className="h-4 w-4 text-primary" />,
+            title: "3. Act on Alerts",
+            description: "Acknowledge or dismiss alerts. Click any mention to view details, draft a response, or escalate to your team.",
+          },
+        ]}
+        integrations={[
+          { label: "Scans", to: "/scans", description: "Run new scans" },
+          { label: "Mentions", to: "/mentions", description: "View full mention list" },
+          { label: "Escalations", to: "/escalations", description: "Auto-escalated tickets" },
+          { label: "Settings → Alerts", to: "/settings?tab=alerts", description: "Configure alert emails" },
+        ]}
+        tip="Spike detection checks every 15 minutes for volume increases >3x baseline, negative sentiment surges, and viral content. Configure alert emails in Settings to get notified instantly."
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {queues.map(q => (

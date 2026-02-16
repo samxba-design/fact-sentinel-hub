@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Plus, Search, Pencil, Trash2, Sparkles } from "lucide-react";
+import { FileText, Plus, Search, Pencil, Trash2, Sparkles, MessageCircleReply, BookCheck, Layers } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,6 +118,34 @@ export default function ApprovedTemplatesPage() {
           </Button>
         </div>
       </div>
+
+      <PageGuide
+        title="How Templates Work"
+        subtitle="Pre-approved response structures that the AI uses to draft replies"
+        steps={[
+          {
+            icon: <FileText className="h-4 w-4 text-primary" />,
+            title: "1. Create Templates",
+            description: "Define response templates for common scenarios (misinformation, outage, scam, etc.) with tone and platform length settings.",
+          },
+          {
+            icon: <BookCheck className="h-4 w-4 text-primary" />,
+            title: "2. Link to Facts",
+            description: "Templates reference fact categories. When the response engine runs, it selects the best template matching the scenario and injects approved facts.",
+          },
+          {
+            icon: <MessageCircleReply className="h-4 w-4 text-primary" />,
+            title: "3. Auto-Selected for Responses",
+            description: "When drafting responses, the AI automatically picks the most relevant template based on intent, platform, and matched fact categories.",
+          },
+        ]}
+        integrations={[
+          { label: "Respond", to: "/respond", description: "Uses templates for drafting" },
+          { label: "Approved Facts", to: "/approved-facts", description: "Facts fill template slots" },
+          { label: "Escalations", to: "/escalations", description: "Missing templates trigger escalations" },
+        ]}
+        tip="Use Auto-Generate to let AI create templates from your existing approved facts. Each scenario type (clarify, support, scam) should have at least one template."
+      />
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
