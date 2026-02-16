@@ -77,8 +77,6 @@ export default function LiveThreatFeed() {
     };
   }, [currentOrg]);
 
-  if (feed.length === 0) return null;
-
   return (
     <Card className="bg-card border-border p-5 space-y-3">
       <div className="flex items-center justify-between">
@@ -87,6 +85,13 @@ export default function LiveThreatFeed() {
           Recent Scan Detections
         </span>
       </div>
+      {feed.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <AlertTriangle className="h-8 w-8 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">No detections yet</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">Run a scan to start monitoring mentions</p>
+        </div>
+      ) : (
       <div className="space-y-2 max-h-[320px] overflow-y-auto">
         <AnimatePresence initial={false}>
           {feed.map((m) => (
@@ -125,6 +130,7 @@ export default function LiveThreatFeed() {
           ))}
         </AnimatePresence>
       </div>
+      )}
     </Card>
   );
 }
