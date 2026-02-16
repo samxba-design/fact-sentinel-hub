@@ -6,61 +6,194 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, ArrowRight, Building2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Shield, ArrowRight, ArrowLeft, Building2, Sparkles, Clock, Bell,
+  Loader2, Check, X, User, Globe, Newspaper, MessageSquare,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const STEPS = [
+  { label: "Company", icon: Building2 },
+  { label: "AI Profile", icon: Sparkles },
+  { label: "Schedule", icon: Clock },
+  { label: "Alerts", icon: Bell },
+];
+
+const INDUSTRIES = ["Fintech", "Crypto/Exchange", "SaaS", "Healthcare", "E-commerce", "Banking", "Insurance", "Gaming", "Media", "Other"];
+const REGIONS = ["North America", "Europe", "Asia Pacific", "Latin America", "Middle East", "Africa"];
+const LANGUAGES = ["English", "Spanish", "French", "German", "Portuguese", "Chinese", "Japanese", "Arabic", "Hindi", "Korean"];
+const TIMEZONES = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Berlin", "Europe/Paris", "Asia/Tokyo", "Asia/Shanghai", "Asia/Mumbai", "Australia/Sydney"];
+
+interface ProfileSuggestion {
+  aliases: { value: string; confidence: number; evidence: string }[];
+  brand_keywords: { value: string; confidence: number }[];
+  product_keywords: { value: string; confidence: number }[];
+  risk_keywords: { value: string; confidence: number }[];
+  topics: { name: string; description: string }[];
+  narratives: { name: string; description: string; example_phrases?: string[]; confidence: number }[];
+  people: { name: string; title?: string; tier: string; confidence: number }[];
+  sources: { type: string; reason: string }[];
+}
 
 export default function OnboardingPage() {
   const { user } = useAuth();
   const { refetchOrgs } = useOrg();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  // Step 1: Company details
   const [orgName, setOrgName] = useState("");
   const [domain, setDomain] = useState("");
   const [industry, setIndustry] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
+  const [timezone, setTimezone] = useState("UTC");
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step 2: AI profile
+  const [profile, setProfile] = useState<ProfileSuggestion | null>(null);
+  const [generatingProfile, setGeneratingProfile] = useState(false);
+  const [approvedSections, setApprovedSections] = useState<Record<string, boolean>>({
+    aliases: true, brand_keywords: true, product_keywords: true, risk_keywords: true,
+    topics: true, narratives: true, people: true, sources: true,
+  });
+
+  // Step 3: Schedule
+  const [scanSchedule, setScanSchedule] = useState("daily_9am");
+  const [customCron, setCustomCron] = useState("0 9 * * *");
+
+  // Step 4: Alerts
+  const [alertEmails, setAlertEmails] = useState("");
+  const [escalationEmails, setEscalationEmails] = useState("");
+  const [quietStart, setQuietStart] = useState("22");
+  const [quietEnd, setQuietEnd] = useState("7");
+
+  const toggleRegion = (r: string) =>
+    setSelectedRegions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
+  const toggleLang = (l: string) =>
+    setSelectedLanguages(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
+  const toggleSection = (key: string) =>
+    setApprovedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const handleGenerateProfile = async () => {
+    setGeneratingProfile(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-profile", {
+        body: { company_name: orgName, domain, industry, regions: selectedRegions, languages: selectedLanguages },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setProfile(data as ProfileSuggestion);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingProfile(false);
+    }
+  };
+
+  const handleFinish = async () => {
     if (!user) return;
-    setLoading(true);
+    setSaving(true);
 
-    const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    try {
+      const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-    const { data: org, error: orgError } = await supabase
-      .from("organizations")
-      .insert({ name: orgName, slug, domain, industry })
-      .select()
-      .single();
+      const { data: org, error: orgError } = await supabase
+        .from("organizations")
+        .insert({ name: orgName, slug, domain, industry, regions: selectedRegions, languages: selectedLanguages, timezone })
+        .select()
+        .single();
+      if (orgError) throw orgError;
 
-    if (orgError) {
-      toast({ title: "Error", description: orgError.message, variant: "destructive" });
-      setLoading(false);
-      return;
+      const { error: memError } = await supabase
+        .from("org_memberships")
+        .insert({ org_id: org.id, user_id: user.id, role: "owner" as any, accepted_at: new Date().toISOString() });
+      if (memError) throw memError;
+
+      const cronValue = scanSchedule === "custom" ? customCron :
+        scanSchedule === "daily_9am" ? "0 9 * * *" :
+        scanSchedule === "every_6h" ? "0 */6 * * *" :
+        scanSchedule === "every_12h" ? "0 */12 * * *" : "0 9 * * *";
+
+      const alertEmailList = alertEmails.split(",").map(e => e.trim()).filter(Boolean);
+      const escEmailList = escalationEmails.split(",").map(e => e.trim()).filter(Boolean);
+
+      await supabase.from("tracking_profiles").insert({
+        org_id: org.id,
+        scan_schedule: cronValue,
+        alert_emails: alertEmailList,
+        escalation_emails: escEmailList,
+        quiet_hours_start: parseInt(quietStart) || null,
+        quiet_hours_end: parseInt(quietEnd) || null,
+      });
+
+      // Save profile suggestions if generated and approved
+      if (profile) {
+        if (approvedSections.brand_keywords && profile.brand_keywords.length > 0) {
+          await supabase.from("keywords").insert(
+            profile.brand_keywords.map(k => ({ org_id: org.id, type: "brand", value: k.value, status: "active" }))
+          );
+        }
+        if (approvedSections.product_keywords && profile.product_keywords.length > 0) {
+          await supabase.from("keywords").insert(
+            profile.product_keywords.map(k => ({ org_id: org.id, type: "product", value: k.value, status: "active" }))
+          );
+        }
+        if (approvedSections.risk_keywords && profile.risk_keywords.length > 0) {
+          await supabase.from("keywords").insert(
+            profile.risk_keywords.map(k => ({ org_id: org.id, type: "risk", value: k.value, status: "active" }))
+          );
+        }
+        if (approvedSections.aliases && profile.aliases.length > 0) {
+          await supabase.from("keywords").insert(
+            profile.aliases.map(a => ({ org_id: org.id, type: "alias", value: a.value, status: "active" }))
+          );
+        }
+        if (approvedSections.topics && profile.topics.length > 0) {
+          await supabase.from("topics").insert(
+            profile.topics.map(t => ({ org_id: org.id, name: t.name, description: t.description }))
+          );
+        }
+        if (approvedSections.narratives && profile.narratives.length > 0) {
+          await supabase.from("narratives").insert(
+            profile.narratives.map(n => ({
+              org_id: org.id, name: n.name, description: n.description,
+              example_phrases: n.example_phrases || [], status: "watch", confidence: n.confidence,
+            }))
+          );
+        }
+        if (approvedSections.sources && profile.sources.length > 0) {
+          await supabase.from("sources").insert(
+            profile.sources.map(s => ({ org_id: org.id, type: s.type, enabled: true }))
+          );
+        }
+      }
+
+      await refetchOrgs();
+      toast({ title: "Organization created!", description: `Welcome to ${orgName}` });
+      navigate("/");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
+  };
 
-    // Create membership as owner
-    const { error: memError } = await supabase
-      .from("org_memberships")
-      .insert({ org_id: org.id, user_id: user.id, role: "owner" as any, accepted_at: new Date().toISOString() });
-
-    if (memError) {
-      toast({ title: "Error", description: memError.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // Create tracking profile
-    await supabase.from("tracking_profiles").insert({ org_id: org.id });
-
-    await refetchOrgs();
-    toast({ title: "Organization created!", description: `Welcome to ${orgName}` });
-    navigate("/");
-    setLoading(false);
+  const canAdvance = () => {
+    if (step === 0) return orgName.trim().length > 0;
+    return true;
   };
 
   return (
-    <div className="dark min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-lg space-y-8 animate-fade-up">
+    <div className="dark min-h-screen bg-background p-4 flex flex-col items-center">
+      <div className="w-full max-w-2xl space-y-6 animate-fade-up py-8">
+        {/* Header */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
             <div className="p-2.5 rounded-xl bg-primary/10 sentinel-glow">
@@ -68,53 +201,285 @@ export default function OnboardingPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Sentinel</h1>
           </div>
-          <p className="text-muted-foreground">Set up your organization to get started</p>
+          <p className="text-muted-foreground">Set up your organization</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-8 space-y-6 shadow-xl">
-          <div className="flex items-center gap-3">
-            <Building2 className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold text-card-foreground">Create Organization</h2>
-          </div>
+        {/* Step indicator */}
+        <div className="flex items-center justify-center gap-2">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            const active = i === step;
+            const done = i < step;
+            return (
+              <div key={i} className="flex items-center gap-2">
+                {i > 0 && <div className={`w-8 h-px ${done ? "bg-primary" : "bg-border"}`} />}
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  active ? "bg-primary text-primary-foreground" : done ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                }`}>
+                  {done ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+                  {s.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Organization name *</Label>
-              <Input
-                value={orgName}
-                onChange={e => setOrgName(e.target.value)}
-                placeholder="Acme Corp"
-                required
-                className="bg-muted border-border"
-              />
+        {/* Step content */}
+        <Card className="bg-card border-border p-8 shadow-xl">
+          {/* STEP 1: Company Details */}
+          {step === 0 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold text-card-foreground">Company Details</h2>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Organization name *</Label>
+                <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Acme Corp" required className="bg-muted border-border" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Primary domain</Label>
+                  <Input value={domain} onChange={e => setDomain(e.target.value)} placeholder="acme.com" className="bg-muted border-border" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Industry</Label>
+                  <Select value={industry} onValueChange={setIndustry}>
+                    <SelectTrigger className="bg-muted border-border"><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Timezone</Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map(tz => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Regions</Label>
+                <div className="flex flex-wrap gap-2">
+                  {REGIONS.map(r => (
+                    <Badge key={r} variant={selectedRegions.includes(r) ? "default" : "outline"}
+                      className="cursor-pointer" onClick={() => toggleRegion(r)}>
+                      {selectedRegions.includes(r) && <Check className="h-3 w-3 mr-1" />}{r}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Languages</Label>
+                <div className="flex flex-wrap gap-2">
+                  {LANGUAGES.map(l => (
+                    <Badge key={l} variant={selectedLanguages.includes(l) ? "default" : "outline"}
+                      className="cursor-pointer" onClick={() => toggleLang(l)}>
+                      {selectedLanguages.includes(l) && <Check className="h-3 w-3 mr-1" />}{l}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label className="text-foreground">Primary domain</Label>
-              <Input
-                value={domain}
-                onChange={e => setDomain(e.target.value)}
-                placeholder="acme.com"
-                className="bg-muted border-border"
-              />
+          {/* STEP 2: AI Profile */}
+          {step === 1 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold text-card-foreground">AI Auto-Build Profile</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Generate a suggested monitoring profile based on your company details. You can approve, edit, or ignore each section.
+              </p>
+
+              {!profile && (
+                <Button onClick={handleGenerateProfile} disabled={generatingProfile} className="w-full">
+                  {generatingProfile ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  {generatingProfile ? "Generating profile..." : "Generate Suggested Profile"}
+                </Button>
+              )}
+
+              {profile && (
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  <ProfileSection
+                    title="Aliases" items={profile.aliases.map(a => `${a.value} (${Math.round(a.confidence * 100)}%)`)}
+                    approved={approvedSections.aliases} onToggle={() => toggleSection("aliases")} />
+                  <ProfileSection
+                    title="Brand Keywords" items={profile.brand_keywords.map(k => k.value)}
+                    approved={approvedSections.brand_keywords} onToggle={() => toggleSection("brand_keywords")} />
+                  <ProfileSection
+                    title="Product Keywords" items={profile.product_keywords.map(k => k.value)}
+                    approved={approvedSections.product_keywords} onToggle={() => toggleSection("product_keywords")} />
+                  <ProfileSection
+                    title="Risk Keywords" items={profile.risk_keywords.map(k => k.value)}
+                    approved={approvedSections.risk_keywords} onToggle={() => toggleSection("risk_keywords")} />
+                  <ProfileSection
+                    title="Topics" items={profile.topics.map(t => t.name)}
+                    approved={approvedSections.topics} onToggle={() => toggleSection("topics")} />
+                  <ProfileSection
+                    title="Narratives" items={profile.narratives.map(n => `${n.name} (${Math.round(n.confidence * 100)}%)`)}
+                    approved={approvedSections.narratives} onToggle={() => toggleSection("narratives")} />
+                  <ProfileSection
+                    title="People" items={profile.people.map(p => `${p.name}${p.title ? ` — ${p.title}` : ""} [${p.tier}]`)}
+                    approved={approvedSections.people} onToggle={() => toggleSection("people")} icon={<User className="h-3.5 w-3.5" />} />
+                  <ProfileSection
+                    title="Sources" items={profile.sources.map(s => `${s.type}: ${s.reason}`)}
+                    approved={approvedSections.sources} onToggle={() => toggleSection("sources")} icon={<Globe className="h-3.5 w-3.5" />} />
+                </div>
+              )}
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label className="text-foreground">Industry</Label>
-              <Input
-                value={industry}
-                onChange={e => setIndustry(e.target.value)}
-                placeholder="Fintech, SaaS, Healthcare..."
-                className="bg-muted border-border"
-              />
+          {/* STEP 3: Scan Schedule */}
+          {step === 2 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold text-card-foreground">Scan Schedule</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">Choose how often Sentinel scans for mentions.</p>
+
+              <div className="space-y-3">
+                {[
+                  { value: "daily_9am", label: "Daily at 9:00 AM", desc: "Recommended for most organizations" },
+                  { value: "every_12h", label: "Every 12 hours", desc: "Morning and evening scans" },
+                  { value: "every_6h", label: "Every 6 hours", desc: "High-frequency monitoring" },
+                  { value: "custom", label: "Custom cron", desc: "Advanced: specify your own schedule" },
+                ].map(opt => (
+                  <div key={opt.value}
+                    className={`p-4 rounded-lg border cursor-pointer transition-colors ${scanSchedule === opt.value ? "border-primary bg-primary/5" : "border-border bg-muted/50 hover:border-muted-foreground/30"}`}
+                    onClick={() => setScanSchedule(opt.value)}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${scanSchedule === opt.value ? "border-primary" : "border-muted-foreground/40"}`}>
+                        {scanSchedule === opt.value && <div className="h-2 w-2 rounded-full bg-primary" />}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-card-foreground">{opt.label}</div>
+                        <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {scanSchedule === "custom" && (
+                <div className="space-y-2">
+                  <Label>Cron expression</Label>
+                  <Input value={customCron} onChange={e => setCustomCron(e.target.value)} placeholder="0 9 * * *" className="bg-muted border-border font-mono" />
+                  <p className="text-[10px] text-muted-foreground">Format: minute hour day-of-month month day-of-week</p>
+                </div>
+              )}
             </div>
+          )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating..." : "Create & Continue"}
-              <ArrowRight className="ml-2 h-4 w-4" />
+          {/* STEP 4: Alerts */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Bell className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold text-card-foreground">Alert Configuration</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">Configure who receives alerts and escalation notifications.</p>
+
+              <div className="space-y-2">
+                <Label>Alert email recipients</Label>
+                <Input value={alertEmails} onChange={e => setAlertEmails(e.target.value)}
+                  placeholder="alerts@acme.com, security@acme.com" className="bg-muted border-border" />
+                <p className="text-[10px] text-muted-foreground">Comma-separated. Receives emergency, spike, and breakout alerts.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Escalation email recipients</Label>
+                <Input value={escalationEmails} onChange={e => setEscalationEmails(e.target.value)}
+                  placeholder="legal@acme.com, comms@acme.com" className="bg-muted border-border" />
+                <p className="text-[10px] text-muted-foreground">Comma-separated. Receives escalation tickets from the strict response engine.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Quiet hours start</Label>
+                  <Select value={quietStart} onValueChange={setQuietStart}>
+                    <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quiet hours end</Label>
+                  <Select value={quietEnd} onValueChange={setQuietEnd}>
+                    <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Non-emergency alerts are suppressed during quiet hours.</p>
+            </div>
+          )}
+        </Card>
+
+        {/* Navigation buttons */}
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 0}>
+            <ArrowLeft className="h-4 w-4 mr-2" />Back
+          </Button>
+          {step < 3 ? (
+            <Button onClick={() => setStep(s => s + 1)} disabled={!canAdvance()}>
+              Next<ArrowRight className="h-4 w-4 ml-2" />
             </Button>
-          </form>
+          ) : (
+            <Button onClick={handleFinish} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+              {saving ? "Setting up..." : "Finish Setup"}
+            </Button>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileSection({ title, items, approved, onToggle, icon }: {
+  title: string;
+  items: string[];
+  approved: boolean;
+  onToggle: () => void;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className={`rounded-lg border p-4 transition-colors ${approved ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30 opacity-60"}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {icon || <Sparkles className="h-3.5 w-3.5 text-primary" />}
+          <span className="text-sm font-medium text-card-foreground">{title}</span>
+          <Badge variant="secondary" className="text-[10px]">{items.length}</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground">{approved ? "Approved" : "Ignored"}</span>
+          <Checkbox checked={approved} onCheckedChange={onToggle} />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.slice(0, 8).map((item, i) => (
+          <Badge key={i} variant="outline" className="text-[10px] font-normal">{item}</Badge>
+        ))}
+        {items.length > 8 && <Badge variant="outline" className="text-[10px]">+{items.length - 8} more</Badge>}
       </div>
     </div>
   );
