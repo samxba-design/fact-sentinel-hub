@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Building2, ScrollText, Settings } from "lucide-react";
+import { Users, Building2, ScrollText, CreditCard } from "lucide-react";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminOrgsTab from "@/components/admin/AdminOrgsTab";
 import AdminAuditTab from "@/components/admin/AdminAuditTab";
+import AdminSubscriptionsTab from "@/components/admin/AdminSubscriptionsTab";
 
 export default function AdminPage() {
   const { isSuperAdmin } = useAuth();
@@ -34,6 +35,9 @@ export default function AdminPage() {
           <TabsTrigger value="audit" className="gap-2">
             <ScrollText className="h-4 w-4" /> Audit Logs
           </TabsTrigger>
+          <TabsTrigger value="subscriptions" className="gap-2">
+            <CreditCard className="h-4 w-4" /> Subscriptions
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -44,6 +48,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="audit">
           <AdminAuditTab />
+        </TabsContent>
+        <TabsContent value="subscriptions">
+          <AdminSubscriptionsTab />
         </TabsContent>
       </Tabs>
     </div>
