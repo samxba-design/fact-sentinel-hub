@@ -14,7 +14,7 @@ import {
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
   Ban, Globe, BarChart3, X, Sparkles
 } from "lucide-react";
-import SourceBadge from "@/components/SourceBadge";
+import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -354,6 +354,11 @@ export default function MentionsPage() {
     return String(count);
   };
 
+  const openSourceIntel = (domain: string) => {
+    setSourceIntelDomain(domain);
+    setSourceIntelOpen(true);
+  };
+
   const timeAgo = (dateStr: string | null) => {
     if (!dateStr) return "";
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -472,12 +477,19 @@ export default function MentionsPage() {
           <div className="flex-1 flex items-start justify-between gap-4 min-w-0">
             <div className="flex-1 space-y-2 min-w-0 cursor-pointer" onClick={() => navigate(`/mentions/${m.id}`)}>
               <div className="flex items-center gap-2 flex-wrap">
-                <SourceBadge source={m.source} />
+                <SourceBadge source={m.source} onClick={(e) => { e.stopPropagation(); const d = getDomain(m.url); if (d !== "unknown") openSourceIntel(d); }} />
+                {m.url && getDomain(m.url) !== "unknown" && (
+                  <span
+                    className="text-[10px] text-muted-foreground hover:text-primary cursor-pointer transition-colors"
+                    onClick={(e) => { e.stopPropagation(); openSourceIntel(getDomain(m.url)); }}
+                  >
+                    {getDomain(m.url)}
+                  </span>
+                )}
                 <span
                   className="text-xs text-primary hover:underline cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Navigate to people page filtered by this author
                     navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`);
                   }}
                 >
@@ -538,7 +550,11 @@ export default function MentionsPage() {
               <div className="text-right space-y-2">
                 <Badge variant="outline" className={`text-[10px] ${severityColors[m.severity || "low"]}`}>{m.severity || "low"}</Badge>
                 <div className={`text-xs font-medium ${sentimentColors[m.sentiment_label || "neutral"]}`}>{m.sentiment_label || "neutral"}</div>
-                <div className="text-[10px] text-muted-foreground font-mono">{formatReach(m.author_follower_count)} reach</div>
+                {(() => {
+                  const reach = formatReachDisplay(m.author_follower_count, m.source);
+                  if (!reach) return null;
+                  return <div className="text-[10px] text-muted-foreground font-mono">{reach.value} {reach.label}</div>;
+                })()}
                 <Button
                   size="sm"
                   variant="outline"
