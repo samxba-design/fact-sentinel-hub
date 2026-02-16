@@ -362,7 +362,6 @@ Deno.serve(async (req) => {
         seenUrls.add(normalizedUrl);
       }
       // Enforce date range for ALL sources that have a posted_at date
-      // Web sources now get dates from metadata, so they can be filtered too
       if (dateFromMs > 0 && r.posted_at) {
         const postedMs = new Date(r.posted_at).getTime();
         if (postedMs < dateFromMs) {
@@ -376,6 +375,13 @@ Deno.serve(async (req) => {
           console.log("Filtering future result:", r.url, r.posted_at);
           continue;
         }
+      }
+      // For web/news sources: reject undated results when date filter is active
+      // (can't verify recency without a date)
+      const webSources = ["news", "blog", "forum", "trustpilot", "g2", "glassdoor", "capterra"];
+      if (dateFromMs > 0 && !r.posted_at && webSources.includes(r.source)) {
+        console.log("Filtering undated web result (can't verify recency):", r.url);
+        continue;
       }
       const cleaned = cleanContent(r.content || "");
       if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {

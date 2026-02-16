@@ -70,7 +70,6 @@ function classifySourceFromUrl(url: string): string {
 function extractDateFromMetadata(metadata: any): string | null {
   if (!metadata) return null;
   
-  // Firecrawl exposes these from HTML meta tags like <meta property="article:published_time">
   const dateFields = [
     metadata.publishedTime,
     metadata["article:published_time"],
@@ -89,6 +88,49 @@ function extractDateFromMetadata(metadata: any): string | null {
         return d.toISOString();
       }
     } catch { /* skip */ }
+  }
+
+  return null;
+}
+
+// Extract publish date from article content text (fallback when metadata is missing)
+function extractDateFromContent(text: string): string | null {
+  if (!text || text.length < 20) return null;
+  
+  // Only check the first ~500 chars where dates typically appear (byline area)
+  const header = text.slice(0, 500);
+  
+  // Common patterns: "December 15, 2025", "Dec 15, 2025", "15 December 2025"
+  const monthNames = "(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)";
+  
+  const patterns = [
+    // "December 15, 2025" or "Dec 15, 2025"
+    new RegExp(`(${monthNames})\\s+(\\d{1,2}),?\\s+(20[12]\\d)`, "i"),
+    // "15 December 2025"
+    new RegExp(`(\\d{1,2})\\s+(${monthNames})\\s+(20[12]\\d)`, "i"),
+    // "2025-12-15" or "2025/12/15"  
+    /\b(20[12]\d)[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])\b/,
+    // "12/15/2025" or "12-15-2025"
+    /\b(0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])[-/](20[12]\d)\b/,
+    // "Published: Dec 2025", "Updated December 2025"
+    new RegExp(`(?:Published|Updated|Posted|Date)[:\\s]+(${monthNames})\\s+(\\d{1,2}),?\\s+(20[12]\\d)`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = header.match(pattern);
+    if (match) {
+      try {
+        const d = new Date(match[0].replace(/Published|Updated|Posted|Date|[:\\s]+/gi, "").trim());
+        if (!isNaN(d.getTime()) && d.getFullYear() >= 2015 && d.getTime() <= Date.now() + 86400000) {
+          return d.toISOString();
+        }
+        // Try the full matched string directly
+        const d2 = new Date(match.slice(1).join(" "));
+        if (!isNaN(d2.getTime()) && d2.getFullYear() >= 2015 && d2.getTime() <= Date.now() + 86400000) {
+          return d2.toISOString();
+        }
+      } catch { /* skip */ }
+    }
   }
 
   return null;
@@ -182,16 +224,24 @@ Deno.serve(async (req) => {
           return null;
         }
 
-        // Extract publish date from page metadata (reliable - from HTML meta tags)
+        // Extract publish date: try metadata first, then content text
         const metadataDate = extractDateFromMetadata(item.metadata);
+        const contentDate = !metadataDate ? extractDateFromContent(rawContent) : null;
+        const publishDate = metadataDate || contentDate;
         
-        // If we have a metadata date AND a date_from filter, reject articles outside the range
-        if (metadataDate && dateFromMs > 0) {
-          const publishedMs = new Date(metadataDate).getTime();
+        // If we have a publish date AND a date_from filter, reject articles outside the range
+        if (publishDate && dateFromMs > 0) {
+          const publishedMs = new Date(publishDate).getTime();
           if (publishedMs < dateFromMs) {
-            console.log("Filtering out-of-range article:", url, "published:", metadataDate, "date_from:", date_from);
+            console.log("Filtering out-of-range article:", url, "published:", publishDate, "date_from:", date_from);
             return null;
           }
+        }
+        
+        // If NO date found at all and date_from is set, reject — we can't verify recency
+        if (!publishDate && dateFromMs > 0) {
+          console.log("Filtering undated article (can't verify recency):", url);
+          return null;
         }
 
         return {
@@ -202,8 +252,7 @@ Deno.serve(async (req) => {
           author_name: (() => {
             try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
           })(),
-          // Use metadata date if available, otherwise null
-          posted_at: metadataDate,
+          posted_at: publishDate,
         };
       })
       .filter(Boolean);
