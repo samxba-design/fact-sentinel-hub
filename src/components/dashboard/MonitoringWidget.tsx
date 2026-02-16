@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, BellRing, Settings2, ChevronRight, AlertTriangle, TrendingUp, Siren, Zap, Clock, Activity } from "lucide-react";
+import { Bell, BellRing, Settings2, ChevronRight, AlertTriangle, TrendingUp, Siren, Zap, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +36,21 @@ const ALERT_COLORS: Record<string, string> = {
   negative_spike: "text-sentinel-amber",
   critical_mention: "text-sentinel-red",
   viral_risk: "text-sentinel-red",
+};
+
+const ALERT_LABELS: Record<string, string> = {
+  mention_spike: "Volume Spike",
+  negative_spike: "Negative Surge",
+  critical_mention: "Critical Threat",
+  viral_risk: "Viral Risk",
+};
+
+/** Maps alert types to a mentions page filter so clicking drills into relevant data */
+const ALERT_LINK: Record<string, string> = {
+  mention_spike: "/mentions?days=1",
+  negative_spike: "/mentions?sentiment=negative&days=1",
+  critical_mention: "/mentions?severity=critical&days=1",
+  viral_risk: "/mentions?severity=critical&days=1",
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
@@ -91,7 +106,7 @@ export default function MonitoringWidget() {
             <Bell className="h-4 w-4 text-primary" />
           )}
           Monitoring & Alerts
-          <InfoTooltip text="Automated monitoring detects mention spikes, negative sentiment surges, critical threats, and viral risks. Configure schedules and alert preferences in Settings." />
+          <InfoTooltip text="Automated monitoring detects unusual activity across your mentions. Configure schedules and alert preferences in Settings." />
         </span>
         <Button size="sm" variant="ghost" className="text-xs h-7 gap-1" onClick={() => navigate("/alerts")}>
           View All <ChevronRight className="h-3 w-3" />
@@ -111,10 +126,10 @@ export default function MonitoringWidget() {
             </Badge>
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Spike detection runs every 15 min
+            Anomaly detection checks for unusual patterns between scans
           </p>
         </div>
-        <Button size="sm" variant="outline" className="text-xs h-7 gap-1 shrink-0" onClick={() => navigate("/settings?tab=alerts")}>
+        <Button size="sm" variant="outline" className="text-xs h-7 gap-1 shrink-0" onClick={() => navigate("/alerts")}>
           <Settings2 className="h-3 w-3" /> Configure
         </Button>
       </div>
@@ -131,23 +146,28 @@ export default function MonitoringWidget() {
           {alerts.slice(0, 3).map(alert => {
             const Icon = ALERT_ICONS[alert.type] || Bell;
             const color = ALERT_COLORS[alert.type] || "text-primary";
+            const label = ALERT_LABELS[alert.type] || alert.type.replace(/_/g, " ");
+            const link = ALERT_LINK[alert.type] || "/alerts";
             const payload = alert.payload as any || {};
             return (
               <div
                 key={alert.id}
-                className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border hover:bg-muted/40 transition-colors cursor-pointer"
-                onClick={() => navigate("/alerts")}
+                className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border hover:bg-muted/40 transition-colors cursor-pointer group"
+                onClick={() => navigate(link)}
               >
                 <Icon className={`h-4 w-4 shrink-0 ${color}`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-card-foreground line-clamp-1">{payload.message || alert.type.replace(/_/g, " ")}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {alert.triggered_at ? formatDistanceToNow(new Date(alert.triggered_at), { addSuffix: true }) : "—"}
+                  <p className="text-xs font-medium text-card-foreground">{label}</p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-1">
+                    {payload.message || "Click to view affected mentions"}
                   </p>
                 </div>
-                <Badge variant="outline" className="text-[9px] capitalize border-sentinel-red/30 text-sentinel-red shrink-0">
-                  active
-                </Badge>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-muted-foreground">
+                    {alert.triggered_at ? formatDistanceToNow(new Date(alert.triggered_at), { addSuffix: true }) : "—"}
+                  </span>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
               </div>
             );
           })}
