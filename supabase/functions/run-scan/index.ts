@@ -72,111 +72,134 @@ Deno.serve(async (req) => {
     const errors: string[] = [];
     const selectedSources: string[] = sources || ["news"];
 
-    // Helper to call edge functions internally
+    // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
-      const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${supabaseKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      return res.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout per source
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        return res.json();
+      } finally {
+        clearTimeout(timeout);
+      }
     };
+
+    // Run all source scans in PARALLEL to avoid timeout
+    const scanPromises: Promise<void>[] = [];
 
     // Web/News via Firecrawl
     if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
-      try {
-        const webResult = await callFunction("scan-web", {
-          keywords: keywords?.length > 0 ? keywords : ["brand"],
-          limit: 10,
-        });
-        if (webResult.success && webResult.results) {
-          allResults.push(...webResult.results);
-        } else if (webResult.error) {
-          errors.push(`Web: ${webResult.error}`);
+      scanPromises.push((async () => {
+        try {
+          const webResult = await callFunction("scan-web", {
+            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            limit: 10,
+          });
+          if (webResult.success && webResult.results) {
+            allResults.push(...webResult.results);
+          } else if (webResult.error) {
+            errors.push(`Web: ${webResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Web: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
-      } catch (e: any) {
-        errors.push(`Web: ${e.message}`);
-      }
+      })());
     }
 
     // Reddit
     if (selectedSources.includes("reddit")) {
-      try {
-        const redditResult = await callFunction("scan-reddit", {
-          org_id,
-          keywords: keywords?.length > 0 ? keywords : ["brand"],
-          limit: 25,
-          time_filter: "week",
-        });
-        if (redditResult.success && redditResult.results) {
-          allResults.push(...redditResult.results);
-        } else if (redditResult.error) {
-          errors.push(`Reddit: ${redditResult.error}`);
+      scanPromises.push((async () => {
+        try {
+          const redditResult = await callFunction("scan-reddit", {
+            org_id,
+            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            limit: 25,
+            time_filter: "week",
+          });
+          if (redditResult.success && redditResult.results) {
+            allResults.push(...redditResult.results);
+          } else if (redditResult.error) {
+            errors.push(`Reddit: ${redditResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Reddit: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
-      } catch (e: any) {
-        errors.push(`Reddit: ${e.message}`);
-      }
+      })());
     }
 
     // Twitter
     if (selectedSources.includes("twitter")) {
-      try {
-        const twitterResult = await callFunction("scan-twitter", {
-          org_id,
-          keywords: keywords?.length > 0 ? keywords : ["brand"],
-          max_results: 10,
-          date_from,
-          date_to,
-        });
-        if (twitterResult.success && twitterResult.results) {
-          allResults.push(...twitterResult.results);
-        } else if (twitterResult.error) {
-          errors.push(`Twitter: ${twitterResult.error}`);
+      scanPromises.push((async () => {
+        try {
+          const twitterResult = await callFunction("scan-twitter", {
+            org_id,
+            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            max_results: 10,
+            date_from,
+            date_to,
+          });
+          if (twitterResult.success && twitterResult.results) {
+            allResults.push(...twitterResult.results);
+          } else if (twitterResult.error) {
+            errors.push(`Twitter: ${twitterResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Twitter: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
-      } catch (e: any) {
-        errors.push(`Twitter: ${e.message}`);
-      }
+      })());
     }
 
     // YouTube
     if (selectedSources.includes("youtube")) {
-      try {
-        const ytResult = await callFunction("scan-youtube", {
-          org_id,
-          keywords: keywords?.length > 0 ? keywords : ["brand"],
-          limit: 15,
-          include_comments: true,
-        });
-        if (ytResult.success && ytResult.results) {
-          allResults.push(...ytResult.results);
-        } else if (ytResult.error) {
-          errors.push(`YouTube: ${ytResult.error}`);
+      scanPromises.push((async () => {
+        try {
+          const ytResult = await callFunction("scan-youtube", {
+            org_id,
+            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            limit: 15,
+            include_comments: true,
+          });
+          if (ytResult.success && ytResult.results) {
+            allResults.push(...ytResult.results);
+          } else if (ytResult.error) {
+            errors.push(`YouTube: ${ytResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`YouTube: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
-      } catch (e: any) {
-        errors.push(`YouTube: ${e.message}`);
-      }
+      })());
     }
 
-    // Review sites (Trustpilot, G2, Glassdoor, Capterra)
+    // Review sites
     if (selectedSources.includes("reviews")) {
-      try {
-        const reviewResult = await callFunction("scan-reviews", {
-          keywords: keywords?.length > 0 ? keywords : ["brand"],
-          review_urls: review_urls || [],
-          limit: 10,
-        });
-        if (reviewResult.success && reviewResult.results) {
-          allResults.push(...reviewResult.results);
-        } else if (reviewResult.error) {
-          errors.push(`Reviews: ${reviewResult.error}`);
+      scanPromises.push((async () => {
+        try {
+          const reviewResult = await callFunction("scan-reviews", {
+            keywords: keywords?.length > 0 ? keywords : ["brand"],
+            review_urls: review_urls || [],
+            limit: 10,
+          });
+          if (reviewResult.success && reviewResult.results) {
+            allResults.push(...reviewResult.results);
+          } else if (reviewResult.error) {
+            errors.push(`Reviews: ${reviewResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Reviews: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
-      } catch (e: any) {
-        errors.push(`Reviews: ${e.message}`);
-      }
+      })());
     }
+
+    // Wait for all sources in parallel
+    await Promise.all(scanPromises);
 
     if (allResults.length === 0) {
       // Update scan as failed
@@ -411,6 +434,19 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
     );
   } catch (err: any) {
     console.error("run-scan error:", err);
+    // Try to mark any running scan as failed
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const sb = createClient(supabaseUrl, supabaseKey);
+      const body = await req.clone().json().catch(() => ({}));
+      if (body.org_id) {
+        await sb.from("scan_runs").update({
+          status: "failed",
+          finished_at: new Date().toISOString(),
+        }).eq("org_id", body.org_id).eq("status", "running");
+      }
+    } catch { /* best effort */ }
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
