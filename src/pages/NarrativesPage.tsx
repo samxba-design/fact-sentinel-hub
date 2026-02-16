@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Network, ArrowUpRight } from "lucide-react";
+import { Network, ArrowUpRight, Scan } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,9 +59,18 @@ export default function NarrativesPage() {
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
         ) : narratives.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No narratives detected yet. They will appear after scans process mentions.</p>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Network className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No narratives detected yet</h3>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">
+              Narratives are automatically created when scans detect clusters of related mentions. Run a scan to start detecting patterns.
+            </p>
+            <Button onClick={() => navigate("/scans")}>
+              <Scan className="h-4 w-4 mr-2" /> Run a Scan
+            </Button>
+          </div>
         ) : (
           narratives.map(n => (
             <Card key={n.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/narratives/${n.id}`)}>

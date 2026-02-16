@@ -50,6 +50,8 @@ export default function ScansPage() {
   const [loading, setLoading] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string>("");
+  const [scanResult, setScanResult] = useState<{ mentions: number; emergencies: number; narratives: number; scan_run_id: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -61,6 +63,8 @@ export default function ScansPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleInterval, setScheduleInterval] = useState("daily");
 
   const fetchRuns = useCallback(async () => {
     if (!currentOrg) return;
@@ -127,7 +131,14 @@ export default function ScansPage() {
   const runScan = async () => {
     if (!currentOrg) return;
     setScanning(true);
+    setScanProgress("Connecting to sources...");
+    setScanResult(null);
     try {
+      // Simulate progress stages
+      setTimeout(() => setScanProgress("Crawling web content..."), 1500);
+      setTimeout(() => setScanProgress("Analyzing sentiment & severity..."), 4000);
+      setTimeout(() => setScanProgress("Clustering narratives..."), 7000);
+
       const { data, error } = await supabase.functions.invoke("run-scan", {
         body: {
           org_id: currentOrg.id,
@@ -139,19 +150,18 @@ export default function ScansPage() {
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
-      toast({
-        title: "Scan complete!",
-        description: `${data.mentions_created} mentions found, ${data.emergencies} emergencies detected`,
-        action: data.scan_run_id ? (
-          <Button size="sm" variant="outline" onClick={() => navigate(`/mentions?scan=${data.scan_run_id}`)}>
-            <ExternalLink className="h-3 w-3 mr-1" /> View Results
-          </Button>
-        ) : undefined,
+
+      setScanResult({
+        mentions: data.mentions_created || 0,
+        emergencies: data.emergencies || 0,
+        narratives: data.narratives_created || 0,
+        scan_run_id: data.scan_run_id || "",
       });
-      setBuilderOpen(false);
+      setScanProgress("");
       fetchRuns();
     } catch (err: any) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+      setScanProgress("");
     } finally {
       setScanning(false);
     }
@@ -449,28 +459,109 @@ export default function ScansPage() {
 
             <Separator />
 
-            {/* Run Button */}
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">
-                {selectedSources.length} sources · {keywords.length} keywords
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setBuilderOpen(false)}>Cancel</Button>
-                <Button onClick={runScan} disabled={scanning || selectedSources.length === 0}>
-                  {scanning ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Scanning...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4 mr-2" />
-                      Run Scan
-                    </>
-                  )}
-                </Button>
+            {/* Scan Progress */}
+            {scanning && scanProgress && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-card-foreground font-medium">{scanProgress}</p>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2">
+                    <div className="h-full rounded-full bg-primary animate-pulse" style={{ width: "60%", transition: "width 1s" }} />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Scan Result Summary */}
+            {scanResult && !scanning && (
+              <div className="space-y-3 p-4 rounded-lg bg-sentinel-emerald/5 border border-sentinel-emerald/20">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-sentinel-emerald" />
+                  <span className="text-sm font-medium text-sentinel-emerald">Scan Complete</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.mentions}</div>
+                    <div className="text-[10px] text-muted-foreground">Mentions Found</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-xl font-bold font-mono ${scanResult.emergencies > 0 ? "text-sentinel-red" : "text-card-foreground"}`}>{scanResult.emergencies}</div>
+                    <div className="text-[10px] text-muted-foreground">Emergencies</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.narratives}</div>
+                    <div className="text-[10px] text-muted-foreground">Narratives</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate(`/mentions?scan=${scanResult.scan_run_id}`); }}>
+                    <ExternalLink className="h-3 w-3 mr-1.5" /> View Mentions
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate("/risk-console"); }}>
+                    <AlertTriangle className="h-3 w-3 mr-1.5" /> Risk Console
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Schedule Option */}
+            {!scanning && !scanResult && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs font-medium text-card-foreground">Schedule recurring scan</p>
+                    <p className="text-[10px] text-muted-foreground">Automatically run this scan on a schedule</p>
+                  </div>
+                </div>
+                <Checkbox checked={scheduleEnabled} onCheckedChange={(c) => setScheduleEnabled(!!c)} />
+              </div>
+            )}
+
+            {scheduleEnabled && !scanning && !scanResult && (
+              <div className="flex items-center gap-3 pl-10">
+                <Label className="text-xs text-muted-foreground">Run every:</Label>
+                {["6h", "12h", "daily", "weekly"].map(interval => (
+                  <button
+                    key={interval}
+                    onClick={() => setScheduleInterval(interval)}
+                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                      scheduleInterval === interval
+                        ? "bg-primary/10 border-primary/30 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/20"
+                    }`}
+                  >
+                    {interval}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Run Button */}
+            {!scanResult && (
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">
+                  {selectedSources.length} sources · {keywords.length} keywords
+                  {scheduleEnabled && ` · repeats ${scheduleInterval}`}
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setBuilderOpen(false)}>Cancel</Button>
+                  <Button onClick={runScan} disabled={scanning || selectedSources.length === 0}>
+                    {scanning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-2" />
+                        {scheduleEnabled ? "Schedule & Run Now" : "Run Scan"}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

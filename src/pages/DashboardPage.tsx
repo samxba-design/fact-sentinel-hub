@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOrg } from "@/contexts/OrgContext";
 import UpgradeBanner from "@/components/UpgradeBanner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
@@ -24,23 +25,51 @@ import SentimentSparklines from "@/components/dashboard/SentimentSparklines";
 import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 
-function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick }: {
-  icon: any; label: string; value: string | number; change?: string; changeType?: "up" | "down" | "neutral";
-  accentClass?: string; onClick?: () => void;
+// Animated counter hook
+function useCountUp(target: number, duration = 800) {
+  const [current, setCurrent] = useState(0);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (target === 0) { setCurrent(0); return; }
+    const start = current;
+    startRef.current = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - (startRef.current || now);
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setCurrent(Math.round(start + (target - start) * eased));
+      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target]);
+
+  return current;
+}
+
+function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick, tooltip }: {
+  icon: any; label: string; value: number; change?: string; changeType?: "up" | "down" | "neutral";
+  accentClass?: string; onClick?: () => void; tooltip?: string;
 }) {
+  const animatedValue = useCountUp(value);
   return (
     <Card
-      className={`bg-card border-border p-5 space-y-3 transition-colors ${onClick ? "cursor-pointer hover:border-primary/30" : ""}`}
+      className={`bg-card border-border p-5 space-y-3 transition-all duration-200 hover:shadow-md ${onClick ? "cursor-pointer hover:border-primary/30 hover:-translate-y-0.5" : ""}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+          {label}
+          {tooltip && <InfoTooltip text={tooltip} />}
+        </span>
         <div className={`p-2 rounded-lg ${accentClass || "bg-primary/10"}`}>
           <Icon className={`h-4 w-4 ${accentClass?.includes("amber") ? "text-sentinel-amber" : accentClass?.includes("red") ? "text-sentinel-red" : accentClass?.includes("emerald") ? "text-sentinel-emerald" : "text-primary"}`} />
         </div>
       </div>
       <div className="flex items-end gap-2">
-        <span className="text-2xl font-bold text-card-foreground">{value}</span>
+        <span className="text-2xl font-bold text-card-foreground">{animatedValue.toLocaleString()}</span>
         {change && (
           <span className={`text-xs font-medium flex items-center gap-0.5 ${
             changeType === "up" ? "text-sentinel-emerald" : changeType === "down" ? "text-sentinel-red" : "text-muted-foreground"
@@ -56,6 +85,7 @@ function MetricCard({ icon: Icon, label, value, change, changeType, accentClass,
 }
 
 function RiskIndex({ score }: { score: number }) {
+  const animatedScore = useCountUp(score);
   const getColor = (s: number) => {
     if (s < 30) return "text-sentinel-emerald";
     if (s < 60) return "text-sentinel-amber";
@@ -63,15 +93,18 @@ function RiskIndex({ score }: { score: number }) {
   };
 
   return (
-    <Card className="bg-card border-border p-5 space-y-3">
+    <Card className={`bg-card border-border p-5 space-y-3 ${score >= 60 ? "sentinel-pulse-red border-sentinel-red/30" : ""}`}>
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Risk Index</span>
+        <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+          Risk Index
+          <InfoTooltip text="Composite score based on negative mention ratio and emergency count. Below 30 = low risk, 30-60 = moderate, above 60 = critical." />
+        </span>
         <div className="p-2 rounded-lg bg-sentinel-red/10">
           <Shield className="h-4 w-4 text-sentinel-red" />
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className={`text-4xl font-bold font-mono ${getColor(score)}`}>{score}</span>
+        <span className={`text-4xl font-bold font-mono ${getColor(score)}`}>{animatedScore}</span>
         <div className="flex-1">
           <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div className="h-full rounded-full sentinel-gradient-risk transition-all duration-500" style={{ width: `${score}%` }} />
@@ -106,6 +139,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const DATE_RANGES = [
+  { label: "7d", days: 7 },
+  { label: "14d", days: 14 },
+  { label: "30d", days: 30 },
+];
+
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
@@ -119,6 +158,7 @@ export default function DashboardPage() {
   const [volumeData, setVolumeData] = useState<{ date: string; mentions: number }[]>([]);
   const [sentimentData, setSentimentData] = useState<{ name: string; value: number }[]>([]);
   const [prevTotal, setPrevTotal] = useState(0);
+  const [rangeDays, setRangeDays] = useState(7);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -126,17 +166,17 @@ export default function DashboardPage() {
     setIncidentMode(currentOrg.incident_mode);
 
     const now = new Date();
-    const sevenDaysAgo = subDays(now, 7).toISOString();
-    const fourteenDaysAgo = subDays(now, 14).toISOString();
+    const rangeAgo = subDays(now, rangeDays).toISOString();
+    const prevRangeAgo = subDays(now, rangeDays * 2).toISOString();
 
     Promise.all([
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", sevenDaysAgo),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").gte("posted_at", sevenDaysAgo),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", sevenDaysAgo),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", fourteenDaysAgo).lt("posted_at", sevenDaysAgo),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", rangeAgo),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").gte("posted_at", rangeAgo),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", rangeAgo),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", prevRangeAgo).lt("posted_at", rangeAgo),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
       supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).eq("status", "active").order("created_at", { ascending: false }).limit(5),
-      supabase.from("mentions").select("posted_at, sentiment_label").eq("org_id", currentOrg.id).gte("posted_at", sevenDaysAgo).order("posted_at"),
+      supabase.from("mentions").select("posted_at, sentiment_label").eq("org_id", currentOrg.id).gte("posted_at", rangeAgo).order("posted_at"),
     ]).then(async ([total, neg, emg, prev, incidents, narr, mentionsRaw]) => {
       setTotalMentions(total.count ?? 0);
       setNegativeMentions(neg.count ?? 0);
@@ -163,7 +203,7 @@ export default function DashboardPage() {
       const dayMap: Record<string, number> = {};
       const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
 
-      for (let i = 6; i >= 0; i--) {
+      for (let i = rangeDays - 1; i >= 0; i--) {
         const d = format(subDays(now, i), "MMM dd");
         dayMap[d] = 0;
       }
@@ -181,7 +221,7 @@ export default function DashboardPage() {
       setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
       setLoading(false);
     });
-  }, [currentOrg]);
+  }, [currentOrg, rangeDays]);
 
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
@@ -195,12 +235,30 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last 7 days</p>
+          <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last {rangeDays} days</p>
         </div>
-        <Badge variant="outline" className={`${incidentMode ? "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5" : "border-sentinel-amber/30 text-sentinel-amber bg-sentinel-amber/5"}`}>
-          <Flame className="h-3 w-3 mr-1" />
-          Incident Mode: {incidentMode ? "On" : "Off"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* Date range selector */}
+          <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
+            {DATE_RANGES.map(r => (
+              <button
+                key={r.days}
+                onClick={() => setRangeDays(r.days)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  rangeDays === r.days
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-card-foreground hover:bg-muted/50"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <Badge variant="outline" className={`${incidentMode ? "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5" : "border-sentinel-amber/30 text-sentinel-amber bg-sentinel-amber/5"}`}>
+            <Flame className="h-3 w-3 mr-1" />
+            Incident Mode: {incidentMode ? "On" : "Off"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -208,10 +266,10 @@ export default function DashboardPage() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
         ) : (
           <>
-            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions.toLocaleString()} change={totalChange} changeType={totalChangeType} onClick={() => navigate("/mentions")} />
-            <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions.toLocaleString()} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/mentions")} />
-            <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate("/risk-console")} />
-            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents")} />
+            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate("/mentions")} tooltip="Total mentions detected across all sources in the selected time period." />
+            <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/mentions")} tooltip="Mentions classified as having negative sentiment by AI analysis." />
+            <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate("/risk-console")} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
+            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents")} tooltip="Open incident war-rooms currently being tracked." />
           </>
         )}
       </div>
@@ -222,7 +280,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <RiskIndex score={loading ? 0 : riskScore} />
         <Card className="bg-card border-border p-5 lg:col-span-2">
-          <span className="text-sm font-medium text-card-foreground">Sentiment Breakdown</span>
+          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+            Sentiment Breakdown
+            <InfoTooltip text="Distribution of AI-classified sentiment across all mentions in the selected period." />
+          </span>
           {loading ? (
             <Skeleton className="h-40 w-full mt-4" />
           ) : sentimentData.length === 0 ? (
@@ -261,7 +322,10 @@ export default function DashboardPage() {
 
         {/* Mention Volume + Top Narratives */}
         <Card className="bg-card border-border p-5">
-          <span className="text-sm font-medium text-card-foreground">Mention Volume (7 days)</span>
+          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+            Mention Volume ({rangeDays} days)
+            <InfoTooltip text="Daily mention count across all sources, showing volume trends over the selected period." />
+          </span>
           {loading ? (
             <Skeleton className="h-48 w-full mt-4" />
           ) : volumeData.every(d => d.mentions === 0) ? (
@@ -288,7 +352,10 @@ export default function DashboardPage() {
 
       <Card className="bg-card border-border p-5">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-card-foreground">Top Narratives</span>
+          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+            Top Narratives
+            <InfoTooltip text="Active narrative clusters detected by AI grouping similar mentions together. Click to explore." />
+          </span>
           <Button size="sm" variant="ghost" onClick={() => navigate("/narratives")} className="text-xs text-primary h-6 px-2">View all</Button>
         </div>
         <div className="mt-4 space-y-3">

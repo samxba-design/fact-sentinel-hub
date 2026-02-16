@@ -167,7 +167,11 @@ export default function RiskConsolePage() {
           <Tooltip key={q.key}>
             <TooltipTrigger asChild>
               <Card
-                className={`bg-card border-border p-4 text-center hover:border-primary/30 transition-colors cursor-pointer ${activeQueue === q.key ? "ring-1 ring-primary border-primary/40" : ""}`}
+                className={`bg-card border-border p-4 text-center hover:border-primary/30 transition-colors cursor-pointer ${
+                  activeQueue === q.key ? "ring-1 ring-primary border-primary/40" : ""
+                } ${q.key === "emergencies" && q.count > 0 ? "border-sentinel-red/40 sentinel-pulse-red" : ""} ${
+                  q.key === "high" && q.count > 0 ? "border-sentinel-amber/30 sentinel-pulse-amber" : ""
+                }`}
                 onClick={() => setActiveQueue(activeQueue === q.key ? null : q.key)}
               >
                 <q.icon className={`h-5 w-5 mx-auto ${q.color}`} />
@@ -284,7 +288,9 @@ export default function RiskConsolePage() {
             filteredMentions.slice(0, 15).map(item => (
               <div
                 key={item.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                className={`flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer ${
+                  item.severity === "critical" ? "border border-sentinel-red/30 sentinel-pulse-red" : ""
+                }`}
                 onClick={() => navigate(`/mentions/${item.id}`)}
               >
                 <div className="flex items-center gap-3 min-w-0">

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink } from "lucide-react";
+import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning } from "lucide-react";
+import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -257,11 +258,24 @@ export default function MentionsPage() {
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)
         ) : filtered.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              {statusFilter !== "active" ? "No mentions match this filter." : "No mentions found. Run a scan to start collecting data."}
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <MessageSquareWarning className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              {statusFilter !== "active" ? "No matches" : "No mentions yet"}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">
+              {statusFilter !== "active"
+                ? "No mentions match this filter. Try adjusting your criteria."
+                : "Run your first scan to start detecting mentions across news, social media, and forums."}
             </p>
-          </Card>
+            {statusFilter === "active" && (
+              <Button onClick={() => navigate("/scans")}>
+                <Scan className="h-4 w-4 mr-2" /> Run First Scan
+              </Button>
+            )}
+          </div>
         ) : (
           filtered.map(m => {
             const flags = m.flags as any || {};
@@ -285,7 +299,7 @@ export default function MentionsPage() {
                   <div className="flex-1 flex items-start justify-between gap-4 min-w-0">
                     <div className="flex-1 space-y-2 min-w-0 cursor-pointer" onClick={() => navigate(`/mentions/${m.id}`)}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">{m.source}</Badge>
+                        <SourceBadge source={m.source} />
                         <span className="text-xs text-muted-foreground">by {m.author_name || m.author_handle || "Unknown"}</span>
                         <span className="text-xs text-muted-foreground">· {timeAgo(m.posted_at)}</span>
                         {flags.emergency && (
