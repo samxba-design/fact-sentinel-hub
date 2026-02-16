@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,8 @@ export default function ContactsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("internal_contacts").delete().eq("id", id);
     if (error) {
@@ -89,6 +92,7 @@ export default function ContactsPage() {
       toast({ title: "Contact removed" });
       setContacts(prev => prev.filter(c => c.id !== id));
     }
+    setDeleteId(null);
   };
 
   const departments = [...new Set(contacts.map(c => c.department).filter(Boolean))] as string[];
@@ -246,7 +250,7 @@ export default function ContactsPage() {
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditData(c); setFormOpen(true); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(c.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -304,6 +308,19 @@ export default function ContactsPage() {
         onSaved={fetchData}
         editData={editData}
       />
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Contact</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove this contact from your directory. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

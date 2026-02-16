@@ -189,7 +189,7 @@ export default function RiskConsolePage() {
           { label: "Escalations", to: "/escalations", description: "Auto-escalated tickets" },
           { label: "Settings → Alerts", to: "/settings?tab=alerts", description: "Configure alert emails" },
         ]}
-        tip="Spike detection checks every 15 minutes for volume increases >3x baseline, negative sentiment surges, and viral content. Configure alert emails in Settings to get notified instantly."
+        tip="Anomaly detection runs automatically after each scan, checking for volume increases >3x baseline, negative sentiment surges, and viral content. Configure alert emails in Settings to get notified instantly."
       />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -236,7 +236,7 @@ export default function RiskConsolePage() {
         {loading ? (
           Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg mb-2" />)
         ) : activeAlerts.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No active alerts. The system checks for spikes every 15 minutes.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No active alerts. Anomaly detection runs automatically after each scan.</p>
         ) : (
           <div className="space-y-2">
             {activeAlerts.map(alert => {
