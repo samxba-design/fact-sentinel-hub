@@ -65,7 +65,7 @@ export default function MobileHeader() {
           </button>
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            <span className="font-bold text-foreground">Sentinel</span>
+            <span className="font-bold text-foreground">SentiWatch</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -84,7 +84,7 @@ export default function MobileHeader() {
             <div className="p-4 flex items-center justify-between border-b border-border">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-primary" />
-                <span className="font-bold">Sentinel</span>
+                <span className="font-bold">SentiWatch</span>
               </div>
               <button onClick={() => setMenuOpen(false)} className="p-1">
                 <X className="h-5 w-5" />

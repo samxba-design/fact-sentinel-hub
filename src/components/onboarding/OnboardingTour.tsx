@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { X, ArrowRight, Scan, MessageSquareWarning, Shield, MessageCircleReply, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const TOUR_KEY = "sentinel_tour_completed";
+const TOUR_KEY = "sentiwatch_tour_completed";
 
 const steps = [
   {
     icon: Sparkles,
-    title: "Welcome to Sentinel!",
+    title: "Welcome to SentiWatch!",
     description: "Your AI-powered reputation monitoring command center. Let's walk through the key features.",
   },
   {
