@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User2 } from "lucide-react";
@@ -19,6 +20,7 @@ interface PersonRow {
 }
 
 export default function PeoplePage() {
+  const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function PeoplePage() {
           </Card>
         ) : (
           people.map(p => (
-            <Card key={p.person_id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer space-y-4">
+            <Card key={p.person_id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer space-y-4" onClick={() => navigate(`/people/${p.person_id}`)}>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
