@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply } from "lucide-react";
+import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +28,7 @@ interface Mention {
   flags: any;
   status: string | null;
   scan_run_id: string | null;
+  url: string | null;
 }
 
 const severityColors: Record<string, string> = {
@@ -70,7 +71,7 @@ export default function MentionsPage() {
     setLoading(true);
     let query = supabase
       .from("mentions")
-      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, author_follower_count, flags, status, scan_run_id")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("posted_at", { ascending: false })
       .limit(200);
@@ -304,6 +305,17 @@ export default function MentionsPage() {
                         )}
                       </div>
                       <p className="text-sm text-card-foreground line-clamp-2">{m.content || "No content"}</p>
+                      {m.url && (
+                        <a
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <ExternalLink className="h-3 w-3" /> View source
+                        </a>
+                      )}
                     </div>
                     <div className="flex items-start gap-3 shrink-0">
                       <div className="text-right space-y-2">
