@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert all alerts
+    // Insert all alerts and trigger email notifications
     if (alerts.length > 0) {
       const alertRows = alerts.map(a => ({
         org_id: a.org_id,
@@ -160,6 +160,28 @@ Deno.serve(async (req) => {
       }));
       const { error: insertErr } = await supabase.from("alerts").insert(alertRows);
       if (insertErr) console.error("Alert insert error:", insertErr);
+
+      // Send email notifications for each alert
+      const supabaseFunctionsUrl = Deno.env.get("SUPABASE_URL")! + "/functions/v1";
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      for (const alert of alerts) {
+        try {
+          await fetch(`${supabaseFunctionsUrl}/send-notification`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({
+              type: alert.type,
+              org_id: alert.org_id,
+              payload: alert.payload,
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Email notification error:", emailErr);
+        }
+      }
     }
 
     return new Response(
