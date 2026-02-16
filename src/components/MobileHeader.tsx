@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 type RequiredAccess = "all" | "write" | "edit" | "manage";
 
@@ -70,6 +71,7 @@ export default function MobileHeader() {
         </div>
         <div className="flex items-center gap-1">
           <GlobalSearch />
+          <ThemeSwitcher />
           <NotificationBell />
         </div>
       </header>
