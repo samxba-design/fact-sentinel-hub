@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
-  Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye,
+  Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye, ChevronDown, Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -422,28 +422,40 @@ export default function MentionDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <SourceBadge source={mention.source} onClick={() => setSourceIntelOpen(true)} className="cursor-pointer" />
+            <SourceBadge source={mention.source} />
             {mention.url && getDomain(mention.url) !== "unknown" && (
-              <Badge
-                variant="outline"
-                className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => setSourceIntelOpen(true)}
-              >
-                <Globe className="h-3 w-3 mr-1" />
-                {getDomain(mention.url)}
-                <Sparkles className="h-2.5 w-2.5 ml-1 text-primary" />
-              </Badge>
-            )}
-            {mention.url && getDomain(mention.url) !== "unknown" && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                onClick={() => ignoreSource(getDomain(mention.url))}
-                title="Block this source"
-              >
-                <Ban className="h-3.5 w-3.5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors gap-1"
+                  >
+                    <Globe className="h-3 w-3" />
+                    {getDomain(mention.url)}
+                    <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+                  </Badge>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setSourceIntelOpen(true)}>
+                    <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> Source Intelligence
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/mentions?source=${mention.source}`)}>
+                    <Search className="h-3.5 w-3.5 mr-2" /> All mentions from this source
+                  </DropdownMenuItem>
+                  {mention.url && (
+                    <DropdownMenuItem onClick={() => window.open(mention.url!, "_blank")}>
+                      <ExternalLink className="h-3.5 w-3.5 mr-2" /> Visit {getDomain(mention.url)}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => ignoreSource(getDomain(mention.url))}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Ban className="h-3.5 w-3.5 mr-2" /> Block this source
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
               <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
