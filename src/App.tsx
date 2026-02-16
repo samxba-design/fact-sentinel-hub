@@ -25,6 +25,7 @@ import ApprovedTemplatesPage from "@/pages/ApprovedTemplatesPage";
 import EscalationsPage from "@/pages/EscalationsPage";
 import ExportsPage from "@/pages/ExportsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import AdminPage from "@/pages/AdminPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="/escalations" element={<EscalationsPage />} />
         <Route path="/exports" element={<ExportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
       <Route path="/auth" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFound />} />
