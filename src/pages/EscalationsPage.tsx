@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TicketCheck, Plus, MessageSquare } from "lucide-react";
+import { TicketCheck, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import EscalationFormDialog from "@/components/escalations/EscalationFormDialog";
+import EscalationDetailSheet from "@/components/escalations/EscalationDetailSheet";
 
 interface Escalation {
   id: string;
   title: string;
+  description: string | null;
   department: string | null;
   priority: string | null;
   status: string | null;
+  pasted_text: string | null;
   created_at: string | null;
 }
 
@@ -31,23 +36,43 @@ const statusColors: Record<string, string> = {
 
 export default function EscalationsPage() {
   const { currentOrg } = useOrg();
+  const { toast } = useToast();
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editData, setEditData] = useState<Escalation | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selected, setSelected] = useState<Escalation | null>(null);
 
-  useEffect(() => {
+  const fetchEscalations = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
-    supabase
+    const { data } = await supabase
       .from("escalations")
-      .select("id, title, department, priority, status, created_at")
+      .select("id, title, description, department, priority, status, pasted_text, created_at")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setEscalations(data || []);
-        setLoading(false);
-      });
+      .limit(100);
+    setEscalations(data || []);
+    setLoading(false);
   }, [currentOrg]);
+
+  useEffect(() => { fetchEscalations(); }, [fetchEscalations]);
+
+  const handleCreate = () => { setEditData(null); setFormOpen(true); };
+  const handleEdit = (e: Escalation) => { setEditData(e); setFormOpen(true); setDetailOpen(false); };
+  const handleRowClick = (e: Escalation) => { setSelected(e); setDetailOpen(true); };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("escalations").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Escalation deleted" });
+      setDetailOpen(false);
+      fetchEscalations();
+    }
+  };
 
   const timeAgo = (d: string | null) => {
     if (!d) return "—";
@@ -65,7 +90,7 @@ export default function EscalationsPage() {
           <h1 className="text-2xl font-bold text-foreground">Escalations</h1>
           <p className="text-sm text-muted-foreground mt-1">Tickets requiring human review and approval</p>
         </div>
-        <Button><Plus className="h-4 w-4 mr-2" />New Ticket</Button>
+        <Button onClick={handleCreate}><Plus className="h-4 w-4 mr-2" />New Ticket</Button>
       </div>
 
       <div className="space-y-3">
@@ -73,11 +98,15 @@ export default function EscalationsPage() {
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
         ) : escalations.length === 0 ? (
           <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No escalation tickets. They are created when the response engine blocks a draft.</p>
+            <p className="text-sm text-muted-foreground">No escalation tickets yet. Create one or they are auto-created when the response engine blocks a draft.</p>
           </Card>
         ) : (
           escalations.map(e => (
-            <Card key={e.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+            <Card
+              key={e.id}
+              className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
+              onClick={() => handleRowClick(e)}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <TicketCheck className="h-5 w-5 text-primary" />
@@ -101,6 +130,21 @@ export default function EscalationsPage() {
           ))
         )}
       </div>
+
+      <EscalationFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSaved={fetchEscalations}
+        editData={editData}
+      />
+
+      <EscalationDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        escalation={selected}
+        onEdit={() => selected && handleEdit(selected)}
+        onDelete={() => selected && handleDelete(selected.id)}
+      />
     </div>
   );
 }
