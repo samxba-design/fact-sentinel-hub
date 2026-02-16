@@ -509,6 +509,46 @@ Deno.serve(async (req) => {
       })());
     }
 
+    // App Store reviews (Apple App Store & Google Play)
+    if (selectedSources.includes("app-store")) {
+      scanPromises.push((async () => {
+        try {
+          const appResult = await callFunction("scan-app-store", {
+            keywords: brandKws,
+            limit: 10,
+          });
+          if (appResult.success && appResult.results) {
+            allResults.push(...appResult.results);
+            scanLog.push({ source: "app-store", query: brandKws.join(", "), found: appResult.results.length });
+          } else if (appResult.error) {
+            errors.push(`App Store: ${appResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`App Store: ${e.name === "AbortError" ? "Timed out" : e.message}`);
+        }
+      })());
+    }
+
+    // Podcasts
+    if (selectedSources.includes("podcasts")) {
+      scanPromises.push((async () => {
+        try {
+          const podResult = await callFunction("scan-podcasts", {
+            keywords: brandKws,
+            limit: 10,
+          });
+          if (podResult.success && podResult.results) {
+            allResults.push(...podResult.results);
+            scanLog.push({ source: "podcasts", query: brandKws.join(", "), found: podResult.results.length });
+          } else if (podResult.error) {
+            errors.push(`Podcasts: ${podResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Podcasts: ${e.name === "AbortError" ? "Timed out" : e.message}`);
+        }
+      })());
+    }
+
     // Wait for all sources in parallel
     await Promise.all(scanPromises);
 

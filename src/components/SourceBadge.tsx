@@ -15,6 +15,16 @@ const SOURCE_STYLES: Record<string, { bg: string; text: string; border: string; 
   g2: { bg: "bg-orange-600/10", text: "text-orange-500", border: "border-orange-600/30", label: "G2" },
   blog: { bg: "bg-sentinel-purple/10", text: "text-sentinel-purple", border: "border-sentinel-purple/30", label: "Blog" },
   forum: { bg: "bg-sentinel-amber/10", text: "text-sentinel-amber", border: "border-sentinel-amber/30", label: "Forum" },
+  "apple-app-store": { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30", label: "App Store" },
+  "google-play": { bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30", label: "Google Play" },
+  "app-store": { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30", label: "App Store" },
+  podcast: { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", label: "Podcast" },
+  "spotify-podcast": { bg: "bg-green-500/10", text: "text-green-400", border: "border-green-500/30", label: "Spotify" },
+  "apple-podcast": { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", label: "Apple Podcasts" },
+  "youtube-podcast": { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30", label: "YT Podcast" },
+  glassdoor: { bg: "bg-green-600/10", text: "text-green-500", border: "border-green-600/30", label: "Glassdoor" },
+  capterra: { bg: "bg-blue-600/10", text: "text-blue-500", border: "border-blue-600/30", label: "Capterra" },
+  yelp: { bg: "bg-red-600/10", text: "text-red-500", border: "border-red-600/30", label: "Yelp" },
 };
 
 interface SourceBadgeProps {
