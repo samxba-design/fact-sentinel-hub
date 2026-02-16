@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { org_id, keywords, limit, include_comments } = await req.json();
+    const { org_id, keywords, limit, include_comments, date_from, date_to } = await req.json();
     if (!keywords || keywords.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: "Keywords required" }),
@@ -20,7 +20,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get YouTube API key from org_api_keys
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -44,18 +43,37 @@ Deno.serve(async (req) => {
     const query = keywords.join(" | ");
     const maxResults = Math.min(limit || 15, 50);
 
-    console.log("YouTube search:", query);
+    console.log("YouTube search:", query, "date_from:", date_from);
 
-    // Search videos
     const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
     searchUrl.searchParams.set("part", "snippet");
     searchUrl.searchParams.set("q", query);
     searchUrl.searchParams.set("type", "video");
     searchUrl.searchParams.set("maxResults", String(maxResults));
-    searchUrl.searchParams.set("order", "relevance");
+    searchUrl.searchParams.set("order", "date"); // Sort by date, not relevance
     searchUrl.searchParams.set("key", ytApiKey);
 
+    // Apply date range filter — critical for "last 7 days" etc.
+    if (date_from) {
+      searchUrl.searchParams.set("publishedAfter", new Date(date_from).toISOString());
+    }
+    if (date_to) {
+      searchUrl.searchParams.set("publishedBefore", new Date(date_to).toISOString());
+    }
+
     const searchRes = await fetch(searchUrl.toString());
+
+    // Validate response is JSON
+    const ct = searchRes.headers.get("content-type");
+    if (!ct?.includes("application/json")) {
+      const textResp = await searchRes.text();
+      console.error("YouTube returned non-JSON:", ct, textResp.substring(0, 200));
+      return new Response(
+        JSON.stringify({ success: false, error: `YouTube API returned non-JSON response (${searchRes.status})` }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const searchData = await searchRes.json();
 
     if (!searchRes.ok) {
@@ -90,20 +108,34 @@ Deno.serve(async (req) => {
 
     const results: any[] = [];
 
-    // Transform video results
+    // Date filter for secondary validation
+    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
+
     for (const item of items) {
       const videoId = item.id?.videoId;
       const snippet = item.snippet || {};
       const stats = statsMap[videoId] || {};
+      const publishedAt = snippet.publishedAt || new Date().toISOString();
+
+      // Double-check date range (API sometimes returns edge cases)
+      if (dateFromMs > 0 && new Date(publishedAt).getTime() < dateFromMs) {
+        console.log("Skipping video outside date range:", snippet.title, publishedAt);
+        continue;
+      }
+
+      // Use title + description as content, skip if it looks like an error
+      const title = snippet.title || "";
+      const description = snippet.description || "";
+      const content = `${title}\n\n${description}`.trim();
 
       results.push({
         source: "youtube",
-        content: `[VIDEO] ${snippet.title || ""}\n\n${snippet.description || ""}`,
-        title: snippet.title || "",
+        content,
+        title,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         author_name: snippet.channelTitle || "",
         author_handle: snippet.channelId || "",
-        posted_at: snippet.publishedAt || new Date().toISOString(),
+        posted_at: publishedAt,
         metrics: {
           likes: parseInt(stats.likeCount || "0"),
           shares: 0,
@@ -113,9 +145,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Optionally fetch top comments for each video
+    // Optionally fetch top comments
     if (include_comments !== false && videoIds.length > 0) {
-      const commentVideoIds = videoIds.slice(0, 5); // Limit to save quota
+      const commentVideoIds = videoIds.slice(0, 5);
       for (const videoId of commentVideoIds) {
         try {
           const commentsUrl = new URL("https://www.googleapis.com/youtube/v3/commentThreads");
@@ -131,13 +163,22 @@ Deno.serve(async (req) => {
             for (const thread of (commData.items || [])) {
               const comment = thread.snippet?.topLevelComment?.snippet;
               if (!comment) continue;
+
+              const commentDate = comment.publishedAt || new Date().toISOString();
+              // Skip comments outside date range
+              if (dateFromMs > 0 && new Date(commentDate).getTime() < dateFromMs) continue;
+
+              // Strip HTML from comment text
+              const commentText = (comment.textDisplay || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+              if (commentText.length < 10) continue;
+
               results.push({
                 source: "youtube_comment",
-                content: comment.textDisplay || "",
+                content: commentText,
                 url: `https://www.youtube.com/watch?v=${videoId}&lc=${thread.id}`,
                 author_name: comment.authorDisplayName || "",
                 author_handle: comment.authorChannelId?.value || "",
-                posted_at: comment.publishedAt || new Date().toISOString(),
+                posted_at: commentDate,
                 metrics: {
                   likes: comment.likeCount || 0,
                   shares: 0,
