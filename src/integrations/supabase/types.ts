@@ -884,6 +884,11 @@ export type Database = {
           regions: string[] | null
           scan_quota: number | null
           slug: string
+          subscription_approved_at: string | null
+          subscription_approved_by: string | null
+          subscription_expires_at: string | null
+          subscription_status: string
+          subscription_type: string | null
           timezone: string | null
           updated_at: string | null
         }
@@ -899,6 +904,11 @@ export type Database = {
           regions?: string[] | null
           scan_quota?: number | null
           slug: string
+          subscription_approved_at?: string | null
+          subscription_approved_by?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string
+          subscription_type?: string | null
           timezone?: string | null
           updated_at?: string | null
         }
@@ -914,6 +924,11 @@ export type Database = {
           regions?: string[] | null
           scan_quota?: number | null
           slug?: string
+          subscription_approved_at?: string | null
+          subscription_approved_by?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string
+          subscription_type?: string | null
           timezone?: string | null
           updated_at?: string | null
         }
@@ -1146,6 +1161,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          org_id: string
+          requested_by: string
+          requested_type: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          org_id: string
+          requested_by: string
+          requested_type?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          org_id?: string
+          requested_by?: string
+          requested_type?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_requests_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
