@@ -124,7 +124,7 @@ export default function NarrativeHealthWidget() {
                 onClick={() => navigate(`/narratives/${n.id}`)}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-card-foreground truncate font-medium">{n.name}</p>
+                  <p className="text-sm text-card-foreground font-medium leading-snug">{n.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground font-mono">{n.mention_count} mentions</span>
                     {n.confidence != null && (

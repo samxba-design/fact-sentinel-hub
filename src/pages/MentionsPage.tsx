@@ -734,8 +734,8 @@ export default function MentionsPage() {
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as "detected" | "published")}>
-          <SelectTrigger className="w-36">
-            <ArrowUpDown className="h-3 w-3 mr-1" />
+          <SelectTrigger className="w-44">
+            <ArrowUpDown className="h-3 w-3 mr-1 shrink-0" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
