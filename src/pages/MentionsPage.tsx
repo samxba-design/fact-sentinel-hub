@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -31,10 +32,12 @@ const sentimentColors: Record<string, string> = {
   positive: "text-sentinel-emerald",
   negative: "text-sentinel-red",
   neutral: "text-muted-foreground",
+  mixed: "text-sentinel-amber",
 };
 
 export default function MentionsPage() {
   const { currentOrg } = useOrg();
+  const navigate = useNavigate();
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -97,7 +100,11 @@ export default function MentionsPage() {
           filtered.map(m => {
             const flags = m.flags as any || {};
             return (
-              <Card key={m.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+              <Card
+                key={m.id}
+                className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
+                onClick={() => navigate(`/mentions/${m.id}`)}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -115,7 +122,7 @@ export default function MentionsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-card-foreground">{m.content || "No content"}</p>
+                    <p className="text-sm text-card-foreground line-clamp-2">{m.content || "No content"}</p>
                   </div>
                   <div className="text-right space-y-2 shrink-0">
                     <Badge variant="outline" className={`text-[10px] ${severityColors[m.severity || "low"]}`}>
