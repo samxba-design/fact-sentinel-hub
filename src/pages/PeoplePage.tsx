@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddPersonDialog from "@/components/people/AddPersonDialog";
+import EmptyState from "@/components/EmptyState";
 
 interface PersonRow {
   person_id: string;
@@ -61,12 +62,15 @@ export default function PeoplePage() {
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)
         ) : people.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center col-span-full space-y-3">
-            <p className="text-sm text-muted-foreground">No people tracked yet.</p>
-            <Button variant="outline" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Add your first person
-            </Button>
-          </Card>
+          <div className="col-span-full">
+            <EmptyState
+              icon={User2}
+              title="No people tracked yet"
+              description="Add key individuals — executives, influencers, or public figures — to track their exposure across your monitored landscape."
+              actionLabel="Add Person"
+              onAction={() => setAddOpen(true)}
+            />
+          </div>
         ) : (
           people.map(p => (
             <Card key={p.person_id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer space-y-4" onClick={() => navigate(`/people/${p.person_id}`)}>

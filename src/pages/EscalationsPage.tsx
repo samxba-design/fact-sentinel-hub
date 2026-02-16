@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import EscalationFormDialog from "@/components/escalations/EscalationFormDialog";
 import EscalationDetailSheet from "@/components/escalations/EscalationDetailSheet";
+import EmptyState from "@/components/EmptyState";
 
 interface Escalation {
   id: string;
@@ -159,11 +160,15 @@ export default function EscalationsPage() {
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
             ) : displayed.length === 0 ? (
-              <Card className="bg-card border-border p-8 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {tab === "resolved" ? "No resolved escalations." : "No escalation tickets yet."}
-                </p>
-              </Card>
+              <EmptyState
+                icon={TicketCheck}
+                title={tab === "resolved" ? "No resolved escalations" : "No escalation tickets yet"}
+                description={tab === "resolved"
+                  ? "Resolved escalations will appear here once tickets are closed."
+                  : "Tickets are auto-created when the response engine blocks a draft or critical mentions are detected."}
+                actionLabel={tab !== "resolved" ? "New Ticket" : undefined}
+                onAction={tab !== "resolved" ? handleCreate : undefined}
+              />
             ) : (
               displayed.map(e => (
                 <Card

@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import UpgradeBanner from "@/components/UpgradeBanner";
+import EmptyState from "@/components/EmptyState";
 
 interface ExportRecord {
   id: string;
@@ -306,9 +307,11 @@ export default function ExportsPage() {
         {loading ? (
           Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
         ) : exports_.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No exports yet.</p>
-          </Card>
+          <EmptyState
+            icon={FileSpreadsheet}
+            title="No exports yet"
+            description="Select data types above and export to CSV or Google Sheets to get started."
+          />
         ) : (
           exports_.map(e => (
             <Card key={e.id} className="bg-card border-border p-4 hover:border-primary/30 transition-colors">
