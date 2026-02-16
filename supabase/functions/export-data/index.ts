@@ -3,12 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface ExportRequest {
   org_id: string;
-  data_type: "mentions" | "narratives" | "incidents" | "escalations";
+  data_type: "mentions" | "narratives" | "incidents" | "escalations" | "facts" | "people";
   mode: "csv" | "sheets";
   sheet_id?: string;
   selected_ids?: string[];
@@ -17,83 +17,27 @@ interface ExportRequest {
 
 // ── Google Sheets helpers ──────────────────────────────────
 
-async function getGoogleAccessToken(serviceAccountJson: string): Promise<string> {
-  const sa = JSON.parse(serviceAccountJson);
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const now = Math.floor(Date.now() / 1000);
-  const claimSet = btoa(
-    JSON.stringify({
-      iss: sa.client_email,
-      scope: "https://www.googleapis.com/auth/spreadsheets",
-      aud: "https://oauth2.googleapis.com/token",
-      exp: now + 3600,
-      iat: now,
-    })
-  );
-
-  const signInput = `${header}.${claimSet}`;
-
-  // Import the private key
-  const pemContent = sa.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\s/g, "");
-  const binaryKey = Uint8Array.from(atob(pemContent), (c) => c.charCodeAt(0));
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(signInput)
-  );
-
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-
-  const jwt = `${header}.${claimSet}.${sig}`;
-
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
-  });
-
-  if (!tokenRes.ok) {
-    const err = await tokenRes.text();
-    throw new Error(`Google token error: ${err}`);
-  }
-
-  const tokenData = await tokenRes.json();
-  return tokenData.access_token;
-}
-
 async function writeToSheet(
   accessToken: string,
   sheetId: string,
   sheetName: string,
   rows: string[][]
 ) {
-  // Clear existing data
-  await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A1:ZZ?valueInputOption=RAW`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ values: rows }),
-    }
-  );
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A1:ZZ?valueInputOption=RAW`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ values: rows }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`writeToSheet failed [${res.status}]:`, errText);
+    throw new Error(`Failed to write to sheet tab "${sheetName}". Google API returned ${res.status}. Please check your Google account permissions and try reconnecting.`);
+  }
 }
 
 async function ensureSheetTab(
@@ -101,16 +45,22 @@ async function ensureSheetTab(
   sheetId: string,
   sheetName: string
 ) {
-  // Get existing sheets
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`ensureSheetTab GET failed [${res.status}]:`, errText);
+    throw new Error(`Cannot access Google Sheet. Google API returned ${res.status}. The sheet may not exist or your Google account may not have access. Try reconnecting your Google account.`);
+  }
+
   const data = await res.json();
   const existing = data.sheets?.map((s: any) => s.properties.title) || [];
 
   if (!existing.includes(sheetName)) {
-    await fetch(
+    const addRes = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
       {
         method: "POST",
@@ -123,85 +73,91 @@ async function ensureSheetTab(
         }),
       }
     );
+
+    if (!addRes.ok) {
+      const errText = await addRes.text();
+      console.error(`ensureSheetTab addSheet failed [${addRes.status}]:`, errText);
+      throw new Error(`Failed to create tab "${sheetName}" in Google Sheet. Google API returned ${addRes.status}.`);
+    }
   }
 }
 
 // ── Data fetchers ──────────────────────────────────────────
 
-async function fetchMentions(
-  supabase: any,
-  orgId: string,
-  selectedIds?: string[]
-) {
+async function fetchMentions(supabase: any, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("mentions")
-    .select(
-      "id, source, content, author_name, author_handle, sentiment_label, sentiment_score, severity, status, posted_at, url, author_follower_count, language"
-    )
+    .select("id, source, content, author_name, author_handle, sentiment_label, sentiment_score, severity, status, posted_at, url, author_follower_count, language")
     .eq("org_id", orgId)
     .order("posted_at", { ascending: false })
     .limit(2000);
-
   if (selectedIds?.length) q = q.in("id", selectedIds);
   const { data } = await q;
   return data || [];
 }
 
-async function fetchNarratives(
-  supabase: any,
-  orgId: string,
-  selectedIds?: string[]
-) {
+async function fetchNarratives(supabase: any, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("narratives")
-    .select(
-      "id, name, description, status, confidence, first_seen, last_seen, example_phrases"
-    )
+    .select("id, name, description, status, confidence, first_seen, last_seen, example_phrases")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(500);
-
   if (selectedIds?.length) q = q.in("id", selectedIds);
   const { data } = await q;
   return data || [];
 }
 
-async function fetchIncidents(
-  supabase: any,
-  orgId: string,
-  selectedIds?: string[]
-) {
+async function fetchIncidents(supabase: any, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("incidents")
-    .select(
-      "id, name, description, status, started_at, ended_at, stakeholders"
-    )
+    .select("id, name, description, status, started_at, ended_at, stakeholders")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(500);
-
   if (selectedIds?.length) q = q.in("id", selectedIds);
   const { data } = await q;
   return data || [];
 }
 
-async function fetchEscalations(
-  supabase: any,
-  orgId: string,
-  selectedIds?: string[]
-) {
+async function fetchEscalations(supabase: any, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("escalations")
-    .select(
-      "id, title, description, status, priority, department, created_at, updated_at"
-    )
+    .select("id, title, description, status, priority, department, created_at, updated_at")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(500);
-
   if (selectedIds?.length) q = q.in("id", selectedIds);
   const { data } = await q;
   return data || [];
+}
+
+async function fetchFacts(supabase: any, orgId: string, selectedIds?: string[]) {
+  let q = supabase
+    .from("approved_facts")
+    .select("id, title, statement_text, category, status, jurisdiction, owner_department, source_link, approved_by, version, last_reviewed, created_at")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (selectedIds?.length) q = q.in("id", selectedIds);
+  const { data } = await q;
+  return data || [];
+}
+
+async function fetchPeople(supabase: any, orgId: string, selectedIds?: string[]) {
+  // Fetch people linked to this org via org_people
+  const { data: orgPeople } = await supabase
+    .from("org_people")
+    .select("person_id, tier, status, confidence, evidence, people(id, name, titles, handles, follower_count, links)")
+    .eq("org_id", orgId)
+    .limit(500);
+
+  if (!orgPeople) return [];
+
+  if (selectedIds?.length) {
+    return orgPeople.filter((op: any) => selectedIds.includes(op.person_id));
+  }
+  return orgPeople;
 }
 
 // ── CSV builder ────────────────────────────────────────────
@@ -223,53 +179,44 @@ function toCSV(rows: string[][]): string {
 }
 
 function mentionsToRows(data: any[]): string[][] {
-  const header = [
-    "ID", "Source", "Content", "Author", "Handle", "Sentiment",
-    "Sentiment Score", "Severity", "Status", "Posted At", "URL",
-    "Followers", "Language",
-  ];
-  const rows = data.map((m) => [
-    m.id, m.source, m.content, m.author_name, m.author_handle,
-    m.sentiment_label, m.sentiment_score, m.severity, m.status,
-    m.posted_at, m.url, m.author_follower_count, m.language,
-  ]);
+  const header = ["ID", "Source", "Content", "Author", "Handle", "Sentiment", "Sentiment Score", "Severity", "Status", "Posted At", "URL", "Followers", "Language"];
+  const rows = data.map((m) => [m.id, m.source, m.content, m.author_name, m.author_handle, m.sentiment_label, m.sentiment_score, m.severity, m.status, m.posted_at, m.url, m.author_follower_count, m.language]);
   return [header, ...rows];
 }
 
 function narrativesToRows(data: any[]): string[][] {
-  const header = [
-    "ID", "Name", "Description", "Status", "Confidence",
-    "First Seen", "Last Seen", "Example Phrases",
-  ];
-  const rows = data.map((n) => [
-    n.id, n.name, n.description, n.status, n.confidence,
-    n.first_seen, n.last_seen,
-    (n.example_phrases || []).join("; "),
-  ]);
+  const header = ["ID", "Name", "Description", "Status", "Confidence", "First Seen", "Last Seen", "Example Phrases"];
+  const rows = data.map((n) => [n.id, n.name, n.description, n.status, n.confidence, n.first_seen, n.last_seen, (n.example_phrases || []).join("; ")]);
   return [header, ...rows];
 }
 
 function incidentsToRows(data: any[]): string[][] {
-  const header = [
-    "ID", "Name", "Description", "Status", "Started At",
-    "Ended At", "Stakeholders",
-  ];
-  const rows = data.map((i) => [
-    i.id, i.name, i.description, i.status, i.started_at,
-    i.ended_at, (i.stakeholders || []).join("; "),
-  ]);
+  const header = ["ID", "Name", "Description", "Status", "Started At", "Ended At", "Stakeholders"];
+  const rows = data.map((i) => [i.id, i.name, i.description, i.status, i.started_at, i.ended_at, (i.stakeholders || []).join("; ")]);
   return [header, ...rows];
 }
 
 function escalationsToRows(data: any[]): string[][] {
-  const header = [
-    "ID", "Title", "Description", "Status", "Priority",
-    "Department", "Created At", "Updated At",
-  ];
-  const rows = data.map((e) => [
-    e.id, e.title, e.description, e.status, e.priority,
-    e.department, e.created_at, e.updated_at,
-  ]);
+  const header = ["ID", "Title", "Description", "Status", "Priority", "Department", "Created At", "Updated At"];
+  const rows = data.map((e) => [e.id, e.title, e.description, e.status, e.priority, e.department, e.created_at, e.updated_at]);
+  return [header, ...rows];
+}
+
+function factsToRows(data: any[]): string[][] {
+  const header = ["ID", "Title", "Statement", "Category", "Status", "Jurisdiction", "Department", "Source Link", "Approved By", "Version", "Last Reviewed", "Created At"];
+  const rows = data.map((f) => [f.id, f.title, f.statement_text, f.category, f.status, f.jurisdiction, f.owner_department, f.source_link, f.approved_by, f.version, f.last_reviewed, f.created_at]);
+  return [header, ...rows];
+}
+
+function peopleToRows(data: any[]): string[][] {
+  const header = ["Person ID", "Name", "Titles", "Tier", "Status", "Confidence", "Follower Count", "Handles", "Links", "Evidence"];
+  const rows = data.map((op: any) => {
+    const p = op.people || {};
+    return [
+      p.id, p.name, (p.titles || []).join("; "), op.tier, op.status, op.confidence,
+      p.follower_count, JSON.stringify(p.handles || {}), (p.links || []).join("; "), op.evidence,
+    ];
+  });
   return [header, ...rows];
 }
 
@@ -285,14 +232,10 @@ Deno.serve(async (req) => {
 
     // Auth check
     const authHeader = req.headers.get("Authorization");
-    const supabaseUser = createClient(
-      SUPABASE_URL,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader! } } }
-    );
-    const {
-      data: { user },
-    } = await supabaseUser.auth.getUser();
+    const supabaseUser = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader! } },
+    });
+    const { data: { user } } = await supabaseUser.auth.getUser();
     if (!user)
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -302,16 +245,14 @@ Deno.serve(async (req) => {
     const body: ExportRequest = await req.json();
     const { org_id, data_type, mode, sheet_id, selected_ids } = body;
 
-    if (!org_id || !data_type)
-      throw new Error("Missing org_id or data_type");
+    if (!org_id || !data_type) throw new Error("Missing org_id or data_type");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Fetch the data
     let rawData: any[];
     let rows: string[][];
-    const sheetTabName =
-      data_type.charAt(0).toUpperCase() + data_type.slice(1);
+    const sheetTabName = data_type.charAt(0).toUpperCase() + data_type.slice(1);
 
     switch (data_type) {
       case "mentions":
@@ -329,6 +270,14 @@ Deno.serve(async (req) => {
       case "escalations":
         rawData = await fetchEscalations(supabase, org_id, selected_ids);
         rows = escalationsToRows(rawData);
+        break;
+      case "facts":
+        rawData = await fetchFacts(supabase, org_id, selected_ids);
+        rows = factsToRows(rawData);
+        break;
+      case "people":
+        rawData = await fetchPeople(supabase, org_id, selected_ids);
+        rows = peopleToRows(rawData);
         break;
       default:
         throw new Error(`Unknown data_type: ${data_type}`);
@@ -391,7 +340,6 @@ Deno.serve(async (req) => {
         });
 
         if (!refreshRes.ok) {
-          // Token revoked — delete and ask user to reconnect
           await supabase.from("user_google_tokens").delete().eq("id", tokenRow.id);
           return new Response(
             JSON.stringify({ error: "Google token expired. Please reconnect your Google account." }),
@@ -402,7 +350,6 @@ Deno.serve(async (req) => {
         const refreshData = await refreshRes.json();
         accessToken = refreshData.access_token;
         const newExpiry = new Date(Date.now() + (refreshData.expires_in || 3600) * 1000).toISOString();
-
         await supabase
           .from("user_google_tokens")
           .update({ access_token: accessToken, token_expires_at: newExpiry })
@@ -450,13 +397,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("export-data error:", e);
     return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

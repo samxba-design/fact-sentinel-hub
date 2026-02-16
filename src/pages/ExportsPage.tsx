@@ -138,13 +138,17 @@ export default function ExportsPage() {
     setNewSheetUrl(null);
     try {
       const { data, error } = await supabase.functions.invoke("create-google-sheet", {
-        body: { org_id: currentOrg.id },
+        body: { org_id: currentOrg.id, auto_populate: true },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       setSheetId(data.sheet_id);
       setNewSheetUrl(data.sheet_url);
-      toast({ title: "Sheet Created!", description: `"${data.title}" is ready. Sheet ID has been filled in automatically.` });
+      const desc = data.populated_tabs?.length > 0
+        ? `Created & populated: ${data.populated_tabs.join(", ")}`
+        : `"${data.title}" created. Use Sync to populate tabs.`;
+      toast({ title: "Sheet Created!", description: desc });
+      loadData();
     } catch (err: any) {
       toast({ title: "Error creating sheet", description: err.message, variant: "destructive" });
     } finally {
