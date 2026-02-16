@@ -257,11 +257,14 @@ Deno.serve(async (req) => {
     if (selectedSources.includes("reddit")) {
       scanPromises.push((async () => {
         try {
+          // Map date range to Reddit time_filter
+          const diffDays = date_from ? (Date.now() - new Date(date_from).getTime()) / (1000 * 60 * 60 * 24) : 7;
+          const redditTimeFilter = diffDays <= 1 ? "day" : diffDays <= 7 ? "week" : diffDays <= 30 ? "month" : "year";
           const redditResult = await callFunction("scan-reddit", {
             org_id,
             keywords: keywords?.length > 0 ? keywords : ["brand"],
             limit: 25,
-            time_filter: "week",
+            time_filter: redditTimeFilter,
           });
           if (redditResult.success && redditResult.results) {
             allResults.push(...redditResult.results);
@@ -346,7 +349,17 @@ Deno.serve(async (req) => {
     const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
     const dateToMs = date_to ? new Date(date_to).getTime() : 0;
     const cleanedResults: RawResult[] = [];
+    const seenUrls = new Set<string>();
     for (const r of allResults) {
+      // Deduplicate by URL
+      if (r.url) {
+        const normalizedUrl = r.url.toLowerCase().replace(/\/$/, "");
+        if (seenUrls.has(normalizedUrl)) {
+          console.log("Filtering duplicate URL:", r.url);
+          continue;
+        }
+        seenUrls.add(normalizedUrl);
+      }
       // Only enforce date range for sources with reliable timestamps (Twitter, YouTube, Reddit)
       // Web/news/review scraped dates are unreliable (extracted from body text) so skip date filtering for those
       const hasReliableDate = ["twitter", "reddit", "youtube"].includes(r.source);
@@ -512,7 +525,7 @@ Return ONLY valid JSON, no markdown.`,
         sentiment_confidence: analysis.sentiment_confidence || 0.5,
         severity: analysis.severity || "low",
         language: "en",
-        posted_at: r.posted_at || new Date().toISOString(),
+        posted_at: r.posted_at || null,
         url: r.url || null,
         metrics: r.metrics || {},
         flags: analysis.flags || {},

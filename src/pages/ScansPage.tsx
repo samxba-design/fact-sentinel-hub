@@ -153,8 +153,8 @@ export default function ScansPage() {
           org_id: currentOrg.id,
           keywords: autoKeywords,
           sources: autoSources,
-          date_from: dateFrom.toISOString().split("T")[0],
-          date_to: now.toISOString().split("T")[0],
+          date_from: dateFrom.toISOString(),
+          date_to: now.toISOString(),
           sentiment_filter: sentimentFilter,
         },
       });

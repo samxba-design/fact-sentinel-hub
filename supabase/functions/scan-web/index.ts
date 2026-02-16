@@ -75,29 +75,6 @@ function classifySourceFromUrl(url: string): string {
   return "news";
 }
 
-// Try to extract a publish date from the scraped content
-function extractDateFromContent(text: string): string | null {
-  // Common date patterns in articles: "November 17, 2025", "Jan 5, 2024", "2025-01-15"
-  const patterns = [
-    /(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}/i,
-    /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}/i,
-    /\d{4}-\d{2}-\d{2}/,
-    /\d{1,2}\/\d{1,2}\/\d{4}/,
-  ];
-  for (const p of patterns) {
-    const match = text.match(p);
-    if (match) {
-      try {
-        const d = new Date(match[0]);
-        if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) {
-          return d.toISOString();
-        }
-      } catch { /* skip */ }
-    }
-  }
-  return null;
-}
-
 // Scan websites/news using Firecrawl search API
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
