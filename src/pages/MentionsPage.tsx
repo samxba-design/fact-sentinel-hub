@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning } from "lucide-react";
+import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus } from "lucide-react";
 import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import BulkActionsBar from "@/components/mentions/BulkActionsBar";
 import SavedFilters from "@/components/mentions/SavedFilters";
+import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 
 interface Mention {
   id: string;
@@ -65,6 +66,7 @@ export default function MentionsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [addMentionOpen, setAddMentionOpen] = useState(false);
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
@@ -221,12 +223,37 @@ export default function MentionsPage() {
     if (f.search !== undefined) setSearch(f.search);
   };
 
+  const refetchMentions = () => {
+    if (!currentOrg) return;
+    setLoading(true);
+    let query = supabase
+      .from("mentions")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, author_follower_count, flags, status, scan_run_id, url")
+      .eq("org_id", currentOrg.id)
+      .order("posted_at", { ascending: false })
+      .limit(200);
+    if (scanFilter) query = query.eq("scan_run_id", scanFilter);
+    if (daysParam) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
+      query = query.gte("posted_at", daysAgo.toISOString());
+    }
+    query.then(({ data }) => { setMentions(data || []); setLoading(false); });
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Mentions</h1>
-        <p className="text-sm text-muted-foreground mt-1">All detected mentions across sources</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Mentions</h1>
+          <p className="text-sm text-muted-foreground mt-1">All detected mentions across sources</p>
+        </div>
+        <Button onClick={() => setAddMentionOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Add Mention
+        </Button>
       </div>
+
+      <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} onCreated={refetchMentions} />
 
       {(scanFilter || hasUrlFilters) && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
