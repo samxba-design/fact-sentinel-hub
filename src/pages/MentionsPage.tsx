@@ -411,17 +411,22 @@ export default function MentionsPage() {
     query.then(({ data }) => { setMentions(data || []); setLoading(false); });
   };
 
-  // Detect coordinated patterns - mentions from same time window with same sentiment
+  // Detect coordinated patterns - mentions POSTED (not ingested) from same time window across DIFFERENT domains
   const coordWarnings = useMemo(() => {
     const warnings: string[] = [];
-    // Check for burst of same-sentiment mentions in short window
-    const negMentions = filtered.filter(m => m.sentiment_label === "negative");
+    // Check for burst of same-sentiment mentions in short window across DIFFERENT sources
+    const negMentions = filtered.filter(m => m.sentiment_label === "negative" && m.posted_at);
     if (negMentions.length >= 5) {
-      const times = negMentions.map(m => new Date(m.posted_at || "").getTime()).filter(t => t > 0).sort();
-      if (times.length >= 5) {
-        const span = times[times.length - 1] - times[0];
-        if (span < 3600000) { // All within 1 hour
-          warnings.push(`${negMentions.length} negative mentions detected within the same hour — possible coordinated FUD campaign`);
+      const withTime = negMentions.map(m => ({
+        time: new Date(m.posted_at!).getTime(),
+        domain: getDomain(m.url),
+      })).filter(t => t.time > 0).sort((a, b) => a.time - b.time);
+      if (withTime.length >= 5) {
+        const span = withTime[withTime.length - 1].time - withTime[0].time;
+        const uniqueDomains = new Set(withTime.map(t => t.domain));
+        // Only flag if posted within 1 hour AND from 3+ different domains (not just found in one scan)
+        if (span < 3600000 && uniqueDomains.size >= 3) {
+          warnings.push(`${negMentions.length} negative mentions published within the same hour across ${uniqueDomains.size} different sources — possible coordinated FUD campaign`);
         }
       }
     }
