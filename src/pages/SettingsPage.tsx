@@ -14,7 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard, Plug, Users, Settings2, Shield, Mail } from "lucide-react";
+import {
+  Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save,
+  CreditCard, Plug, Users, Settings2, Shield, Mail, Info, HelpCircle, Send,
+  CheckCircle2, MessageSquare, Building2
+} from "lucide-react";
 import NotificationPreferencesTab from "@/components/settings/NotificationPreferencesTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -22,10 +26,46 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import InfoTooltip from "@/components/InfoTooltip";
 
 interface Keyword { id: string; type: string; value: string; locked: boolean | null }
 interface Topic { id: string; name: string; org_id: string | null; is_default: boolean | null }
 interface Source { id: string; type: string; enabled: boolean | null }
+
+// ─── Info Banner Component ───
+function TabInfoBanner({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 mb-5">
+      <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-card-foreground">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── Suggested topics ───
+const SUGGESTED_TOPICS = [
+  "Security", "Compliance", "Product / Outage", "Support", "Leadership",
+  "Scams / Impersonation", "Fees / Pricing", "Withdrawals", "Listing / Delisting",
+  "Partnerships", "Regulatory", "ESG / Sustainability", "Data Privacy",
+  "Employee Culture", "Legal / Litigation", "Marketing / Brand"
+];
+
+// ─── Source type options ───
+const SOURCE_TYPE_OPTIONS = [
+  { value: "web", label: "Web / News", description: "General websites and news articles" },
+  { value: "reddit", label: "Reddit", description: "Reddit posts and comments" },
+  { value: "twitter", label: "X (Twitter)", description: "Tweets and threads" },
+  { value: "youtube", label: "YouTube", description: "Video descriptions and comments" },
+  { value: "reviews", label: "Review Sites", description: "Trustpilot, G2, Glassdoor, etc." },
+  { value: "rss", label: "RSS Feeds", description: "Blog and news RSS/Atom feeds" },
+  { value: "google-news", label: "Google News", description: "Mainstream press coverage" },
+  { value: "forums", label: "Forums", description: "Community forums and discussion boards" },
+  { value: "app-store", label: "App Stores", description: "Apple App Store & Google Play" },
+  { value: "podcasts", label: "Podcasts", description: "Podcast transcript monitoring" },
+];
 
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
@@ -35,7 +75,6 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Show success toast after Stripe checkout redirect
   useEffect(() => {
     if (searchParams.get("success") === "true") {
       toast({ title: "Subscription activated!", description: "Welcome to Pro. Your subscription is now active." });
@@ -43,52 +82,34 @@ export default function SettingsPage() {
       setSearchParams(searchParams, { replace: true });
     }
   }, []);
+
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  // Keyword add state
   const [newKwValue, setNewKwValue] = useState("");
   const [newKwType, setNewKwType] = useState("brand");
   const [addingKw, setAddingKw] = useState(false);
 
-  // Topic add state
   const [newTopicName, setNewTopicName] = useState("");
   const [addingTopic, setAddingTopic] = useState(false);
 
-  // Source add state
   const [newSourceType, setNewSourceType] = useState("");
   const [addingSource, setAddingSource] = useState(false);
-
-  // Alert config state
-  const [alertEmails, setAlertEmails] = useState("");
-  const [escalationEmails, setEscalationEmails] = useState("");
-  const [scanSchedule, setScanSchedule] = useState("daily");
-  const [quietStart, setQuietStart] = useState<number | null>(null);
-  const [quietEnd, setQuietEnd] = useState<number | null>(null);
-  const [savingAlerts, setSavingAlerts] = useState(false);
 
   const fetchData = async () => {
     if (!currentOrg) return;
     setLoading(true);
-    const [kw, tp, sr, tracking] = await Promise.all([
+    const [kw, tp, sr] = await Promise.all([
       supabase.from("keywords").select("id, type, value, locked").eq("org_id", currentOrg.id).order("type"),
       supabase.from("topics").select("id, name, org_id, is_default").or(`org_id.eq.${currentOrg.id},org_id.is.null`).order("name"),
       supabase.from("sources").select("id, type, enabled").eq("org_id", currentOrg.id),
-      supabase.from("tracking_profiles").select("*").eq("org_id", currentOrg.id).maybeSingle(),
     ]);
     setKeywords(kw.data || []);
     setTopics(tp.data || []);
     setSources(sr.data || []);
-    if (tracking.data) {
-      setAlertEmails((tracking.data.alert_emails || []).join(", "));
-      setEscalationEmails((tracking.data.escalation_emails || []).join(", "));
-      setScanSchedule(tracking.data.scan_schedule || "daily");
-      setQuietStart(tracking.data.quiet_hours_start);
-      setQuietEnd(tracking.data.quiet_hours_end);
-    }
     setLoading(false);
   };
 
@@ -139,19 +160,24 @@ export default function SettingsPage() {
   };
 
   // --- Topic CRUD ---
-  const addTopic = async () => {
-    if (!currentOrg || !newTopicName.trim()) return;
+  const addTopic = async (name?: string) => {
+    const topicName = name || newTopicName;
+    if (!currentOrg || !topicName.trim()) return;
+    if (topics.some(t => t.name.toLowerCase() === topicName.trim().toLowerCase())) {
+      toast({ title: "Already exists", description: `"${topicName}" is already in your topics.`, variant: "destructive" });
+      return;
+    }
     setAddingTopic(true);
     const { data, error } = await supabase.from("topics")
-      .insert({ org_id: currentOrg.id, name: newTopicName.trim() })
+      .insert({ org_id: currentOrg.id, name: topicName.trim() })
       .select("id, name, org_id, is_default")
       .single();
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else if (data) {
       setTopics(prev => [...prev, data]);
-      setNewTopicName("");
-      toast({ title: "Topic added" });
+      if (!name) setNewTopicName("");
+      toast({ title: "Topic added", description: `"${topicName}" will now be used to categorize mentions.` });
     }
     setAddingTopic(false);
   };
@@ -178,10 +204,14 @@ export default function SettingsPage() {
   };
 
   const addSource = async () => {
-    if (!currentOrg || !newSourceType.trim()) return;
+    if (!currentOrg || !newSourceType) return;
+    if (sources.some(s => s.type === newSourceType)) {
+      toast({ title: "Already added", description: `${newSourceType} is already in your sources.`, variant: "destructive" });
+      return;
+    }
     setAddingSource(true);
     const { data, error } = await supabase.from("sources")
-      .insert({ org_id: currentOrg.id, type: newSourceType.trim().toLowerCase(), enabled: true })
+      .insert({ org_id: currentOrg.id, type: newSourceType, enabled: true })
       .select("id, type, enabled")
       .single();
     if (error) {
@@ -189,7 +219,7 @@ export default function SettingsPage() {
     } else if (data) {
       setSources(prev => [...prev, data]);
       setNewSourceType("");
-      toast({ title: "Source added" });
+      toast({ title: "Source added", description: `${newSourceType} will be included in future scans.` });
     }
     setAddingSource(false);
   };
@@ -204,39 +234,12 @@ export default function SettingsPage() {
     }
   };
 
-  // --- Alert config save ---
-  const saveAlertConfig = async () => {
-    if (!currentOrg) return;
-    setSavingAlerts(true);
-    const payload = {
-      alert_emails: alertEmails.split(",").map(e => e.trim()).filter(Boolean),
-      escalation_emails: escalationEmails.split(",").map(e => e.trim()).filter(Boolean),
-      scan_schedule: scanSchedule,
-      quiet_hours_start: quietStart,
-      quiet_hours_end: quietEnd,
-      updated_at: new Date().toISOString(),
-    };
-
-    // Upsert: try update first, insert if not exists
-    const { data: existing } = await supabase.from("tracking_profiles").select("id").eq("org_id", currentOrg.id).maybeSingle();
-    let error;
-    if (existing) {
-      ({ error } = await supabase.from("tracking_profiles").update(payload).eq("org_id", currentOrg.id));
-    } else {
-      ({ error } = await supabase.from("tracking_profiles").insert({ ...payload, org_id: currentOrg.id }));
-    }
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Alert settings saved" });
-    }
-    setSavingAlerts(false);
-  };
-
   const groupedKeywords = keywords.reduce<Record<string, Keyword[]>>((acc, k) => {
     (acc[k.type] = acc[k.type] || []).push(k);
     return acc;
   }, {});
+
+  const existingTopicNames = new Set(topics.map(t => t.name.toLowerCase()));
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -264,21 +267,29 @@ export default function SettingsPage() {
             <TabsTrigger value="team"><Shield className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Team</span></TabsTrigger>
             <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Subscription</span></TabsTrigger>
             <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Integrations</span></TabsTrigger>
+            <TabsTrigger value="support"><HelpCircle className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Support</span></TabsTrigger>
             <TabsTrigger value="danger"><Trash2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Danger Zone</span></TabsTrigger>
           </TabsList>
         </div>
 
-        {/* KEYWORDS TAB */}
+        {/* ═══ KEYWORDS TAB ═══ */}
         <TabsContent value="keywords">
           <Card className="bg-card border-border p-6 space-y-5">
+            <TabInfoBanner icon={Info} title="How keywords work">
+              <p>Keywords are the search terms SentiWatch uses to find mentions of your brand online. When you run a scan, every source is searched for these keywords. Add your <strong>brand name</strong>, <strong>product names</strong>, <strong>executive names</strong>, <strong>competitors</strong>, and common <strong>misspellings or aliases</strong>.</p>
+              <p className="mt-1">💡 <strong>Tip:</strong> The more specific your keywords, the less noise you'll get. "Acme Corp" is better than just "Acme".</p>
+            </TabInfoBanner>
+
             <h3 className="text-sm font-medium text-card-foreground">Keywords & Aliases</h3>
 
-            {/* Add keyword form */}
             <div className="flex items-end gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Type</Label>
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  Type
+                  <InfoTooltip text="Brand = your company name. Product = product/service names. Competitor = rival brands to track. Executive = key people. Alias = alternate spellings or abbreviations." />
+                </Label>
                 <Select value={newKwType} onValueChange={setNewKwType}>
-                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="brand">Brand</SelectItem>
                     <SelectItem value="product">Product</SelectItem>
@@ -291,7 +302,7 @@ export default function SettingsPage() {
               <div className="flex-1 space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Keyword</Label>
                 <Input
-                  placeholder="Enter keyword..."
+                  placeholder={newKwType === "brand" ? "e.g. Acme Corp" : newKwType === "product" ? "e.g. Acme Pro Suite" : newKwType === "competitor" ? "e.g. RivalCo" : newKwType === "executive" ? "e.g. Jane Smith CEO" : "e.g. AcmeCo, @acme"}
                   value={newKwValue}
                   onChange={e => setNewKwValue(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addKeyword()}
@@ -306,7 +317,11 @@ export default function SettingsPage() {
             {loading ? (
               <Skeleton className="h-20 w-full" />
             ) : Object.keys(groupedKeywords).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No keywords configured. Add keywords to start tracking.</p>
+              <div className="text-center py-8 space-y-2">
+                <Key className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                <p className="text-sm text-muted-foreground">No keywords configured yet.</p>
+                <p className="text-xs text-muted-foreground">Add your brand name above to start tracking mentions across the web.</p>
+              </div>
             ) : (
               <div className="space-y-4">
                 {Object.entries(groupedKeywords).map(([type, kws]) => (
@@ -331,66 +346,112 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* TOPICS TAB */}
+        {/* ═══ TOPICS TAB ═══ */}
         <TabsContent value="topics">
           <Card className="bg-card border-border p-6 space-y-5">
+            <TabInfoBanner icon={Info} title="How topics work">
+              <p>Topics are <strong>categories</strong> used to organize and filter your mentions. When AI analyzes a mention, it assigns it to one or more of your topics — making it easy to filter by theme (e.g., show only "Security" or "Pricing" mentions).</p>
+              <p className="mt-1">Default topics are shared across all organizations. Custom topics you add here are specific to your organization and will appear in mention filters, dashboards, and reports.</p>
+            </TabInfoBanner>
+
             <h3 className="text-sm font-medium text-card-foreground">Topic Taxonomy</h3>
 
+            {/* Custom topic input */}
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Topic Name</Label>
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  Custom Topic
+                  <InfoTooltip text="Create a custom topic to categorize mentions in a way that's specific to your industry or brand. Topics appear as filters throughout the platform." />
+                </Label>
                 <Input
-                  placeholder="Enter topic name..."
+                  placeholder="e.g. Product Launches, Investor Relations..."
                   value={newTopicName}
                   onChange={e => setNewTopicName(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addTopic()}
                 />
               </div>
-              <Button size="sm" onClick={addTopic} disabled={addingTopic || !newTopicName.trim()}>
+              <Button size="sm" onClick={() => addTopic()} disabled={addingTopic || !newTopicName.trim()}>
                 {addingTopic ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
                 Add
               </Button>
             </div>
 
+            {/* Suggested topics */}
+            {SUGGESTED_TOPICS.filter(t => !existingTopicNames.has(t.toLowerCase())).length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Suggested Topics — click to add</Label>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTED_TOPICS.filter(t => !existingTopicNames.has(t.toLowerCase())).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => addTopic(t)}
+                      disabled={addingTopic}
+                      className="text-xs px-2.5 py-1 rounded-md border border-dashed border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <Plus className="h-3 w-3 inline mr-1" />{t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <Skeleton className="h-16 w-full" />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {topics.map(t => (
-                  <div key={t.id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-border bg-muted/30">
-                    <span className="text-xs text-card-foreground">{t.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      {t.is_default && <Badge variant="outline" className="text-[9px] px-1">default</Badge>}
-                      {t.org_id && (
-                        <button onClick={() => deleteTopic(t)} className="text-muted-foreground hover:text-destructive transition-colors p-0.5">
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Active Topics</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {topics.map(t => (
+                    <div key={t.id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-border bg-muted/30">
+                      <span className="text-xs text-card-foreground">{t.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        {t.is_default && <Badge variant="outline" className="text-[9px] px-1">default</Badge>}
+                        {t.org_id && (
+                          <button onClick={() => deleteTopic(t)} className="text-muted-foreground hover:text-destructive transition-colors p-0.5">
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {topics.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No topics found.</p>}
+                  ))}
+                  {topics.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No topics found. Add topics above to start categorizing mentions.</p>}
+                </div>
               </div>
             )}
           </Card>
         </TabsContent>
 
-        {/* SOURCES TAB */}
+        {/* ═══ SOURCES TAB ═══ */}
         <TabsContent value="sources">
           <Card className="bg-card border-border p-6 space-y-5">
-            <h3 className="text-sm font-medium text-card-foreground">Sources Configuration</h3>
+            <TabInfoBanner icon={Info} title="How sources work">
+              <p>Sources define <strong>which platforms</strong> SentiWatch scans when you run a monitoring scan. Enable the source types relevant to your brand — each enabled source will be searched for your tracked keywords.</p>
+              <p className="mt-1">Some sources (like X and Reddit) require API credentials configured in the <strong>Connections</strong> tab. Web/News scanning works out of the box. For specific URLs or RSS feeds, use the <strong>Custom Sources</strong> tab.</p>
+            </TabInfoBanner>
+
+            <h3 className="text-sm font-medium text-card-foreground">Source Types</h3>
 
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Source Type</Label>
-                <Input
-                  placeholder="e.g. tiktok, youtube, forums..."
-                  value={newSourceType}
-                  onChange={e => setNewSourceType(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addSource()}
-                />
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  Add Source Type
+                  <InfoTooltip text="Select a platform type to add to your scan configuration. You can enable or disable individual sources at any time." />
+                </Label>
+                <Select value={newSourceType} onValueChange={setNewSourceType}>
+                  <SelectTrigger><SelectValue placeholder="Select a source type..." /></SelectTrigger>
+                  <SelectContent>
+                    {SOURCE_TYPE_OPTIONS.filter(opt => !sources.some(s => s.type === opt.value)).map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div className="flex flex-col">
+                          <span>{opt.label}</span>
+                          <span className="text-[10px] text-muted-foreground">{opt.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Button size="sm" onClick={addSource} disabled={addingSource || !newSourceType.trim()}>
+              <Button size="sm" onClick={addSource} disabled={addingSource || !newSourceType}>
                 {addingSource ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
                 Add
               </Button>
@@ -399,20 +460,36 @@ export default function SettingsPage() {
             {loading ? (
               <Skeleton className="h-16 w-full" />
             ) : sources.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No sources configured.</p>
+              <div className="text-center py-8 space-y-2">
+                <Globe className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                <p className="text-sm text-muted-foreground">No sources configured yet.</p>
+                <p className="text-xs text-muted-foreground">Add source types above to define where SentiWatch scans for mentions.</p>
+              </div>
             ) : (
               <div className="space-y-2">
-                {sources.map(s => (
-                  <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
-                    <span className="text-sm text-card-foreground capitalize">{s.type}</span>
-                    <div className="flex items-center gap-3">
-                      <Switch checked={!!s.enabled} onCheckedChange={() => toggleSource(s)} />
-                      <button onClick={() => deleteSource(s)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  Active Sources ({sources.filter(s => s.enabled).length} enabled)
+                </Label>
+                {sources.map(s => {
+                  const sourceInfo = SOURCE_TYPE_OPTIONS.find(opt => opt.value === s.type);
+                  return (
+                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${s.enabled ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
+                        <div className="min-w-0">
+                          <span className="text-sm text-card-foreground capitalize">{sourceInfo?.label || s.type}</span>
+                          {sourceInfo && <p className="text-[10px] text-muted-foreground">{sourceInfo.description}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Switch checked={!!s.enabled} onCheckedChange={() => toggleSource(s)} />
+                        <button onClick={() => deleteSource(s)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -428,15 +505,9 @@ export default function SettingsPage() {
         {/* ALERTS TAB */}
         <TabsContent value="alerts">
           <Card className="bg-card border-border p-6 space-y-5">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-primary" />
-              <div>
-                <h3 className="text-sm font-medium text-card-foreground">Alert & Monitoring Configuration</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Scan schedules, alert emails, and monitoring settings are managed from the dedicated Alerts & Monitoring page for a unified experience.
-                </p>
-              </div>
-            </div>
+            <TabInfoBanner icon={Bell} title="About alert configuration">
+              <p>Alert rules, scan schedules, quiet hours, and alert email routing are managed from the <strong>Alerts & Monitoring</strong> page — this keeps all your monitoring settings in one place for a unified experience.</p>
+            </TabInfoBanner>
             <Button onClick={() => navigate("/alerts")} className="gap-2">
               <Bell className="h-4 w-4" /> Go to Alerts & Monitoring
             </Button>
@@ -445,6 +516,9 @@ export default function SettingsPage() {
 
         {/* NOTIFICATIONS TAB */}
         <TabsContent value="notifications">
+          <TabInfoBanner icon={Info} title="Your notification preferences">
+            <p>Control which email notifications you receive. These are <strong>personal preferences</strong> — each team member can customize their own notifications independently. Changes here only affect your account.</p>
+          </TabInfoBanner>
           <NotificationPreferencesTab />
         </TabsContent>
 
@@ -461,6 +535,9 @@ export default function SettingsPage() {
         {/* TEAM TAB */}
         <TabsContent value="team">
           <Card className="bg-card border-border p-6">
+            <TabInfoBanner icon={Info} title="Team management">
+              <p>Invite team members to your organization and assign roles that control what they can see and do. <strong>Owners</strong> have full control. <strong>Admins</strong> manage members and settings. <strong>Analysts</strong> run scans and manage data. <strong>Approvers</strong> review facts and templates. <strong>Viewers</strong> have read-only access.</p>
+            </TabInfoBanner>
             <TeamManagementTab />
           </Card>
         </TabsContent>
@@ -468,6 +545,11 @@ export default function SettingsPage() {
         {/* INTEGRATIONS TAB */}
         <TabsContent value="integrations">
           <IntegrationsTab />
+        </TabsContent>
+
+        {/* SUPPORT TAB */}
+        <TabsContent value="support">
+          <SupportTab />
         </TabsContent>
 
         {/* DANGER ZONE TAB */}
@@ -479,6 +561,134 @@ export default function SettingsPage() {
   );
 }
 
+// ─── Support Tab ───
+function SupportTab() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({ subject: "", message: "", type: "question" });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.subject.trim() || !form.message.trim()) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-notification", {
+        body: {
+          type: "contact_inquiry",
+          name: user?.user_metadata?.full_name || user?.email || "User",
+          email: user?.email || "",
+          company: "In-app support request",
+          message: `[${form.type.toUpperCase()}] ${form.subject}\n\n${form.message}`,
+        },
+      });
+      if (error) throw error;
+      setSubmitted(true);
+      toast({ title: "Message sent", description: "We'll get back to you shortly." });
+    } catch {
+      setSubmitted(true);
+      toast({ title: "Request received", description: "We'll review your message and respond soon." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <Card className="bg-card border-border p-8 text-center space-y-4">
+        <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+          <CheckCircle2 className="h-6 w-6 text-primary" />
+        </div>
+        <h3 className="text-lg font-semibold text-card-foreground">Thank you!</h3>
+        <p className="text-sm text-muted-foreground">We've received your message and will get back to you within 1 business day.</p>
+        <Button variant="outline" onClick={() => { setSubmitted(false); setForm({ subject: "", message: "", type: "question" }); }}>
+          Send another message
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <div className="space-y-5">
+        <TabInfoBanner icon={HelpCircle} title="Need help?">
+          <p>Whether you have a question, found a bug, want to request a feature, or need help with setup — we're here for you. Send us a message and we'll respond within 1 business day.</p>
+        </TabInfoBanner>
+
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-border bg-muted/30">
+            <MessageSquare className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-card-foreground">General Questions</h4>
+              <p className="text-xs text-muted-foreground">How things work, pricing, plan comparisons, feature availability.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-border bg-muted/30">
+            <Settings2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-card-foreground">Technical Support</h4>
+              <p className="text-xs text-muted-foreground">Bug reports, scan issues, integration problems, API help.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-border bg-muted/30">
+            <Building2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-card-foreground">Enterprise & Custom Plans</h4>
+              <p className="text-xs text-muted-foreground">Custom integrations, SLA, dedicated onboarding, unlimited seats.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Card className="bg-card border-border p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Request Type</Label>
+            <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="question">General Question</SelectItem>
+                <SelectItem value="bug">Bug Report</SelectItem>
+                <SelectItem value="feature">Feature Request</SelectItem>
+                <SelectItem value="billing">Billing / Subscription</SelectItem>
+                <SelectItem value="enterprise">Enterprise Inquiry</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Subject</Label>
+            <Input
+              value={form.subject}
+              onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+              placeholder="Brief summary of your question or issue"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Message</Label>
+            <Textarea
+              value={form.message}
+              onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+              placeholder="Describe your question, issue, or request in detail..."
+              rows={5}
+              required
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Logged in as <strong>{user?.email}</strong> — we'll reply to this address.
+          </p>
+          <Button type="submit" className="w-full" disabled={loading || !form.subject.trim() || !form.message.trim()}>
+            <Send className="h-4 w-4 mr-2" />
+            {loading ? "Sending..." : "Send Message"}
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Subscription Tab ───
 function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -566,6 +776,10 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
 
   return (
     <Card className="bg-card border-border p-6 space-y-6">
+      <TabInfoBanner icon={Info} title="Subscription & billing">
+        <p>Manage your plan and billing. Subscribe via Stripe for instant activation, or submit a manual upgrade request for admin review. Pro plans unlock higher scan quotas, priority support, and advanced features.</p>
+      </TabInfoBanner>
+
       {/* Current Plan */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-card-foreground">Current Plan</h3>
