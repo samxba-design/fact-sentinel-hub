@@ -4,17 +4,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Key, Layers, Network, Users, Globe, Bell, Link2, Plus } from "lucide-react";
+import { Key, Layers, Network, Users, Globe, Bell, Link2, Plus, Database, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
-  const { currentOrg } = useOrg();
+  const { currentOrg, refetchOrgs } = useOrg();
+  const { toast } = useToast();
   const [keywords, setKeywords] = useState<{ type: string; value: string }[]>([]);
   const [topics, setTopics] = useState<{ name: string }[]>([]);
   const [sources, setSources] = useState<{ type: string; enabled: boolean | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+
+  const handleSeedDemo = async () => {
+    setSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("seed-demo");
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Demo data seeded!", description: `${data.mentions_created} mentions created` });
+      await refetchOrgs();
+      // Refresh settings data
+      if (currentOrg) {
+        const [kw, tp, sr] = await Promise.all([
+          supabase.from("keywords").select("type, value").eq("org_id", currentOrg.id).order("type"),
+          supabase.from("topics").select("name").or(`org_id.eq.${currentOrg.id},org_id.is.null`).order("name"),
+          supabase.from("sources").select("type, enabled").eq("org_id", currentOrg.id),
+        ]);
+        setKeywords(kw.data || []);
+        setTopics(tp.data || []);
+        setSources(sr.data || []);
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -38,9 +67,15 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Tracking profile and organization settings</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Tracking profile and organization settings</p>
+        </div>
+        <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
+          {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+          {seeding ? "Seeding..." : "Seed Demo Data"}
+        </Button>
       </div>
 
       <Tabs defaultValue="keywords" className="space-y-4">
