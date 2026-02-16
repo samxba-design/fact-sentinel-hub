@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
@@ -16,6 +17,7 @@ interface SparkData {
 
 export default function SentimentSparklines() {
   const { currentOrg } = useOrg();
+  const navigate = useNavigate();
   const [sparks, setSparks] = useState<SparkData[]>([]);
 
   useEffect(() => {
@@ -84,7 +86,11 @@ export default function SentimentSparklines() {
         {sparks.map((s) => {
           const Icon = TrendIcon[s.trend];
           return (
-            <div key={s.label} className="space-y-2">
+            <div
+              key={s.label}
+              className="space-y-2 cursor-pointer hover:bg-muted/30 rounded-lg p-2 -m-2 transition-colors"
+              onClick={() => navigate(`/mentions?sentiment=${s.label}&days=30`)}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-xs capitalize text-muted-foreground">{s.label}</span>
                 <div className="flex items-center gap-1">
