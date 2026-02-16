@@ -163,8 +163,17 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) throw new Error("Unauthorized");
 
-    const { org_id, keywords, sources, date_from, date_to, review_urls } = await req.json();
+    const { org_id, keywords, sources, date_from, date_to, review_urls, sentiment_filter } = await req.json();
     if (!org_id) throw new Error("org_id required");
+
+    // Get org domain to filter out self-published content
+    const { data: orgData } = await supabase
+      .from("organizations")
+      .select("domain, name")
+      .eq("id", org_id)
+      .single();
+    const orgDomain = orgData?.domain?.toLowerCase() || "";
+    const orgName = orgData?.name?.toLowerCase() || "";
 
     // Verify membership
     const { data: membership } = await supabase
@@ -177,7 +186,7 @@ Deno.serve(async (req) => {
     if (!membership) throw new Error("Not a member of this org");
 
     // Create scan_run
-    const configSnapshot = { keywords, sources, date_from, date_to };
+    const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter };
     const { data: scanRun, error: scanErr } = await supabase
       .from("scan_runs")
       .insert({
@@ -361,6 +370,13 @@ Deno.serve(async (req) => {
         console.log("Filtering out non-substantive content:", r.url);
         continue;
       }
+      // Filter out self-published content (from the org's own domain)
+      const urlLower = (r.url || "").toLowerCase();
+      if (orgDomain && urlLower.includes(orgDomain)) {
+        console.log("Filtering out self-published content from org domain:", r.url);
+        continue;
+      }
+
       const correctedSource = classifySource(r.url || "", r.source);
       cleanedResults.push({ ...r, content: cleaned.slice(0, 800), source: correctedSource });
     }
@@ -390,7 +406,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Use AI to analyze sentiment and severity of real results
+    // Use AI to analyze sentiment, severity, AND generate clean summaries
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -403,28 +419,29 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a sentiment analysis engine specializing in reputation threat detection. Analyze each mention and return structured data.
-For each mention, determine:
+            content: `You are a reputation intelligence engine. For each mention, analyze AND rewrite the content.
+
+For each mention, return:
+- clean_summary: A clear 2-4 sentence summary of WHAT the article/post actually says. Focus on claims, facts, and opinions. NEVER include navigation text, cookie notices, ticker data, website UI elements, or boilerplate. If the raw text is mostly junk/navigation, write "Unable to extract meaningful content from this source."
 - sentiment_label: "positive", "negative", "neutral", or "mixed"
 - sentiment_score: number between -1 (very negative) and 1 (very positive)
 - sentiment_confidence: number between 0 and 1
 - severity: "low", "medium", "high", or "critical" based on reputational risk
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
 
-IMPORTANT for coordinated/bot detection:
-- Set coordinated=true if multiple mentions share near-identical phrasing, appear to push the same narrative simultaneously, or show signs of an organized campaign
-- Set bot_likely=true if the content appears auto-generated, uses suspicious patterns, or the author seems non-human
-- Set viral_potential=true if the content has high engagement potential or emotional charge
+CRITICAL rules for coordinated/bot detection:
+- coordinated=true ONLY if mentions from DIFFERENT authors/domains share near-identical phrasing suggesting an organized campaign
+- Do NOT flag multiple articles from the same website/news outlet as coordinated — that's just one source publishing multiple articles
+- bot_likely=true only if the content appears auto-generated or the author seems non-human
+- viral_potential=true if the content has high engagement potential or emotional charge
 
-Return a JSON array matching the input order:
-{ "analyses": [ { "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
-
+Return JSON: { "analyses": [ { "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
           },
           {
             role: "user",
             content: `Analyze these ${cleanedResults.length} mentions:\n${JSON.stringify(
-              cleanedResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 300) }))
+              cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 500) }))
             )}`,
           },
         ],
@@ -444,14 +461,32 @@ Return ONLY valid JSON, no markdown.`,
       }
     }
 
-    // Insert mentions with real data + AI analysis
-    const mentionRows = cleanedResults.map((r, i) => {
-      const analysis = analyses[i] || {};
+    // Filter by sentiment if requested, then insert mentions
+    let filteredResults = cleanedResults.map((r, i) => ({ result: r, analysis: analyses[i] || {} }));
+    
+    if (sentiment_filter && sentiment_filter !== "all") {
+      filteredResults = filteredResults.filter(({ analysis }) => {
+        const label = analysis.sentiment_label || "neutral";
+        if (sentiment_filter === "negative") return label === "negative" || label === "mixed";
+        if (sentiment_filter === "positive") return label === "positive";
+        return true;
+      });
+    }
+
+    // Filter out mentions where AI couldn't extract meaningful content
+    filteredResults = filteredResults.filter(({ analysis }) => {
+      const summary = analysis.clean_summary || "";
+      return !summary.toLowerCase().includes("unable to extract meaningful content");
+    });
+
+    const mentionRows = filteredResults.map(({ result: r, analysis }) => {
+      // Use AI-generated clean summary instead of raw scraped text
+      const cleanSummary = analysis.clean_summary || r.content || "";
       return {
         org_id,
         scan_run_id: scanRun.id,
         source: r.source || "unknown",
-        content: r.content || "",
+        content: cleanSummary,
         author_name: r.author_name || null,
         author_handle: r.author_handle || null,
         author_verified: r.author_verified || false,
@@ -469,6 +504,31 @@ Return ONLY valid JSON, no markdown.`,
         owner_user_id: user.id,
       };
     });
+
+    if (mentionRows.length === 0) {
+      await supabase
+        .from("scan_runs")
+        .update({
+          status: "completed",
+          finished_at: new Date().toISOString(),
+          total_mentions: 0,
+          negative_pct: 0,
+          emergencies_count: 0,
+        })
+        .eq("id", scanRun.id);
+
+      return new Response(
+        JSON.stringify({
+          scan_run_id: scanRun.id,
+          mentions_created: 0,
+          negative_pct: 0,
+          emergencies: 0,
+          errors,
+          message: sentiment_filter ? `No ${sentiment_filter} mentions found in results` : "No quality results found after AI filtering",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { data: insertedMentions, error: insertErr } = await supabase.from("mentions").insert(mentionRows).select("id");
     if (insertErr) throw insertErr;
@@ -502,8 +562,8 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
             },
             {
               role: "user",
-              content: `Cluster these ${cleanedResults.length} mentions into narrative themes:\n${JSON.stringify(
-                cleanedResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 200) }))
+              content: `Cluster these ${filteredResults.length} mentions into narrative themes:\n${JSON.stringify(
+                filteredResults.map(({ result: r, analysis }, i) => ({ index: i, source: r.source, content: (analysis.clean_summary || r.content)?.slice(0, 200) }))
               )}`,
             },
           ],
