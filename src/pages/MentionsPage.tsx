@@ -522,6 +522,12 @@ export default function MentionsPage() {
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
+                        onClick={() => navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`)}
+                      >
+                        <User2 className="h-3.5 w-3.5 mr-2" /> Track author in People
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
                         onClick={() => ignoreSource(getDomain(m.url), `Blocked from mention card`)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -530,15 +536,17 @@ export default function MentionsPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                <span
-                  className="text-xs text-primary hover:underline cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`);
-                  }}
-                >
-                  {m.author_name || m.author_handle || "Unknown"}
-                </span>
+                {/* Only show author name separately if it differs from the domain */}
+                {(() => {
+                  const authorDisplay = m.author_name || m.author_handle || "Unknown";
+                  const domain = getDomain(m.url);
+                  if (authorDisplay.toLowerCase() === domain.toLowerCase()) return null;
+                  return (
+                    <span className="text-xs text-card-foreground font-medium">
+                      {authorDisplay}
+                    </span>
+                  );
+                })()}
                 {/* Published date */}
                 {m.posted_at ? (
                   <span className="text-xs text-foreground/80 font-medium flex items-center gap-1" title={`Published: ${format(new Date(m.posted_at), "PPp")}`}>

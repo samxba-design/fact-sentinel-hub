@@ -50,11 +50,17 @@ export default function Index() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeSwitcher />
+            <Link to="/features">
+              <Button variant="ghost" size="sm">Features</Button>
+            </Link>
+            <Link to="/pricing">
+              <Button variant="ghost" size="sm">Pricing</Button>
+            </Link>
             <Link to="/auth">
               <Button variant="ghost" size="sm">Sign in</Button>
             </Link>
-            <Link to="/auth">
-              <Button size="sm">Get started</Button>
+            <Link to="/contact">
+              <Button size="sm">Request demo</Button>
             </Link>
           </div>
         </div>
@@ -79,14 +85,14 @@ export default function Index() {
               to protect your organization's reputation across every channel.
             </p>
             <div className="flex items-center justify-center gap-3 pt-2">
-              <Link to="/auth">
+              <Link to="/contact">
                 <Button size="lg" className="text-base px-8">
-                  Start free trial
+                  Request a demo
                 </Button>
               </Link>
-              <Link to="/pricing">
+              <Link to="/features">
                 <Button variant="outline" size="lg" className="text-base px-8">
-                  View pricing
+                  Explore features
                 </Button>
               </Link>
             </div>
@@ -127,8 +133,8 @@ export default function Index() {
           <p className="text-muted-foreground max-w-lg mx-auto">
             Join teams that trust SentiWatch to monitor, analyze, and respond to reputation risks in real time.
           </p>
-          <Link to="/auth">
-            <Button size="lg" className="text-base px-10">Get started today</Button>
+          <Link to="/contact">
+            <Button size="lg" className="text-base px-10">Get in touch</Button>
           </Link>
         </div>
       </section>

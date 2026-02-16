@@ -168,13 +168,16 @@ export default function NarrativeDetailPage() {
 
           {(narrative.example_phrases?.length ?? 0) > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-                <Quote className="h-3.5 w-3.5" /> Example Phrases
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Quote className="h-3.5 w-3.5" /> Trigger Phrases
               </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                These are phrases detected in mentions that signal this narrative is present. When SentiWatch finds content containing these patterns, it links the mention to this narrative thread.
+              </p>
               <div className="space-y-2">
                 {narrative.example_phrases!.map((phrase, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-muted/50 border border-border text-sm text-card-foreground italic">
-                    "{phrase}"
+                  <div key={i} className="p-3 rounded-lg bg-muted/50 border border-border text-sm text-card-foreground">
+                    <span className="italic">"{phrase}"</span>
                   </div>
                 ))}
               </div>
