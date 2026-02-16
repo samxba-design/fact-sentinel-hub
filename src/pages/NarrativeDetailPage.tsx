@@ -19,6 +19,7 @@ import {
   TrendingUp, Shield, Calendar, Gauge
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import InfoTooltip from "@/components/InfoTooltip";
 import { formatDistanceToNow } from "date-fns";
 
 interface Narrative {
@@ -189,7 +190,10 @@ export default function NarrativeDetailPage() {
         <div className="space-y-4">
           <Card className="bg-card border-border p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5"><Gauge className="h-3.5 w-3.5" /> Confidence</span>
+              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Gauge className="h-3.5 w-3.5" /> Confidence
+                <InfoTooltip text="How certain the AI is that this is a real, coherent narrative — based on phrase similarity, source diversity, and temporal clustering. 70%+ = strong, 40-69% = emerging, below 40% = weak signal." />
+              </span>
               <span className={`text-2xl font-bold font-mono ${confidenceColor}`}>
                 {confidencePct != null ? `${confidencePct}%` : "—"}
               </span>

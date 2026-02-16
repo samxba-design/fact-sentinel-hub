@@ -534,7 +534,7 @@ export default function MentionDetailPage() {
                 {mention.sentiment_label || "neutral"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${(Number(mention.sentiment_confidence) * 100).toFixed(0)}%` : "—"}
+                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${(Number(mention.sentiment_confidence) > 1 ? Number(mention.sentiment_confidence).toFixed(0) : (Number(mention.sentiment_confidence) * 100).toFixed(0))}%` : "—"}
               </div>
             </div>
           </div>

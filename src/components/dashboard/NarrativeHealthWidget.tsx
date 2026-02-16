@@ -128,7 +128,7 @@ export default function NarrativeHealthWidget() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground font-mono">{n.mention_count} mentions</span>
                     {n.confidence != null && (
-                      <span className="text-[10px] text-muted-foreground">· {Math.round(n.confidence * 100)}% confidence</span>
+                      <span className="text-[10px] text-muted-foreground">· {Number(n.confidence) > 1 ? Math.round(Number(n.confidence)) : Math.round(Number(n.confidence) * 100)}% confidence</span>
                     )}
                   </div>
                 </div>
