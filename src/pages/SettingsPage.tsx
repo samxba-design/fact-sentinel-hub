@@ -98,29 +98,29 @@ const SOURCE_TYPE_OPTIONS: SourceTypeOption[] = [
     "Generate API Key, API Secret, Access Token, and Access Token Secret",
     "Add all four in Settings → Connections"
   ], apiKeyName: "TWITTER_BEARER_TOKEN", fallbackNote: "Without API credentials, uses web search — catches some tweets but misses replies, threads, and real-time mentions." },
-  { value: "linkedin", label: "LinkedIn", description: "Posts, articles, and company mentions", tier: "manual", tierLabel: "Manual Import", setupNote: "LinkedIn actively blocks all automated scraping and has no public search API. The only way to monitor LinkedIn is to browse it yourself and import what you find.", setupSteps: [
+  { value: "linkedin", label: "LinkedIn", description: "Posts, articles, and company mentions", tier: "manual", tierLabel: "Manual Import", setupNote: "LinkedIn blocks automated scraping and has no public search API. Monitor LinkedIn manually and use 'Add Mention' to import — paste a public LinkedIn URL and our AI will attempt to extract what it can, or paste content directly.", setupSteps: [
     "Search LinkedIn for your brand name or monitor your company page",
-    "When you find a relevant post or article, copy the text content",
-    "Go to Mentions → Import Mention and paste it",
-    "AI will automatically analyze sentiment, extract claims, and categorize it"
+    "When you find a relevant post, copy the URL or text content",
+    "Go to Mentions → Add Mention → paste the URL (AI will try to extract public content)",
+    "If the URL is login-gated, switch to manual mode and paste the text directly"
   ] },
-  { value: "tiktok", label: "TikTok", description: "Video mentions and comments", tier: "manual", tierLabel: "Manual Import", setupNote: "TikTok has no public content search API. Video content also can't be scraped. Browse TikTok manually and import mentions you discover.", setupSteps: [
+  { value: "tiktok", label: "TikTok", description: "Video mentions and comments", tier: "manual", tierLabel: "Manual Import", setupNote: "TikTok has no public content search API and video content can't be scraped automatically. Browse TikTok manually and import mentions you discover.", setupSteps: [
     "Search TikTok for your brand name or hashtags",
     "Copy the video URL and/or transcribe relevant content",
-    "Go to Mentions → Import Mention to add it",
+    "Go to Mentions → Add Mention and paste the content",
     "Include the video URL so it's linked for reference"
   ] },
-  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord content is only accessible within servers you belong to. There's no public search. Export or copy relevant discussions manually.", setupSteps: [
+  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord content is only accessible within servers you belong to. There's no public search or API for monitoring. Copy relevant discussions manually.", setupSteps: [
     "Monitor relevant Discord servers you've joined",
     "Copy message content or use a Discord export tool (e.g. DiscordChatExporter)",
-    "Go to Mentions → Import Mention to add relevant discussions",
-    "For automated alerts, consider setting up a Discord webhook in Integrations"
+    "Go to Mentions → Add Mention to import relevant discussions",
+    "For automated alerts from Discord, set up a webhook in Integrations"
   ] },
-  { value: "facebook", label: "Facebook", description: "Page posts, comments, and group discussions", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook requires authentication to view most content and blocks automated scraping. Their API requires an approved Facebook App with business verification — not practical for monitoring. Browse Facebook manually and import what you find.", setupSteps: [
+  { value: "facebook", label: "Facebook", description: "Page posts, comments, and group discussions", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook requires login to view most content and blocks all automated scraping. Their API requires a Meta-approved app with business verification — not practical for monitoring. Use 'Add Mention' to import: paste a public Facebook URL (AI will attempt extraction) or paste content directly.", setupSteps: [
     "Log into Facebook and search for your brand name",
     "Check your company page mentions, relevant groups, and public posts",
-    "Copy the post content or screenshot it",
-    "Go to Mentions → Import Mention to add it manually"
+    "Go to Mentions → Add Mention → paste the post URL (works for public posts)",
+    "If the post is login-gated, switch to manual mode and paste the text content instead"
   ] },
 ];
 // ─── Source Tier Badge ───
