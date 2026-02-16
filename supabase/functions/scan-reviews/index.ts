@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
               author_name: (() => {
                 try { return new URL(url).hostname.replace("www.", ""); } catch { return platform; }
               })(),
-              posted_at: new Date().toISOString(),
+              posted_at: null,
               metrics: {},
             });
           }
@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
               author_name: (() => {
                 try { return new URL(url).hostname.replace("www.", ""); } catch { return platform; }
               })(),
-              posted_at: new Date().toISOString(),
+              posted_at: null,
               metrics: {},
             });
           }

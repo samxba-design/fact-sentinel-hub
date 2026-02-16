@@ -128,7 +128,7 @@ export default function MentionsPage() {
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
-      .order("posted_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(200);
 
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
@@ -363,9 +363,11 @@ export default function MentionsPage() {
     if (!dateStr) return "";
     const diff = Date.now() - new Date(dateStr).getTime();
     const hours = Math.floor(diff / 3600000);
-    if (hours < 1) return `${Math.floor(diff / 60000)}m ago`;
+    if (hours < 1) return `${Math.max(1, Math.floor(diff / 60000))}m ago`;
     if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return format(new Date(dateStr), "MMM d, yyyy");
   };
 
   const clearScanFilter = () => {
@@ -398,7 +400,7 @@ export default function MentionsPage() {
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
-      .order("posted_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(200);
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
     if (daysParam) {
@@ -454,9 +456,11 @@ export default function MentionsPage() {
     const mStatus = m.status || "new";
     const statusInfo = statusLabels[mStatus];
     const isSelected = selected.has(m.id);
-    const postedDate = m.posted_at ? format(new Date(m.posted_at), "MMM d, yyyy") : null;
-    const detectedDate = m.created_at ? format(new Date(m.created_at), "MMM d, yyyy") : null;
-    const sameDay = postedDate === detectedDate;
+    
+    // Determine if posted_at is a real publish date or just the scan time
+    // If posted_at is null or within 60s of created_at, it's unknown
+    const hasRealPostDate = m.posted_at && m.created_at && 
+      Math.abs(new Date(m.posted_at).getTime() - new Date(m.created_at).getTime()) > 60000;
 
     return (
       <Card
@@ -495,20 +499,17 @@ export default function MentionsPage() {
                 >
                   {m.author_name || m.author_handle || "Unknown"}
                 </span>
-                {/* Dual timestamp: posted vs detected */}
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <CalendarClock className="h-3 w-3" />
-                  {m.posted_at ? (
-                    <span title={`Originally posted: ${format(new Date(m.posted_at), "PPp")}`}>
-                      Posted {timeAgo(m.posted_at)}
-                    </span>
-                  ) : "Unknown date"}
-                </span>
-                {!sameDay && detectedDate && (
-                  <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5" title={`Detected by scan: ${format(new Date(m.created_at!), "PPp")}`}>
-                    <Eye className="h-2.5 w-2.5" /> Detected {timeAgo(m.created_at)}
+                {/* Published date - only show if we have a real publish date */}
+                {hasRealPostDate && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1" title={`Published: ${format(new Date(m.posted_at!), "PPp")}`}>
+                    <CalendarClock className="h-3 w-3" />
+                    Published {format(new Date(m.posted_at!), "MMM d, yyyy")}
                   </span>
                 )}
+                {/* Detected date - always show */}
+                <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5" title={m.created_at ? `Detected: ${format(new Date(m.created_at), "PPp")}` : undefined}>
+                  <Eye className="h-2.5 w-2.5" /> Detected {timeAgo(m.created_at)}
+                </span>
                 {flags.emergency && (
                   <Badge className="bg-sentinel-red/10 text-sentinel-red border-sentinel-red/30 text-[10px]">
                     <AlertTriangle className="h-3 w-3 mr-1" />Emergency

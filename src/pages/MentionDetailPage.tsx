@@ -13,7 +13,7 @@ import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
-  Trash2, Sparkles, Loader2, AlertCircle, Ban,
+  Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -461,9 +461,30 @@ export default function MentionDetailPage() {
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
-            {mention.posted_at && (
-              <span>{format(new Date(mention.posted_at), "MMM d, yyyy 'at' h:mm a")}</span>
-            )}
+            {(() => {
+              // Show real publish date only if it differs from created_at by >60s
+              const hasRealPostDate = mention.posted_at && mention.created_at &&
+                Math.abs(new Date(mention.posted_at).getTime() - new Date(mention.created_at).getTime()) > 60000;
+              return (
+                <>
+                  {hasRealPostDate && (
+                    <span className="flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3" />
+                      Published {format(new Date(mention.posted_at!), "MMM d, yyyy 'at' h:mm a")}
+                    </span>
+                  )}
+                  {!hasRealPostDate && (
+                    <span className="text-muted-foreground/60 italic">Publish date unknown</span>
+                  )}
+                  {mention.created_at && (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">
+                      <Eye className="h-3 w-3" />
+                      Detected {format(new Date(mention.created_at), "MMM d, yyyy 'at' h:mm a")}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
             {mention.language && (
               <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{mention.language.toUpperCase()}</span>
             )}

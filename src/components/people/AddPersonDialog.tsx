@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, UserPlus, Users, Search } from "lucide-react";
+import { Loader2, UserPlus, Users, Search, Building2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,14 @@ interface OrgMember {
   profile: { full_name: string | null; email: string | null } | null;
 }
 
+interface InternalContact {
+  id: string;
+  name: string;
+  email: string | null;
+  role_title: string | null;
+  department: string | null;
+}
+
 const TIERS = [
   { value: "executive", label: "Executive", desc: "C-suite, board members" },
   { value: "spokesperson", label: "Spokesperson", desc: "Official public representatives" },
@@ -36,7 +44,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
   const { currentOrg } = useOrg();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<"new" | "existing">("new");
+  const [tab, setTab] = useState<"new" | "team">("new");
 
   // New person fields
   const [name, setName] = useState("");
@@ -45,40 +53,103 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
   const [twitterHandle, setTwitterHandle] = useState("");
   const [linkedinHandle, setLinkedinHandle] = useState("");
 
-  // Existing members
+  // Unified search across team members + internal contacts
   const [members, setMembers] = useState<OrgMember[]>([]);
-  const [memberSearch, setMemberSearch] = useState("");
-  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [contacts, setContacts] = useState<InternalContact[]>([]);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [loadingTeam, setLoadingTeam] = useState(false);
+  const [alreadyTracked, setAlreadyTracked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open || !currentOrg) return;
     setName(""); setTitle(""); setTier("other"); setTwitterHandle(""); setLinkedinHandle("");
+    setTeamSearch("");
+    setLoadingTeam(true);
 
-    // Load org members
-    setLoadingMembers(true);
-    supabase
-      .from("org_memberships")
-      .select("user_id, role")
-      .eq("org_id", currentOrg.id)
-      .not("accepted_at", "is", null)
-      .then(async ({ data }) => {
-        if (!data || data.length === 0) { setMembers([]); setLoadingMembers(false); return; }
+    // Load org members, internal contacts, and already-tracked people in parallel
+    Promise.all([
+      supabase
+        .from("org_memberships")
+        .select("user_id, role")
+        .eq("org_id", currentOrg.id)
+        .not("accepted_at", "is", null),
+      supabase
+        .from("internal_contacts")
+        .select("id, name, email, role_title, department")
+        .eq("org_id", currentOrg.id),
+      supabase
+        .from("org_people")
+        .select("person_id, people(name)")
+        .eq("org_id", currentOrg.id),
+    ]).then(async ([membersRes, contactsRes, trackedRes]) => {
+      // Resolve member profiles
+      const memberData = membersRes.data || [];
+      if (memberData.length > 0) {
         const profileRes = await supabase
           .from("profiles")
           .select("id, full_name, email")
-          .in("id", data.map(d => d.user_id));
+          .in("id", memberData.map(d => d.user_id));
         const profiles = profileRes.data || [];
-        setMembers(data.map(d => ({
+        setMembers(memberData.map(d => ({
           user_id: d.user_id,
           role: d.role,
           profile: profiles.find(p => p.id === d.user_id) || null,
         })));
-        setLoadingMembers(false);
-      });
+      } else {
+        setMembers([]);
+      }
+
+      setContacts((contactsRes.data || []) as InternalContact[]);
+
+      // Track names of already-monitored people to prevent duplicates
+      const tracked = new Set<string>();
+      for (const t of (trackedRes.data || [])) {
+        const personName = (t as any).people?.name?.toLowerCase();
+        if (personName) tracked.add(personName);
+      }
+      setAlreadyTracked(tracked);
+      setLoadingTeam(false);
+    });
   }, [open, currentOrg]);
+
+  // Name typeahead suggestions from team members + contacts
+  const nameSuggestions = (() => {
+    if (tab !== "new" || name.length < 2) return [];
+    const q = name.toLowerCase();
+    const suggestions: { label: string; subtitle: string; name: string; title?: string }[] = [];
+    
+    for (const m of members) {
+      const n = m.profile?.full_name;
+      if (n && n.toLowerCase().includes(q)) {
+        suggestions.push({
+          label: n,
+          subtitle: `${m.role} · ${m.profile?.email || ""}`,
+          name: n,
+        });
+      }
+    }
+    for (const c of contacts) {
+      if (c.name.toLowerCase().includes(q)) {
+        suggestions.push({
+          label: c.name,
+          subtitle: [c.role_title, c.department].filter(Boolean).join(" · ") || c.email || "",
+          name: c.name,
+          title: c.role_title || undefined,
+        });
+      }
+    }
+    return suggestions.slice(0, 5);
+  })();
 
   const handleAddNew = async () => {
     if (!currentOrg || !name.trim()) return;
+    
+    // Warn if already tracked
+    if (alreadyTracked.has(name.trim().toLowerCase())) {
+      toast({ title: "Already monitored", description: `${name} is already being tracked.`, variant: "destructive" });
+      return;
+    }
+    
     setSaving(true);
     try {
       const handles: Record<string, string> = {};
@@ -116,25 +187,22 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
     }
   };
 
-  const handleAddMember = async (member: OrgMember) => {
+  const handleAddFromTeam = async (displayName: string, roleTitle?: string) => {
     if (!currentOrg) return;
+    
+    if (alreadyTracked.has(displayName.toLowerCase())) {
+      toast({ title: "Already monitored", description: `${displayName} is already being tracked.` });
+      return;
+    }
+    
     setSaving(true);
     try {
-      const displayName = member.profile?.full_name || member.profile?.email || "Team Member";
-
-      // Check if already tracked
-      const { data: existing } = await supabase
-        .from("org_people")
-        .select("id")
-        .eq("org_id", currentOrg.id)
-        .then(async (orgPeople) => {
-          // Simple approach: create person then link
-          return orgPeople;
-        });
-
       const { data: person, error: personErr } = await supabase
         .from("people")
-        .insert({ name: displayName })
+        .insert({
+          name: displayName,
+          titles: roleTitle ? [roleTitle] : [],
+        })
         .select()
         .single();
       if (personErr) throw personErr;
@@ -149,7 +217,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
         });
       if (linkErr) throw linkErr;
 
-      toast({ title: "Member added for monitoring", description: `${displayName} is now being tracked.` });
+      toast({ title: "Person added for monitoring", description: `${displayName} is now being tracked.` });
       onSaved();
       onOpenChange(false);
     } catch (err: any) {
@@ -160,11 +228,22 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
   };
 
   const filteredMembers = members.filter(m => {
-    if (!memberSearch) return true;
-    const q = memberSearch.toLowerCase();
+    if (!teamSearch) return true;
+    const q = teamSearch.toLowerCase();
     return (
       m.profile?.full_name?.toLowerCase().includes(q) ||
       m.profile?.email?.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredContacts = contacts.filter(c => {
+    if (!teamSearch) return true;
+    const q = teamSearch.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q) ||
+      c.role_title?.toLowerCase().includes(q) ||
+      c.department?.toLowerCase().includes(q)
     );
   });
 
@@ -177,20 +256,45 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={v => setTab(v as "new" | "existing")}>
+        <Tabs value={tab} onValueChange={v => setTab(v as "new" | "team")}>
           <TabsList className="bg-muted w-full">
             <TabsTrigger value="new" className="flex-1 gap-1.5">
               <UserPlus className="h-3.5 w-3.5" /> New Person
             </TabsTrigger>
-            <TabsTrigger value="existing" className="flex-1 gap-1.5">
+            <TabsTrigger value="team" className="flex-1 gap-1.5">
               <Users className="h-3.5 w-3.5" /> From Team
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="new" className="space-y-4 mt-4">
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label>Full Name *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jane Smith" className="bg-muted border-border" />
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="Start typing to search team or enter new name..." className="bg-muted border-border" />
+              {/* Typeahead dropdown */}
+              {nameSuggestions.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                  <p className="text-[10px] text-muted-foreground px-3 pt-2 pb-1">Existing team members</p>
+                  {nameSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        setName(s.name);
+                        if (s.title) setTitle(s.title);
+                      }}
+                    >
+                      <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{s.label}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{s.subtitle}</p>
+                      </div>
+                      {alreadyTracked.has(s.name.toLowerCase()) && (
+                        <Badge variant="secondary" className="text-[9px] ml-auto shrink-0">Already tracked</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Title / Role</Label>
@@ -231,33 +335,86 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
             </div>
           </TabsContent>
 
-          <TabsContent value="existing" className="space-y-4 mt-4">
+          <TabsContent value="team" className="space-y-4 mt-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search team members..."
-                value={memberSearch}
-                onChange={e => setMemberSearch(e.target.value)}
+                placeholder="Search team members and contacts..."
+                value={teamSearch}
+                onChange={e => setTeamSearch(e.target.value)}
                 className="pl-9 bg-muted border-border"
               />
             </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {loadingMembers ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Loading team members...</p>
-              ) : filteredMembers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No team members found.</p>
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {loadingTeam ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
               ) : (
-                filteredMembers.map(m => (
-                  <div key={m.user_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:border-primary/20 transition-colors">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{m.profile?.full_name || "Unnamed"}</p>
-                      <p className="text-xs text-muted-foreground">{m.profile?.email} · <Badge variant="secondary" className="text-[9px]">{m.role}</Badge></p>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => handleAddMember(m)} disabled={saving}>
-                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
-                    </Button>
-                  </div>
-                ))
+                <>
+                  {/* Org Members Section */}
+                  {filteredMembers.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-1 pt-2 pb-1 flex items-center gap-1">
+                        <Users className="h-3 w-3" /> Team Members
+                      </p>
+                      {filteredMembers.map(m => {
+                        const displayName = m.profile?.full_name || m.profile?.email || "Unnamed";
+                        const tracked = alreadyTracked.has(displayName.toLowerCase());
+                        return (
+                          <div key={m.user_id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {m.profile?.email} · <Badge variant="secondary" className="text-[9px]">{m.role}</Badge>
+                              </p>
+                            </div>
+                            {tracked ? (
+                              <Badge variant="outline" className="text-[9px] shrink-0">Tracked</Badge>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleAddFromTeam(displayName)} disabled={saving}>
+                                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Internal Contacts Section */}
+                  {filteredContacts.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-1 pt-3 pb-1 flex items-center gap-1">
+                        <Building2 className="h-3 w-3" /> Internal Contacts
+                      </p>
+                      {filteredContacts.map(c => {
+                        const tracked = alreadyTracked.has(c.name.toLowerCase());
+                        return (
+                          <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {[c.role_title, c.department].filter(Boolean).join(" · ") || c.email || "No details"}
+                              </p>
+                            </div>
+                            {tracked ? (
+                              <Badge variant="outline" className="text-[9px] shrink-0">Tracked</Badge>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleAddFromTeam(c.name, c.role_title || undefined)} disabled={saving}>
+                                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {filteredMembers.length === 0 && filteredContacts.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      {teamSearch ? "No matches found." : "No team members or contacts yet."}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </TabsContent>
