@@ -28,6 +28,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import AdminPage from "@/pages/AdminPage";
 import PricingPage from "@/pages/PricingPage";
 import GuidePage from "@/pages/GuidePage";
+import CompetitorsPage from "@/pages/CompetitorsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,6 +100,7 @@ function AppRoutes() {
         <Route path="/approved-facts" element={<ApprovedFactsPage />} />
         <Route path="/approved-templates" element={<ApprovedTemplatesPage />} />
         <Route path="/escalations" element={<EscalationsPage />} />
+        <Route path="/competitors" element={<CompetitorsPage />} />
         <Route path="/exports" element={<ExportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/pricing" element={<PricingPage />} />
