@@ -34,6 +34,7 @@ interface GoogleToken {
 }
 
 type DataType = "mentions" | "narratives" | "incidents" | "escalations" | "facts" | "people";
+type ExportMode = "csv" | "sheets" | "pdf";
 
 const DATA_TYPES: { value: DataType; label: string; description: string }[] = [
   { value: "mentions", label: "Mentions", description: "All detected mentions with sentiment, source, severity" },
@@ -54,7 +55,7 @@ export default function ExportsPage() {
   const [sheetId, setSheetId] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<DataType[]>(["mentions"]);
   const [exporting, setExporting] = useState<string | null>(null);
-  const [mode, setMode] = useState<"csv" | "sheets">("csv");
+  const [mode, setMode] = useState<ExportMode>("csv");
   const [googleToken, setGoogleToken] = useState<GoogleToken | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [summaryStats, setSummaryStats] = useState<Record<string, number>>({});
@@ -184,34 +185,36 @@ export default function ExportsPage() {
     <div className="space-y-6 animate-fade-up max-w-4xl">
       <UpgradeBanner feature="Data Exports" className="mb-2" />
       <div className="flex items-center justify-between">
-        <div>
+      <div>
           <h1 className="text-2xl font-bold text-foreground">Exports</h1>
-          <p className="text-sm text-muted-foreground mt-1">Export data as CSV or sync to your own Google Sheet</p>
+          <p className="text-sm text-muted-foreground mt-1">Export data as CSV, sync to Google Sheets, or generate PDF reports</p>
         </div>
-        <ReportGeneratorDialog />
       </div>
 
-      {/* Data summary */}
-      <Card className="bg-card border-border p-5">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-          <BarChart3 className="h-4 w-4 text-primary" /> Available Data Summary
-        </h3>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-          {Object.entries(summaryStats).map(([key, count]) => (
-            <div key={key} className="text-center">
-              <p className="text-lg font-bold text-foreground">{count}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider capitalize">{key}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-
       {/* Mode selector */}
-      <Tabs value={mode} onValueChange={v => setMode(v as "csv" | "sheets")}>
+      <Tabs value={mode} onValueChange={v => setMode(v as ExportMode)}>
         <TabsList className="bg-muted">
           <TabsTrigger value="csv" className="gap-2"><Download className="h-3.5 w-3.5" /> CSV Download</TabsTrigger>
           <TabsTrigger value="sheets" className="gap-2"><Sheet className="h-3.5 w-3.5" /> Google Sheets</TabsTrigger>
+          <TabsTrigger value="pdf" className="gap-2"><FileText className="h-3.5 w-3.5" /> PDF Report</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="pdf" className="mt-4">
+          <Card className="bg-card border-border p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-primary/10">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-card-foreground">Generate PDF Report</h3>
+                <p className="text-xs text-muted-foreground">Create a comprehensive PDF report with AI-powered insights, sentiment analysis, and visual summaries.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <ReportGeneratorDialog />
+            </div>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="sheets" className="mt-4 space-y-4">
           <Card className="bg-card border-border p-5">
@@ -261,49 +264,68 @@ export default function ExportsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Data type selection */}
-      <Card className="bg-card border-border p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-foreground">Select Data Types</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {DATA_TYPES.map(dt => {
-            const isSelected = selectedTypes.includes(dt.value);
-            return (
-              <button key={dt.value} onClick={() => toggleType(dt.value)}
-                className={`text-left p-4 rounded-lg border transition-all ${isSelected ? "border-primary/50 bg-primary/5" : "border-border bg-muted/30 hover:border-muted-foreground/30"}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-card-foreground">{dt.label}</span>
-                  <Switch checked={isSelected} onCheckedChange={() => toggleType(dt.value)} />
-                </div>
-                <p className="text-xs text-muted-foreground">{dt.description}</p>
-                {summaryStats[dt.value] !== undefined && (
-                  <p className="text-[10px] text-primary mt-1">{summaryStats[dt.value]} records available</p>
-                )}
-              </button>
-            );
-          })}
+      {/* Data summary */}
+      <Card className="bg-card border-border p-5">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+          <BarChart3 className="h-4 w-4 text-primary" /> Available Data Summary
+        </h3>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          {Object.entries(summaryStats).map(([key, count]) => (
+            <div key={key} className="text-center">
+              <p className="text-lg font-bold text-foreground">{count}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider capitalize">{key}</p>
+            </div>
+          ))}
         </div>
-
-        <Button onClick={handleExportAll}
-          disabled={selectedTypes.length === 0 || !!exporting || (mode === "sheets" && !googleToken)}
-          className="w-full">
-          {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : mode === "csv" ? <Download className="h-4 w-4 mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          {exporting ? `Exporting ${exporting}...` : mode === "csv"
-            ? `Download ${selectedTypes.length} CSV file${selectedTypes.length !== 1 ? "s" : ""}`
-            : `Sync ${selectedTypes.length} type${selectedTypes.length !== 1 ? "s" : ""} to Sheet`}
-        </Button>
       </Card>
 
-      {/* Quick single exports */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {DATA_TYPES.map(dt => (
-          <Button key={dt.value} variant="outline" size="sm" className="gap-2"
-            disabled={!!exporting || (mode === "sheets" && !googleToken)}
-            onClick={() => handleExport(dt.value)}>
-            {exporting === dt.value ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Table2 className="h-3.5 w-3.5" />}
-            {dt.label}
-          </Button>
-        ))}
-      </div>
+      {mode !== "pdf" && (
+        <>
+          {/* Data type selection */}
+          <Card className="bg-card border-border p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Select Data Types</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {DATA_TYPES.map(dt => {
+                const isSelected = selectedTypes.includes(dt.value);
+                return (
+                  <button key={dt.value} onClick={() => toggleType(dt.value)}
+                    className={`text-left p-4 rounded-lg border transition-all ${isSelected ? "border-primary/50 bg-primary/5" : "border-border bg-muted/30 hover:border-muted-foreground/30"}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-card-foreground">{dt.label}</span>
+                      <Switch checked={isSelected} onCheckedChange={() => toggleType(dt.value)} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{dt.description}</p>
+                    {summaryStats[dt.value] !== undefined && (
+                      <p className="text-[10px] text-primary mt-1">{summaryStats[dt.value]} records available</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Button onClick={handleExportAll}
+              disabled={selectedTypes.length === 0 || !!exporting || (mode === "sheets" && !googleToken)}
+              className="w-full">
+              {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : mode === "csv" ? <Download className="h-4 w-4 mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              {exporting ? `Exporting ${exporting}...` : mode === "csv"
+                ? `Download ${selectedTypes.length} CSV file${selectedTypes.length !== 1 ? "s" : ""}`
+                : `Sync ${selectedTypes.length} type${selectedTypes.length !== 1 ? "s" : ""} to Sheet`}
+            </Button>
+          </Card>
+
+          {/* Quick single exports */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {DATA_TYPES.map(dt => (
+              <Button key={dt.value} variant="outline" size="sm" className="gap-2"
+                disabled={!!exporting || (mode === "sheets" && !googleToken)}
+                onClick={() => handleExport(dt.value)}>
+                {exporting === dt.value ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Table2 className="h-3.5 w-3.5" />}
+                {dt.label}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Export history */}
       <div className="space-y-3">
