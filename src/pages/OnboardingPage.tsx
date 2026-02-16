@@ -12,8 +12,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Shield, ArrowRight, ArrowLeft, Building2, Sparkles, Clock, Bell,
-  Loader2, Check, X, User, Globe, Newspaper, MessageSquare,
+  Loader2, Check, X, User, Globe, Newspaper, MessageSquare, Mail,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 const STEPS = [
@@ -21,6 +22,7 @@ const STEPS = [
   { label: "AI Profile", icon: Sparkles },
   { label: "Schedule", icon: Clock },
   { label: "Alerts", icon: Bell },
+  { label: "Notifications", icon: Mail },
 ];
 
 const INDUSTRIES = ["Fintech", "Crypto/Exchange", "SaaS", "Healthcare", "E-commerce", "Banking", "Insurance", "Gaming", "Media", "Other"];
@@ -86,6 +88,19 @@ export default function OnboardingPage() {
   const [quietStart, setQuietStart] = useState("22");
   const [quietEnd, setQuietEnd] = useState("7");
 
+  // Step 5: Notification preferences
+  const [notifPrefs, setNotifPrefs] = useState({
+    email_enabled: true,
+    critical_alerts: true,
+    negative_spikes: true,
+    mention_spikes: false,
+    viral_risk: true,
+    escalation_assigned: true,
+    escalation_updated: false,
+    new_scan_complete: false,
+    weekly_digest: true,
+  });
+
   const toggleRegion = (r: string) =>
     setSelectedRegions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
   const toggleLang = (l: string) =>
@@ -145,7 +160,23 @@ export default function OnboardingPage() {
         quiet_hours_end: parseInt(quietEnd) || null,
       });
 
-      // Save profile suggestions if generated and approved
+      // Save notification preferences
+      if (user) {
+        await supabase.from("notification_preferences").insert({
+          org_id: org.id,
+          user_id: user.id,
+          email_enabled: notifPrefs.email_enabled,
+          critical_alerts: notifPrefs.critical_alerts,
+          negative_spikes: notifPrefs.negative_spikes,
+          mention_spikes: notifPrefs.mention_spikes,
+          viral_risk: notifPrefs.viral_risk,
+          escalation_assigned: notifPrefs.escalation_assigned,
+          escalation_updated: notifPrefs.escalation_updated,
+          new_scan_complete: notifPrefs.new_scan_complete,
+          weekly_digest: notifPrefs.weekly_digest,
+        });
+      }
+
       if (profile) {
         if (approvedSections.brand_keywords && profile.brand_keywords.length > 0) {
           await supabase.from("keywords").insert(
@@ -459,6 +490,48 @@ export default function OnboardingPage() {
               <p className="text-[10px] text-muted-foreground">Non-emergency alerts are suppressed during quiet hours.</p>
             </div>
           )}
+
+          {/* STEP 5: Notification Preferences */}
+          {step === 4 && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold text-card-foreground">Email Notifications</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">Choose which email notifications you'd like to receive. You can change these anytime in Settings.</p>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
+                  <div>
+                    <p className="text-sm font-medium text-card-foreground">Enable Email Notifications</p>
+                    <p className="text-xs text-muted-foreground">Master toggle for all email alerts</p>
+                  </div>
+                  <Switch checked={notifPrefs.email_enabled} onCheckedChange={v => setNotifPrefs(p => ({ ...p, email_enabled: v }))} />
+                </div>
+              </div>
+
+              <div className={`space-y-2 transition-opacity ${notifPrefs.email_enabled ? "" : "opacity-40 pointer-events-none"}`}>
+                {([
+                  { key: "critical_alerts", label: "Critical Alerts", desc: "Emergency-severity mentions detected" },
+                  { key: "negative_spikes", label: "Negative Sentiment Spikes", desc: "Unusual increase in negative mentions" },
+                  { key: "mention_spikes", label: "Mention Volume Spikes", desc: "Abnormal increase in total mentions" },
+                  { key: "viral_risk", label: "Viral Risk Alerts", desc: "Content showing signs of going viral" },
+                  { key: "escalation_assigned", label: "Escalation Assigned", desc: "When an escalation is assigned to you" },
+                  { key: "escalation_updated", label: "Escalation Updates", desc: "Status changes on your escalations" },
+                  { key: "new_scan_complete", label: "Scan Complete", desc: "When a scheduled scan finishes" },
+                  { key: "weekly_digest", label: "Weekly Digest", desc: "Monday summary of trends and risks" },
+                ] as { key: keyof typeof notifPrefs; label: string; desc: string }[]).map(item => (
+                  <div key={item.key} className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-muted-foreground/30 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-card-foreground">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <Switch checked={notifPrefs[item.key] as boolean} onCheckedChange={v => setNotifPrefs(p => ({ ...p, [item.key]: v }))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Navigation buttons */}
@@ -466,7 +539,7 @@ export default function OnboardingPage() {
           <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 0}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back
           </Button>
-          {step < 3 ? (
+          {step < 4 ? (
             <Button onClick={() => setStep(s => s + 1)} disabled={!canAdvance()}>
               Next<ArrowRight className="h-4 w-4 ml-2" />
             </Button>
