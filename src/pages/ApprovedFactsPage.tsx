@@ -196,7 +196,7 @@ export default function ApprovedFactsPage() {
         )}
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <Card className="bg-card border-border p-4 text-center">
             <p className="text-2xl font-bold text-foreground">{facts.length}</p>
             <p className="text-[11px] text-muted-foreground">Total Facts</p>
@@ -212,6 +212,17 @@ export default function ApprovedFactsPage() {
           <Card className="bg-card border-border p-4 text-center">
             <p className="text-2xl font-bold text-primary">{totalTemplatesLinked}</p>
             <p className="text-[11px] text-muted-foreground">Template Links</p>
+          </Card>
+          <Card className="bg-card border-border p-4 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {(() => {
+                const reviewed = facts.filter(f => f.last_reviewed).map(f => new Date(f.last_reviewed!).getTime());
+                if (reviewed.length === 0) return "—";
+                const latest = new Date(Math.max(...reviewed));
+                return latest.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              })()}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Last Reviewed</p>
           </Card>
         </div>
 
