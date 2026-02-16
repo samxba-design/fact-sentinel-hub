@@ -47,8 +47,77 @@ Deno.serve(async (req) => {
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const { content, source, severity, sentiment, author } = await req.json();
+    const body = await req.json();
+    const { content, source, severity, sentiment, author, type, url, title } = body;
     if (!content) throw new Error("content required");
+
+    // Handle extract_mention type for manual add dialog
+    if (type === "extract_mention") {
+      const cleaned = cleanForAI(content);
+      if (cleaned.length < 30) {
+        return new Response(JSON.stringify({
+          summary: "",
+          sentiment: "neutral",
+          severity: "low",
+          author: "",
+          published_date: null,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const extractRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0.2,
+          tools: [{
+            type: "function",
+            function: {
+              name: "extract_mention_data",
+              description: "Extract structured mention data from article/post content",
+              parameters: {
+                type: "object",
+                properties: {
+                  summary: { type: "string", description: "2-3 sentence summary of the article/post focusing on the key claims and events" },
+                  sentiment: { type: "string", enum: ["positive", "negative", "neutral", "mixed"], description: "Overall sentiment" },
+                  severity: { type: "string", enum: ["low", "medium", "high", "critical"], description: "Reputational risk severity" },
+                  author: { type: "string", description: "Author name if identifiable" },
+                  published_date: { type: "string", description: "Published date in ISO format if identifiable, otherwise null" },
+                },
+                required: ["summary", "sentiment", "severity"],
+                additionalProperties: false,
+              },
+            },
+          }],
+          tool_choice: { type: "function", function: { name: "extract_mention_data" } },
+          messages: [
+            { role: "system", content: "Extract structured data from this article/post. Focus on the actual content, not navigation or boilerplate. Be accurate with sentiment and severity assessment." },
+            { role: "user", content: `URL: ${url || "unknown"}\nTitle: ${title || "unknown"}\n\nContent:\n${cleaned.slice(0, 3000)}` },
+          ],
+        }),
+      });
+
+      if (extractRes.ok) {
+        const extractData = await extractRes.json();
+        const toolCall = extractData.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          const parsed = JSON.parse(toolCall.function.arguments);
+          return new Response(JSON.stringify(parsed), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Fallback
+      return new Response(JSON.stringify({
+        summary: cleaned.slice(0, 500),
+        sentiment: "neutral",
+        severity: "low",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Clean content first
     const cleaned = cleanForAI(content);

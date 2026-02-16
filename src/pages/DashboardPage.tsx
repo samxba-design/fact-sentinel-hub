@@ -9,8 +9,9 @@ import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
-  Clock, FileWarning,
+  Clock, FileWarning, Plus,
 } from "lucide-react";
+import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -167,6 +168,7 @@ export default function DashboardPage() {
   const [sourceData, setSourceData] = useState<{ name: string; value: number }[]>([]);
   const [prevTotal, setPrevTotal] = useState(0);
   const [rangeDays, setRangeDays] = useState(7);
+  const [addMentionOpen, setAddMentionOpen] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -285,6 +287,9 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setAddMentionOpen(true)} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Add Mention
+          </Button>
           <ReportGeneratorDialog />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
@@ -468,6 +473,7 @@ export default function DashboardPage() {
 
         <LiveThreatFeed />
       </div>
+      <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>
   );
 }

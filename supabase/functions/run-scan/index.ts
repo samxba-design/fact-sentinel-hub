@@ -51,7 +51,7 @@ function dateToTbs(dateFrom: string | undefined): string | undefined {
   return undefined;
 }
 
-// Detect blocked/error pages
+// Detect blocked/error pages and non-article junk
 function isJunkContent(text: string): boolean {
   const blockers = [
     "blocked by an extension", "enable javascript", "access denied",
@@ -63,6 +63,7 @@ function isJunkContent(text: string): boolean {
     "videos you watch may be added", "tap to unmute", "search with your voice",
     "cookie policy", "accept cookies", "we use cookies",
     "page not found", "404 not found", "500 internal server error",
+    "view original source",
   ];
   const lower = text.toLowerCase();
   // If 2+ blockers match, definitely junk
@@ -71,6 +72,54 @@ function isJunkContent(text: string): boolean {
   // Single match + short content = junk
   if (matchCount >= 1 && text.length < 200) return true;
   return false;
+}
+
+// Detect content that is a ticker/price list, sitemap, or navigation dump
+function isNonArticleContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  
+  // Ticker/price pattern: repeated currency symbols with numbers (e.g. "$68,723.81 2.41%")
+  const priceMatches = text.match(/\$[\d,]+\.?\d*\s+[\d.]+%/g);
+  if (priceMatches && priceMatches.length >= 3) return true;
+  
+  // Crypto ticker pattern: repeated short uppercase tokens with % values
+  const tickerMatches = text.match(/\b[A-Z]{2,5}\b\s+\$?[\d,]+\.?\d*\s+[\d.]+%/g);
+  if (tickerMatches && tickerMatches.length >= 3) return true;
+  
+  // Sitemap-like: mostly URLs or link lists
+  const urlCount = (text.match(/https?:\/\//g) || []).length;
+  const wordCount = text.split(/\s+/).length;
+  if (urlCount > 5 && urlCount > wordCount * 0.3) return true;
+  
+  // Navigation dump: very short "sentences" that are mostly nav labels
+  const navPatterns = ["home", "about", "contact", "login", "sign up", "subscribe", "menu", "search", "privacy", "terms"];
+  const navMatchCount = navPatterns.filter(p => lower.includes(p)).length;
+  if (navMatchCount >= 5 && text.length < 500) return true;
+  
+  // Repetitive structure: same pattern repeated many times (like price tickers)
+  // Split by common delimiters and check for pattern repetition
+  const segments = text.split(/\\\\|[\n\r]+/).map(s => s.trim()).filter(s => s.length > 0);
+  if (segments.length > 20) {
+    // Check if >60% of segments are very short (typical of ticker/nav data)
+    const shortSegments = segments.filter(s => s.length < 15);
+    if (shortSegments.length > segments.length * 0.6) return true;
+  }
+  
+  return false;
+}
+
+// Validate that content has enough substance to be a real article/post
+function hasSubstantiveContent(text: string): boolean {
+  // Must have at least some sentences (periods, question marks, etc.)
+  const sentenceEnders = (text.match(/[.!?]/g) || []).length;
+  if (sentenceEnders < 2 && text.length > 200) return false;
+  
+  // Must have a reasonable ratio of actual words vs symbols/numbers
+  const words = text.split(/\s+/).filter(w => /[a-zA-Z]{3,}/.test(w));
+  const totalTokens = text.split(/\s+/).length;
+  if (totalTokens > 20 && words.length / totalTokens < 0.3) return false;
+  
+  return true;
 }
 
 // Classify source from URL
@@ -300,8 +349,16 @@ Deno.serve(async (req) => {
         console.log("Filtering out blocked/junk content from:", r.url);
         continue;
       }
+      if (isNonArticleContent(cleaned)) {
+        console.log("Filtering out non-article content (ticker/sitemap/nav):", r.url);
+        continue;
+      }
       if (cleaned.length < 40) {
         console.log("Filtering out low-quality content:", r.url);
+        continue;
+      }
+      if (!hasSubstantiveContent(cleaned)) {
+        console.log("Filtering out non-substantive content:", r.url);
         continue;
       }
       const correctedSource = classifySource(r.url || "", r.source);
