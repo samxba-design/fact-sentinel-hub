@@ -131,9 +131,20 @@ export default function OnboardingPage() {
     try {
       const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+      // Check if user signed up with a beta invite code
+      const betaCode = localStorage.getItem("sentiwatch_beta_code");
+      const isBeta = !!betaCode;
+      if (betaCode) {
+        localStorage.removeItem("sentiwatch_beta_code");
+      }
+
       const { data: org, error: orgError } = await supabase
         .from("organizations")
-        .insert({ name: orgName, slug, domain, industry, regions: selectedRegions, languages: selectedLanguages, timezone })
+        .insert({
+          name: orgName, slug, domain, industry,
+          regions: selectedRegions, languages: selectedLanguages, timezone,
+          ...(isBeta ? { subscription_status: "active", subscription_type: "beta", plan: "pro" } : {}),
+        })
         .select()
         .single();
       if (orgError) throw orgError;

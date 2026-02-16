@@ -205,6 +205,39 @@ export type Database = {
           },
         ]
       }
+      beta_invite_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string | null
+          max_uses: number | null
+          times_used: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          max_uses?: number | null
+          times_used?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          max_uses?: number | null
+          times_used?: number | null
+        }
+        Relationships: []
+      }
       claim_extractions: {
         Row: {
           category: string | null
@@ -1610,6 +1643,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      redeem_beta_code: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {
       app_role:

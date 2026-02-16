@@ -4,29 +4,63 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Eye, EyeOff } from "lucide-react";
+import { Shield, Eye, EyeOff, Ticket } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signUp, signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Pre-fill invite code from URL params (e.g. /auth?code=BETA2026)
+  useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      setInviteCode(code);
+      setIsSignUp(true);
+    }
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     if (isSignUp) {
+      // Validate invite code if provided
+      if (inviteCode.trim()) {
+        const { data: redeemResult, error: rpcError } = await supabase.rpc("redeem_beta_code", {
+          p_code: inviteCode.trim(),
+        });
+        if (rpcError) {
+          toast({ title: "Error validating invite code", description: rpcError.message, variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+        const result = redeemResult as { valid: boolean; reason?: string };
+        if (!result.valid) {
+          toast({ title: "Invalid invite code", description: result.reason || "Please check and try again.", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+      }
+
       const { error } = await signUp(email, password, fullName);
       if (error) {
         toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
       } else {
+        // Store invite code in localStorage so onboarding can use it
+        if (inviteCode.trim()) {
+          localStorage.setItem("sentiwatch_beta_code", inviteCode.trim());
+        }
         toast({ title: "Check your email", description: "We sent you a verification link." });
       }
     } else {
@@ -69,17 +103,35 @@ export default function AuthPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-foreground">Full name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="Jane Smith"
-                  required
-                  className="bg-muted border-border"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName" className="text-foreground">Full name</Label>
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    onChange={e => setFullName(e.target.value)}
+                    placeholder="Jane Smith"
+                    required
+                    className="bg-muted border-border"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="inviteCode" className="text-foreground flex items-center gap-1.5">
+                    <Ticket className="h-3.5 w-3.5 text-primary" />
+                    Invite code
+                    <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    id="inviteCode"
+                    value={inviteCode}
+                    onChange={e => setInviteCode(e.target.value)}
+                    placeholder="e.g. BETA2026"
+                    className="bg-muted border-border"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Have an invite code? Enter it for free access to all features.</p>
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
