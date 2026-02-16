@@ -154,8 +154,9 @@ export default function RiskConsolePage() {
       <UpgradeBanner feature="Risk Console" className="mb-2" />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
+         <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
           <p className="text-sm text-muted-foreground mt-1">Triage and manage operational risks, spikes, and alerts</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 italic">All mention data is AI-simulated from scans — not sourced from real platforms</p>
         </div>
         <Button variant="outline" onClick={() => navigate("/scans")}>
           <Scan className="h-4 w-4 mr-2" /> Run New Scan

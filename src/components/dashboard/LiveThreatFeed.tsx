@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Radio, AlertTriangle, Flame, Volume2, VolumeX } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Radio, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -38,8 +37,6 @@ export default function LiveThreatFeed() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
   const [feed, setFeed] = useState<LiveMention[]>([]);
-  const [soundOn, setSoundOn] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load initial recent mentions
   useEffect(() => {
@@ -70,22 +67,6 @@ export default function LiveThreatFeed() {
         (payload) => {
           const newMention = payload.new as LiveMention;
           setFeed((prev) => [newMention, ...prev].slice(0, 20));
-          
-          // Play alert sound for critical
-          if (soundOn && newMention.severity === "critical") {
-            try {
-              // Simple beep using Web Audio API
-              const ctx = new AudioContext();
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.connect(gain);
-              gain.connect(ctx.destination);
-              osc.frequency.value = 880;
-              gain.gain.value = 0.3;
-              osc.start();
-              osc.stop(ctx.currentTime + 0.2);
-            } catch {}
-          }
         }
       )
       .subscribe();
@@ -93,7 +74,7 @@ export default function LiveThreatFeed() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentOrg, soundOn]);
+  }, [currentOrg]);
 
   if (feed.length === 0) return null;
 
@@ -101,27 +82,12 @@ export default function LiveThreatFeed() {
     <Card className="bg-card border-border p-5 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-card-foreground flex items-center gap-2">
-          <Radio className="h-4 w-4 text-sentinel-red animate-pulse" />
-          Live Threat Feed
+          <Radio className="h-4 w-4 text-primary" />
+          Recent Scan Detections
         </span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 w-7 p-0"
-            onClick={() => setSoundOn(!soundOn)}
-            title={soundOn ? "Mute alerts" : "Enable alert sounds"}
-          >
-            {soundOn ? (
-              <Volume2 className="h-3.5 w-3.5 text-primary" />
-            ) : (
-              <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </Button>
-          <Badge variant="outline" className="text-[10px] text-sentinel-emerald border-sentinel-emerald/30">
-            Live
-          </Badge>
-        </div>
+        <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
+          AI-Simulated
+        </Badge>
       </div>
       <div className="space-y-2 max-h-[320px] overflow-y-auto">
         <AnimatePresence initial={false}>
