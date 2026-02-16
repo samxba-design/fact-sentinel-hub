@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save,
   CreditCard, Plug, Users, Settings2, Shield, Mail, Info, HelpCircle, Send,
-  CheckCircle2, MessageSquare, Building2
+  CheckCircle2, MessageSquare, Building2, Zap, Upload, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import NotificationPreferencesTab from "@/components/settings/NotificationPreferencesTab";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,19 +53,85 @@ const SUGGESTED_TOPICS = [
   "Employee Culture", "Legal / Litigation", "Marketing / Brand"
 ];
 
-// ─── Source type options ───
-const SOURCE_TYPE_OPTIONS = [
-  { value: "web", label: "Web / News", description: "General websites and news articles" },
-  { value: "reddit", label: "Reddit", description: "Reddit posts and comments" },
-  { value: "twitter", label: "X (Twitter)", description: "Tweets and threads" },
-  { value: "youtube", label: "YouTube", description: "Video descriptions and comments" },
-  { value: "reviews", label: "Review Sites", description: "Trustpilot, G2, Glassdoor, etc." },
-  { value: "rss", label: "RSS Feeds", description: "Blog and news RSS/Atom feeds" },
-  { value: "google-news", label: "Google News", description: "Mainstream press coverage" },
-  { value: "forums", label: "Forums", description: "Community forums and discussion boards" },
-  { value: "app-store", label: "App Stores", description: "Apple App Store & Google Play" },
-  { value: "podcasts", label: "Podcasts", description: "Podcast transcript monitoring" },
+// ─── Source type options with tier metadata ───
+type SourceTier = "auto" | "api" | "web" | "manual";
+interface SourceTypeOption {
+  value: string;
+  label: string;
+  description: string;
+  tier: SourceTier;
+  tierLabel: string;
+  setupNote?: string;
+  setupSteps?: string[];
+  apiKeyName?: string;
+  fallbackNote?: string;
+}
+
+const SOURCE_TYPE_OPTIONS: SourceTypeOption[] = [
+  { value: "web", label: "Web / News", description: "General websites and news articles", tier: "auto", tierLabel: "Auto" },
+  { value: "google-news", label: "Google News", description: "Mainstream press coverage", tier: "auto", tierLabel: "Auto" },
+  { value: "reviews", label: "Review Sites", description: "Trustpilot, G2, Capterra, etc.", tier: "auto", tierLabel: "Auto" },
+  { value: "app-store", label: "App Stores", description: "Apple App Store & Google Play reviews", tier: "auto", tierLabel: "Auto" },
+  { value: "rss", label: "RSS Feeds", description: "Blog and news RSS/Atom feeds", tier: "auto", tierLabel: "Auto", setupNote: "Add specific RSS feed URLs in the Custom Sources tab for best results." },
+  { value: "forums", label: "Forums", description: "Community forums and discussion boards", tier: "auto", tierLabel: "Auto" },
+  { value: "podcasts", label: "Podcasts", description: "Podcast episode & transcript monitoring", tier: "web", tierLabel: "Web Discovery", setupNote: "Searches podcast platforms for brand mentions. Transcript-level accuracy depends on show notes availability." },
+  { value: "reddit", label: "Reddit", description: "Reddit posts and comments", tier: "auto", tierLabel: "Auto", fallbackNote: "Uses web discovery by default. For higher accuracy, add Reddit API credentials in Connections." },
+  { value: "youtube", label: "YouTube", description: "Video descriptions and comments", tier: "api", tierLabel: "API Key", setupNote: "Requires a YouTube Data API key for full comment and video scanning.", setupSteps: [
+    "Go to Google Cloud Console → APIs & Services",
+    "Enable the YouTube Data API v3",
+    "Create an API key (no OAuth needed)",
+    "Add it in Settings → Connections as YOUTUBE_API_KEY"
+  ], apiKeyName: "YOUTUBE_API_KEY", fallbackNote: "Without API key, falls back to web search for YouTube mentions." },
+  { value: "twitter", label: "X (Twitter)", description: "Tweets, threads, and replies", tier: "api", tierLabel: "API Key", setupNote: "Requires X/Twitter API credentials for direct access to tweets and threads.", setupSteps: [
+    "Apply for a Twitter Developer account at developer.twitter.com",
+    "Create a project and app in the Developer Portal",
+    "Generate a Bearer Token (read-only is sufficient)",
+    "Add it in Settings → Connections as TWITTER_BEARER_TOKEN"
+  ], apiKeyName: "TWITTER_BEARER_TOKEN", fallbackNote: "Without API key, falls back to web search which captures fewer results." },
+  { value: "linkedin", label: "LinkedIn", description: "Posts, articles, and company mentions", tier: "manual", tierLabel: "Manual Import", setupNote: "LinkedIn blocks automated scraping. Use manual import to paste content from LinkedIn posts or articles you've found.", setupSteps: [
+    "Browse LinkedIn and find relevant posts/articles mentioning your brand",
+    "Copy the post content or URL",
+    "Use the 'Import Mention' button on the Mentions page to add it",
+    "AI will analyze sentiment and extract claims automatically"
+  ] },
+  { value: "tiktok", label: "TikTok", description: "Video mentions and comments", tier: "manual", tierLabel: "Manual Import", setupNote: "TikTok has no public search API. Use manual import to add video mentions you discover.", setupSteps: [
+    "Search TikTok for your brand name manually",
+    "Copy the video URL or transcribe the content",
+    "Use 'Import Mention' on the Mentions page to add it",
+    "AI will analyze the content and assign sentiment"
+  ] },
+  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord requires a bot to be added to your server. Use manual import for now, or export channel logs.", setupSteps: [
+    "Monitor your Discord server manually for brand discussions",
+    "Copy relevant message content or use Discord's export feature",
+    "Use 'Import Mention' on the Mentions page",
+    "Consider setting up a Discord webhook in Integrations for alerts"
+  ] },
+  { value: "facebook", label: "Facebook", description: "Page posts, comments, and groups", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook's API requires app review for public content access. Use manual import for individual posts.", setupSteps: [
+    "Browse Facebook pages, groups, or search for your brand",
+    "Copy the post content or URL",
+    "Use 'Import Mention' on the Mentions page to add it"
+  ] },
 ];
+// ─── Source Tier Badge ───
+function SourceTierBadge({ tier, label }: { tier: SourceTier; label: string }) {
+  const styles: Record<SourceTier, string> = {
+    auto: "bg-sentinel-emerald/10 text-sentinel-emerald border-sentinel-emerald/30",
+    web: "bg-sentinel-cyan/10 text-sentinel-cyan border-sentinel-cyan/30",
+    api: "bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30",
+    manual: "bg-sentinel-purple/10 text-sentinel-purple border-sentinel-purple/30",
+  };
+  const icons: Record<SourceTier, React.ReactNode> = {
+    auto: <Zap className="h-2.5 w-2.5" />,
+    web: <Globe className="h-2.5 w-2.5" />,
+    api: <Key className="h-2.5 w-2.5" />,
+    manual: <Upload className="h-2.5 w-2.5" />,
+  };
+  return (
+    <Badge variant="outline" className={`text-[9px] font-medium gap-0.5 ${styles[tier]}`}>
+      {icons[tier]} {label}
+    </Badge>
+  );
+}
 
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
@@ -98,6 +164,7 @@ export default function SettingsPage() {
 
   const [newSourceType, setNewSourceType] = useState("");
   const [addingSource, setAddingSource] = useState(false);
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!currentOrg) return;
@@ -425,8 +492,13 @@ export default function SettingsPage() {
         <TabsContent value="sources">
           <Card className="bg-card border-border p-6 space-y-5">
             <TabInfoBanner icon={Info} title="How sources work">
-              <p>Sources define <strong>which platforms</strong> SentiWatch scans when you run a monitoring scan. Enable the source types relevant to your brand — each enabled source will be searched for your tracked keywords.</p>
-              <p className="mt-1">Some sources (like X and Reddit) require API credentials configured in the <strong>Connections</strong> tab. Web/News scanning works out of the box. For specific URLs or RSS feeds, use the <strong>Custom Sources</strong> tab.</p>
+              <p>Sources define <strong>which platforms</strong> SentiWatch scans. Each has an access tier:</p>
+              <div className="mt-2 space-y-1">
+                <p><Badge variant="outline" className="text-[9px] bg-sentinel-emerald/10 text-sentinel-emerald border-sentinel-emerald/30 mr-1">Auto</Badge> Works out of the box — no setup needed</p>
+                <p><Badge variant="outline" className="text-[9px] bg-sentinel-cyan/10 text-sentinel-cyan border-sentinel-cyan/30 mr-1">Web Discovery</Badge> Searches the web for mentions — good coverage but may miss some</p>
+                <p><Badge variant="outline" className="text-[9px] bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30 mr-1">API Key</Badge> Requires an API key for full access — setup guide included</p>
+                <p><Badge variant="outline" className="text-[9px] bg-sentinel-purple/10 text-sentinel-purple border-sentinel-purple/30 mr-1">Manual Import</Badge> Platform blocks scraping — paste content from the Mentions page</p>
+              </div>
             </TabInfoBanner>
 
             <h3 className="text-sm font-medium text-card-foreground">Source Types</h3>
@@ -435,16 +507,16 @@ export default function SettingsPage() {
               <div className="flex-1 space-y-1.5">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1">
                   Add Source Type
-                  <InfoTooltip text="Select a platform type to add to your scan configuration. You can enable or disable individual sources at any time." />
+                  <InfoTooltip text="Select a platform to add. Each source shows its access tier and any setup needed." />
                 </Label>
                 <Select value={newSourceType} onValueChange={setNewSourceType}>
                   <SelectTrigger><SelectValue placeholder="Select a source type..." /></SelectTrigger>
                   <SelectContent>
                     {SOURCE_TYPE_OPTIONS.filter(opt => !sources.some(s => s.type === opt.value)).map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
                           <span>{opt.label}</span>
-                          <span className="text-[10px] text-muted-foreground">{opt.description}</span>
+                          <SourceTierBadge tier={opt.tier} label={opt.tierLabel} />
                         </div>
                       </SelectItem>
                     ))}
@@ -463,7 +535,7 @@ export default function SettingsPage() {
               <div className="text-center py-8 space-y-2">
                 <Globe className="h-8 w-8 text-muted-foreground/40 mx-auto" />
                 <p className="text-sm text-muted-foreground">No sources configured yet.</p>
-                <p className="text-xs text-muted-foreground">Add source types above to define where SentiWatch scans for mentions.</p>
+                <p className="text-xs text-muted-foreground">Add source types above to start scanning platforms.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -472,21 +544,65 @@ export default function SettingsPage() {
                 </Label>
                 {sources.map(s => {
                   const sourceInfo = SOURCE_TYPE_OPTIONS.find(opt => opt.value === s.type);
+                  const isExpanded = expandedSource === s.id;
                   return (
-                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${s.enabled ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
-                        <div className="min-w-0">
-                          <span className="text-sm text-card-foreground capitalize">{sourceInfo?.label || s.type}</span>
-                          {sourceInfo && <p className="text-[10px] text-muted-foreground">{sourceInfo.description}</p>}
+                    <div key={s.id} className="rounded-lg bg-muted/50 border border-border overflow-hidden">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`h-2 w-2 rounded-full shrink-0 ${s.enabled ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-card-foreground">{sourceInfo?.label || s.type}</span>
+                              {sourceInfo && <SourceTierBadge tier={sourceInfo.tier} label={sourceInfo.tierLabel} />}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">{sourceInfo?.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {sourceInfo?.setupNote && (
+                            <button
+                              onClick={() => setExpandedSource(isExpanded ? null : s.id)}
+                              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                            >
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          {sourceInfo?.tier !== "manual" && (
+                            <Switch checked={!!s.enabled} onCheckedChange={() => toggleSource(s)} />
+                          )}
+                          {sourceInfo?.tier === "manual" && (
+                            <Button size="sm" variant="outline" className="text-[10px] h-7 gap-1" onClick={() => navigate("/mentions?import=true")}>
+                              <Upload className="h-3 w-3" /> Import
+                            </Button>
+                          )}
+                          <button onClick={() => deleteSource(s)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Switch checked={!!s.enabled} onCheckedChange={() => toggleSource(s)} />
-                        <button onClick={() => deleteSource(s)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      {/* Expandable setup guide */}
+                      {isExpanded && sourceInfo?.setupNote && (
+                        <div className="border-t border-border bg-card/50 p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">{sourceInfo.setupNote}</p>
+                          {sourceInfo.fallbackNote && (
+                            <p className="text-[10px] text-sentinel-cyan flex items-center gap-1">
+                              <Zap className="h-3 w-3 shrink-0" /> {sourceInfo.fallbackNote}
+                            </p>
+                          )}
+                          {sourceInfo.setupSteps && (
+                            <ol className="text-[11px] text-muted-foreground space-y-1 pl-4 list-decimal">
+                              {sourceInfo.setupSteps.map((step, i) => (
+                                <li key={i}>{step}</li>
+                              ))}
+                            </ol>
+                          )}
+                          {sourceInfo.tier === "manual" && (
+                            <Button size="sm" variant="outline" className="text-xs h-7 gap-1.5 mt-1" onClick={() => navigate("/mentions?import=true")}>
+                              <Upload className="h-3 w-3" /> Go to Import
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

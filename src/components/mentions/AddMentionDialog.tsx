@@ -29,8 +29,14 @@ const SOURCE_OPTIONS = [
   { value: "trustpilot", label: "Trustpilot" },
   { value: "g2", label: "G2" },
   { value: "glassdoor", label: "Glassdoor" },
+  { value: "capterra", label: "Capterra" },
   { value: "linkedin", label: "LinkedIn" },
   { value: "tiktok", label: "TikTok" },
+  { value: "facebook", label: "Facebook" },
+  { value: "discord", label: "Discord" },
+  { value: "apple-app-store", label: "Apple App Store" },
+  { value: "google-play", label: "Google Play" },
+  { value: "podcast", label: "Podcast" },
   { value: "other", label: "Other" },
 ];
 
