@@ -4,11 +4,15 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
-  TrendingDown, Activity, Shield, BarChart3, Flame
+  TrendingDown, Shield, Flame
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format, subDays, startOfDay } from "date-fns";
 
 function MetricCard({ icon: Icon, label, value, change, changeType, accentClass }: {
   icon: any; label: string; value: string | number; change?: string; changeType?: "up" | "down" | "neutral";
@@ -67,37 +71,116 @@ function RiskIndex({ score }: { score: number }) {
   );
 }
 
+const SENTIMENT_COLORS: Record<string, string> = {
+  negative: "hsl(0, 84%, 60%)",
+  neutral: "hsl(220, 9%, 46%)",
+  positive: "hsl(142, 71%, 45%)",
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-xs">
+      <p className="text-muted-foreground mb-1">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} style={{ color: p.color }} className="font-medium">
+          {p.name}: {p.value}
+        </p>
+      ))}
+    </div>
+  );
+};
+
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);
   const [emergencies, setEmergencies] = useState(0);
-  const [narratives, setNarratives] = useState<{ name: string; status: string | null }[]>([]);
+  const [activeIncidents, setActiveIncidents] = useState(0);
+  const [narratives, setNarratives] = useState<{ name: string; status: string | null; mention_count: number }[]>([]);
   const [incidentMode, setIncidentMode] = useState(false);
+  const [volumeData, setVolumeData] = useState<{ date: string; mentions: number }[]>([]);
+  const [sentimentData, setSentimentData] = useState<{ name: string; value: number }[]>([]);
+  const [prevTotal, setPrevTotal] = useState(0);
 
   useEffect(() => {
     if (!currentOrg) return;
     setLoading(true);
     setIncidentMode(currentOrg.incident_mode);
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600000).toISOString();
+    const now = new Date();
+    const sevenDaysAgo = subDays(now, 7).toISOString();
+    const fourteenDaysAgo = subDays(now, 14).toISOString();
 
     Promise.all([
+      // Current week counts
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", sevenDaysAgo),
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").gte("posted_at", sevenDaysAgo),
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", sevenDaysAgo),
-      supabase.from("narratives").select("name, status").eq("org_id", currentOrg.id).eq("status", "active").order("created_at", { ascending: false }).limit(5),
-    ]).then(([total, neg, emg, narr]) => {
+      // Previous week for comparison
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", fourteenDaysAgo).lt("posted_at", sevenDaysAgo),
+      // Active incidents
+      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
+      // Top narratives with mention counts
+      supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).eq("status", "active").order("created_at", { ascending: false }).limit(5),
+      // Mentions for volume chart (last 7 days with posted_at)
+      supabase.from("mentions").select("posted_at, sentiment_label").eq("org_id", currentOrg.id).gte("posted_at", sevenDaysAgo).order("posted_at"),
+    ]).then(async ([total, neg, emg, prev, incidents, narr, mentionsRaw]) => {
       setTotalMentions(total.count ?? 0);
       setNegativeMentions(neg.count ?? 0);
       setEmergencies(emg.count ?? 0);
-      setNarratives(narr.data || []);
+      setPrevTotal(prev.count ?? 0);
+      setActiveIncidents(incidents.count ?? 0);
+
+      // Build narrative data with mention counts
+      const narrData = narr.data || [];
+      if (narrData.length > 0) {
+        const countResults = await Promise.all(
+          narrData.map(n =>
+            supabase.from("mention_narratives").select("mention_id", { count: "exact", head: true }).eq("narrative_id", n.id)
+          )
+        );
+        setNarratives(narrData.map((n, i) => ({
+          name: n.name,
+          status: n.status,
+          mention_count: countResults[i].count ?? 0,
+        })));
+      } else {
+        setNarratives([]);
+      }
+
+      // Build volume chart data
+      const mentions = mentionsRaw.data || [];
+      const dayMap: Record<string, number> = {};
+      const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0 };
+
+      for (let i = 6; i >= 0; i--) {
+        const d = format(subDays(now, i), "MMM dd");
+        dayMap[d] = 0;
+      }
+
+      mentions.forEach((m: any) => {
+        if (m.posted_at) {
+          const d = format(new Date(m.posted_at), "MMM dd");
+          if (d in dayMap) dayMap[d]++;
+        }
+        const label = m.sentiment_label || "neutral";
+        if (label in sentMap) sentMap[label]++;
+      });
+
+      setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
+      setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
       setLoading(false);
     });
   }, [currentOrg]);
 
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));
+
+  const totalChange = prevTotal > 0
+    ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%`
+    : undefined;
+  const totalChangeType = totalMentions > prevTotal ? "up" as const : totalMentions < prevTotal ? "down" as const : "neutral" as const;
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -117,10 +200,10 @@ export default function DashboardPage() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
         ) : (
           <>
-            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions.toLocaleString()} />
+            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions.toLocaleString()} change={totalChange} changeType={totalChangeType} />
             <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions.toLocaleString()} accentClass="bg-sentinel-amber/10" />
             <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" />
-            <MetricCard icon={AlertTriangle} label="Spike Alerts" value="—" accentClass="bg-sentinel-amber/10" />
+            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" />
           </>
         )}
       </div>
@@ -128,13 +211,63 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <RiskIndex score={loading ? 0 : riskScore} />
         <Card className="bg-card border-border p-5 lg:col-span-2">
-          <span className="text-sm font-medium text-card-foreground">Sentiment data will populate after scans run.</span>
+          <span className="text-sm font-medium text-card-foreground">Sentiment Breakdown</span>
+          {loading ? (
+            <Skeleton className="h-40 w-full mt-4" />
+          ) : sentimentData.length === 0 ? (
+            <p className="text-xs text-muted-foreground mt-4">No sentiment data yet. Run a scan to populate.</p>
+          ) : (
+            <div className="flex items-center gap-6 mt-4">
+              <ResponsiveContainer width="50%" height={160}>
+                <PieChart>
+                  <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} strokeWidth={0}>
+                    {sentimentData.map((entry) => (
+                      <Cell key={entry.name} fill={SENTIMENT_COLORS[entry.name] || "hsl(220, 9%, 46%)"} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-3 flex-1">
+                {sentimentData.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: SENTIMENT_COLORS[s.name] }} />
+                      <span className="text-sm text-card-foreground capitalize">{s.name}</span>
+                    </div>
+                    <span className="text-sm font-mono text-muted-foreground">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-card border-border p-5">
-          <span className="text-sm font-medium text-card-foreground">Mention volume will populate after scans run.</span>
+          <span className="text-sm font-medium text-card-foreground">Mention Volume (7 days)</span>
+          {loading ? (
+            <Skeleton className="h-48 w-full mt-4" />
+          ) : volumeData.every(d => d.mentions === 0) ? (
+            <p className="text-xs text-muted-foreground mt-4">No mentions yet. Run a scan to populate.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200} className="mt-4">
+              <AreaChart data={volumeData}>
+                <defs>
+                  <linearGradient id="mentionGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="mentions" stroke="hsl(var(--primary))" fill="url(#mentionGrad)" strokeWidth={2} name="Mentions" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </Card>
         <Card className="bg-card border-border p-5">
           <span className="text-sm font-medium text-card-foreground">Top Narratives</span>
@@ -150,7 +283,10 @@ export default function DashboardPage() {
                     <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
                     <span className="text-sm text-card-foreground">{n.name}</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] border-sentinel-emerald/30 text-sentinel-emerald capitalize">{n.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground">{n.mention_count} mentions</span>
+                    <Badge variant="outline" className="text-[10px] border-sentinel-emerald/30 text-sentinel-emerald capitalize">{n.status}</Badge>
+                  </div>
                 </div>
               ))
             )}
