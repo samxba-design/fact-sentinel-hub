@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +39,7 @@ const ALL_SOURCES = ["twitter", "reddit", "news", "forums", "blogs", "tiktok", "
 export default function ScansPage() {
   const { currentOrg } = useOrg();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [runs, setRuns] = useState<ScanRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -78,7 +80,6 @@ export default function ScansPage() {
           setKeywords(data.map(k => k.value));
         }
       });
-    // Set default date range: last 7 days
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (!dateFrom) setDateFrom(weekAgo.toISOString().split("T")[0]);
@@ -121,6 +122,11 @@ export default function ScansPage() {
       toast({
         title: "Scan complete!",
         description: `${data.mentions_created} mentions found, ${data.emergencies} emergencies detected`,
+        action: data.scan_run_id ? (
+          <Button size="sm" variant="outline" onClick={() => navigate(`/mentions?scan=${data.scan_run_id}`)}>
+            <ExternalLink className="h-3 w-3 mr-1" /> View Results
+          </Button>
+        ) : undefined,
       });
       setBuilderOpen(false);
       fetchRuns();
@@ -159,7 +165,11 @@ export default function ScansPage() {
             const sc = statusConfig[run.status || "pending"];
             const StatusIcon = sc.icon;
             return (
-              <Card key={run.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors">
+              <Card
+                key={run.id}
+                className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer"
+                onClick={() => navigate(`/mentions?scan=${run.id}`)}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Scan className="h-5 w-5 text-primary" />
