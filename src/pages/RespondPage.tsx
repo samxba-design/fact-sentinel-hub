@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,17 +36,27 @@ interface TagItem { id: string; label: string; type: "narrative" | "incident" | 
 export default function RespondPage() {
   const { currentOrg } = useOrg();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [platform, setPlatform] = useState("general");
   const [intent, setIntent] = useState("");
   const [result, setResult] = useState<ResponseResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [factsCount, setFactsCount] = useState<number | null>(null);
 
   // Internal linking
   const [tagSearch, setTagSearch] = useState("");
   const [tagResults, setTagResults] = useState<TagItem[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Check if approved facts exist
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase.from("approved_facts").select("id", { count: "exact", head: true })
+      .eq("org_id", currentOrg.id).eq("status", "active")
+      .then(({ count }) => setFactsCount(count ?? 0));
+  }, [currentOrg]);
 
   useEffect(() => {
     if (!currentOrg || tagSearch.length < 2) { setTagResults([]); return; }
@@ -107,6 +118,23 @@ export default function RespondPage() {
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
         <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>
       </div>
+
+      {factsCount === 0 && (
+        <Card className="border-sentinel-amber/30 bg-sentinel-amber/5 p-5 space-y-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-sentinel-amber" />
+            <div>
+              <p className="text-sm font-medium text-card-foreground">No approved facts configured</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The response engine only generates drafts from approved facts. Add your first facts before generating responses.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => navigate("/approved-facts")}>
+            <BookCheck className="h-3.5 w-3.5 mr-1.5" /> Add Approved Facts
+          </Button>
+        </Card>
+      )}
 
       <Card className="bg-card border-border p-6 space-y-5">
         <div className="space-y-2">

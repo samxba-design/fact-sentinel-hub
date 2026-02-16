@@ -161,6 +161,34 @@
     box-shadow: 0 0 20px -5px hsl(var(--sentinel-red) / 0.4);
   }
 
+  .sentinel-pulse-red {
+    animation: sentinel-pulse-red 2s ease-in-out infinite;
+  }
+
+  @keyframes sentinel-pulse-red {
+    0%, 100% {
+      box-shadow: 0 0 8px -2px hsl(var(--sentinel-red) / 0.3),
+                  inset 0 0 0 1px hsl(var(--sentinel-red) / 0.2);
+    }
+    50% {
+      box-shadow: 0 0 20px -2px hsl(var(--sentinel-red) / 0.5),
+                  inset 0 0 0 1px hsl(var(--sentinel-red) / 0.4);
+    }
+  }
+
+  .sentinel-pulse-amber {
+    animation: sentinel-pulse-amber 2.5s ease-in-out infinite;
+  }
+
+  @keyframes sentinel-pulse-amber {
+    0%, 100% {
+      box-shadow: 0 0 8px -2px hsl(var(--sentinel-amber) / 0.2);
+    }
+    50% {
+      box-shadow: 0 0 16px -2px hsl(var(--sentinel-amber) / 0.4);
+    }
+  }
+
   .sentinel-gradient-surface {
     background: linear-gradient(
       180deg,

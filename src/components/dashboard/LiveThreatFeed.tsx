@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import SourceBadge from "@/components/SourceBadge";
 import { Radio, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -104,7 +105,7 @@ export default function LiveThreatFeed() {
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-card-foreground line-clamp-2">{m.content || "No content"}</p>
                 <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                  <span className="capitalize">{m.source}</span>
+                  <SourceBadge source={m.source} className="text-[8px] py-0 px-1.5" />
                   <span>·</span>
                   <span>{m.author_name || "Unknown"}</span>
                   <span>·</span>
