@@ -1427,6 +1427,50 @@ export type Database = {
           },
         ]
       }
+      shared_links: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          label: string | null
+          org_id: string
+          permissions: Json
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          org_id: string
+          permissions?: Json
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          org_id?: string
+          permissions?: Json
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           config: Json | null
