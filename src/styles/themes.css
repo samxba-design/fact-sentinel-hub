@@ -1,0 +1,213 @@
+/* ===== THEME PALETTES ===== */
+
+/* Midnight (default dark) — inherits from :root .dark in index.css */
+.theme-midnight {
+  /* Uses the default dark mode variables — no overrides needed */
+}
+
+/* Arctic — clean light theme with blue accents */
+.theme-arctic {
+  --background: 210 40% 96%;
+  --foreground: 210 20% 14%;
+
+  --card: 210 40% 99%;
+  --card-foreground: 210 20% 14%;
+
+  --popover: 210 35% 94%;
+  --popover-foreground: 210 20% 14%;
+
+  --primary: 210 80% 50%;
+  --primary-foreground: 210 100% 98%;
+
+  --secondary: 210 15% 70%;
+  --secondary-foreground: 210 20% 14%;
+
+  --muted: 210 15% 80%;
+  --muted-foreground: 210 15% 40%;
+
+  --accent: 210 60% 92%;
+  --accent-foreground: 210 80% 40%;
+
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 85% 97%;
+
+  --border: 210 20% 86%;
+  --input: 210 20% 86%;
+  --ring: 210 80% 50%;
+
+  --sidebar-background: 210 30% 18%;
+  --sidebar-foreground: 210 20% 96%;
+  --sidebar-primary: 210 80% 55%;
+  --sidebar-primary-foreground: 210 100% 98%;
+  --sidebar-accent: 210 30% 30%;
+  --sidebar-accent-foreground: 210 20% 96%;
+  --sidebar-border: 210 20% 26%;
+  --sidebar-ring: 210 80% 55%;
+
+  --sentinel-emerald: 152 60% 40%;
+  --sentinel-amber: 38 85% 45%;
+  --sentinel-red: 0 72% 48%;
+  --sentinel-cyan: 195 75% 42%;
+  --sentinel-purple: 262 55% 50%;
+  --sentinel-surface: 210 30% 18%;
+  --sentinel-surface-raised: 210 25% 22%;
+  --sentinel-surface-overlay: 210 20% 26%;
+
+  --chart-1: 210 80% 50%;
+  --chart-2: 195 75% 42%;
+  --chart-3: 152 60% 40%;
+  --chart-4: 38 85% 45%;
+  --chart-5: 262 55% 50%;
+}
+
+/* Ember — warm dark with deep reds and amber highlights */
+.theme-ember {
+  --background: 15 20% 7%;
+  --foreground: 30 30% 92%;
+
+  --card: 15 18% 11%;
+  --card-foreground: 30 30% 92%;
+
+  --popover: 15 15% 18%;
+  --popover-foreground: 30 30% 92%;
+
+  --primary: 15 85% 55%;
+  --primary-foreground: 15 90% 10%;
+
+  --secondary: 20 15% 35%;
+  --secondary-foreground: 30 30% 92%;
+
+  --muted: 15 10% 30%;
+  --muted-foreground: 20 15% 60%;
+
+  --accent: 38 70% 14%;
+  --accent-foreground: 38 92% 60%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 85% 97%;
+
+  --border: 15 12% 22%;
+  --input: 15 12% 22%;
+  --ring: 15 85% 55%;
+
+  --sidebar-background: 15 22% 5%;
+  --sidebar-foreground: 30 30% 92%;
+  --sidebar-primary: 15 85% 55%;
+  --sidebar-primary-foreground: 15 90% 10%;
+  --sidebar-accent: 38 70% 50%;
+  --sidebar-accent-foreground: 15 90% 10%;
+  --sidebar-border: 15 12% 18%;
+  --sidebar-ring: 15 85% 55%;
+
+  --sentinel-emerald: 152 55% 42%;
+  --sentinel-amber: 38 92% 55%;
+  --sentinel-red: 0 80% 55%;
+  --sentinel-cyan: 192 70% 50%;
+  --sentinel-purple: 280 55% 55%;
+  --sentinel-surface: 15 22% 5%;
+  --sentinel-surface-raised: 15 18% 9%;
+  --sentinel-surface-overlay: 15 15% 14%;
+
+  --chart-1: 15 85% 55%;
+  --chart-2: 38 92% 55%;
+  --chart-3: 0 80% 55%;
+  --chart-4: 52 80% 55%;
+  --chart-5: 280 55% 55%;
+}
+
+/* Forest — deep greens with earthy warmth */
+.theme-forest {
+  --background: 160 25% 6%;
+  --foreground: 80 15% 90%;
+
+  --card: 160 22% 10%;
+  --card-foreground: 80 15% 90%;
+
+  --popover: 160 18% 16%;
+  --popover-foreground: 80 15% 90%;
+
+  --primary: 152 60% 45%;
+  --primary-foreground: 160 50% 6%;
+
+  --secondary: 160 12% 30%;
+  --secondary-foreground: 80 15% 90%;
+
+  --muted: 160 10% 26%;
+  --muted-foreground: 120 10% 58%;
+
+  --accent: 45 60% 14%;
+  --accent-foreground: 45 80% 60%;
+
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 0 85% 97%;
+
+  --border: 160 12% 20%;
+  --input: 160 12% 20%;
+  --ring: 152 60% 45%;
+
+  --sidebar-background: 160 28% 4%;
+  --sidebar-foreground: 80 15% 90%;
+  --sidebar-primary: 152 60% 45%;
+  --sidebar-primary-foreground: 160 50% 6%;
+  --sidebar-accent: 45 80% 50%;
+  --sidebar-accent-foreground: 160 50% 6%;
+  --sidebar-border: 160 12% 16%;
+  --sidebar-ring: 152 60% 45%;
+
+  --sentinel-emerald: 152 65% 48%;
+  --sentinel-amber: 45 80% 52%;
+  --sentinel-red: 0 70% 52%;
+  --sentinel-cyan: 185 65% 48%;
+  --sentinel-purple: 270 50% 55%;
+  --sentinel-surface: 160 28% 4%;
+  --sentinel-surface-raised: 160 22% 8%;
+  --sentinel-surface-overlay: 160 18% 13%;
+
+  --chart-1: 152 65% 48%;
+  --chart-2: 45 80% 52%;
+  --chart-3: 185 65% 48%;
+  --chart-4: 90 50% 45%;
+  --chart-5: 270 50% 55%;
+}
+
+
+/* ===== DENSITY MODES ===== */
+
+.density-compact {
+  --density-spacing: 0.2rem;
+  --density-padding: 0.5rem;
+  --density-gap: 0.375rem;
+  --density-text-sm: 0.75rem;
+  --density-text-base: 0.8125rem;
+}
+
+.density-default {
+  --density-spacing: 0.25rem;
+  --density-padding: 1rem;
+  --density-gap: 0.5rem;
+  --density-text-sm: 0.8125rem;
+  --density-text-base: 0.875rem;
+}
+
+.density-comfortable {
+  --density-spacing: 0.375rem;
+  --density-padding: 1.5rem;
+  --density-gap: 0.75rem;
+  --density-text-sm: 0.875rem;
+  --density-text-base: 1rem;
+}
+
+/* Apply density to common elements */
+.density-compact main .p-4 { padding: 0.5rem; }
+.density-compact main .p-6 { padding: 0.75rem; }
+.density-compact main .gap-4 { gap: 0.5rem; }
+.density-compact main .gap-6 { gap: 0.75rem; }
+.density-compact main .space-y-4 > * + * { margin-top: 0.5rem; }
+.density-compact main .space-y-6 > * + * { margin-top: 0.75rem; }
+
+.density-comfortable main .p-4 { padding: 1.25rem; }
+.density-comfortable main .p-6 { padding: 1.5rem; }
+.density-comfortable main .gap-4 { gap: 1rem; }
+.density-comfortable main .gap-6 { gap: 1.5rem; }
+.density-comfortable main .space-y-4 > * + * { margin-top: 1rem; }
+.density-comfortable main .space-y-6 > * + * { margin-top: 1.5rem; }
