@@ -40,7 +40,7 @@ interface ProfileSuggestion {
 }
 
 export default function OnboardingPage() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { refetchOrgs } = useOrg();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -201,9 +201,14 @@ export default function OnboardingPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Sentinel</h1>
           </div>
-          <p className="text-muted-foreground">Set up your organization</p>
+           <p className="text-muted-foreground">Set up your organization</p>
+          {isSuperAdmin && (
+            <a href="/admin" className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary hover:text-primary/80 underline underline-offset-4">
+              <Shield className="h-3.5 w-3.5" />
+              Go to Admin Panel
+            </a>
+          )}
         </div>
-
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-2">
           {STEPS.map((s, i) => {
