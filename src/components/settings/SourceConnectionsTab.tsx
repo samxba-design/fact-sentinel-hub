@@ -90,6 +90,38 @@ const PROVIDERS: ProviderConfig[] = [
       "AI-powered sentiment and threat analysis on real discussions",
     ],
   },
+  {
+    id: "youtube",
+    label: "YouTube",
+    icon: "▶",
+    description: "Search YouTube videos, descriptions, and comments for brand mentions.",
+    pricingNote: "Free — YouTube Data API v3 includes 10,000 units/day at no cost. A video search costs ~100 units, so you get ~100 searches/day free.",
+    signupUrl: "https://console.cloud.google.com/apis/library/youtube.googleapis.com",
+    signupLabel: "Enable YouTube Data API (Free)",
+    keys: [
+      {
+        name: "api_key",
+        label: "API Key",
+        placeholder: "AIza...",
+        helpText: "Found in Google Cloud Console → Credentials → API Keys",
+      },
+    ],
+    instructions: [
+      "Go to console.cloud.google.com and create a project (or select existing)",
+      "Navigate to APIs & Services → Library",
+      "Search for 'YouTube Data API v3' and click Enable",
+      "Go to APIs & Services → Credentials",
+      "Click 'Create Credentials' → 'API Key'",
+      "Copy the generated API key and paste it below",
+    ],
+    whatYouGet: [
+      "Video titles, descriptions, and metadata matching your keywords",
+      "View counts, likes, and comment counts per video",
+      "Top comments on relevant videos — where negative sentiment often hides",
+      "Channel information and subscriber context",
+      "AI-powered sentiment analysis on video content and comments",
+    ],
+  },
 ];
 
 interface StoredKey {
@@ -203,14 +235,58 @@ export default function SourceConnectionsTab() {
         </div>
       </div>
 
-      {/* Firecrawl */}
+      {/* Source Coverage Matrix */}
+      <Card className="bg-card border-border p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium text-card-foreground">Source Coverage Matrix</h4>
+        </div>
+        <div className="grid gap-2">
+          {[
+            { name: "Web / News / Blogs", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Article text, author, URL" },
+            { name: "Review Sites", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Trustpilot, G2, Glassdoor, Capterra reviews" },
+            { name: "X (Twitter)", status: isConnected("twitter") ? "connected" as const : "needs_key" as const, via: "X API v2", cost: "$100/mo (from X)", dataPoints: "Tweets, author, engagement, verification" },
+            { name: "Reddit", status: isConnected("reddit") ? "connected" as const : "needs_key" as const, via: "Reddit API", cost: "Free", dataPoints: "Posts, comments, subreddit, upvotes" },
+            { name: "YouTube", status: isConnected("youtube") ? "connected" as const : "needs_key" as const, via: "YouTube Data API v3", cost: "Free (10k units/day)", dataPoints: "Videos, comments, views, likes, channel info" },
+            { name: "LinkedIn", status: "unavailable" as const, via: "—", cost: "—", dataPoints: "No public search API available" },
+            { name: "TikTok", status: "coming_soon" as const, via: "—", cost: "—", dataPoints: "Video mentions and comments" },
+            { name: "Podcasts", status: "coming_soon" as const, via: "—", cost: "—", dataPoints: "Transcript analysis" },
+          ].map(source => (
+            <div key={source.name} className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/20 border border-border/50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`h-2 w-2 rounded-full shrink-0 ${
+                  source.status === "ready" || source.status === "connected" ? "bg-sentinel-emerald" :
+                  source.status === "needs_key" ? "bg-sentinel-amber" :
+                  source.status === "coming_soon" ? "bg-muted-foreground/40" : "bg-muted-foreground/20"
+                }`} />
+                <span className="text-xs font-medium text-card-foreground">{source.name}</span>
+              </div>
+              <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                <span className="hidden sm:inline w-32 truncate">{source.dataPoints}</span>
+                <span className="w-24 text-right">{source.cost}</span>
+                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                  source.status === "ready" || source.status === "connected" ? "text-sentinel-emerald border-sentinel-emerald/30" :
+                  source.status === "needs_key" ? "text-sentinel-amber border-sentinel-amber/30" :
+                  "text-muted-foreground border-border"
+                }`}>
+                  {source.status === "ready" ? "Ready" :
+                   source.status === "connected" ? "Connected" :
+                   source.status === "needs_key" ? "Needs key" :
+                   source.status === "coming_soon" ? "Coming soon" : "Unavailable"}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Web / News / Reviews */}
       <Card className="bg-card border-border p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">🌐</div>
             <div>
-              <div className="text-sm font-medium text-card-foreground">Web / News</div>
-              <p className="text-xs text-muted-foreground">Scrape any website or news site for keyword mentions</p>
+              <div className="text-sm font-medium text-card-foreground">Web / News / Review Sites</div>
+              <p className="text-xs text-muted-foreground">Scrape websites, news, and review platforms (Trustpilot, G2, Glassdoor, Capterra)</p>
             </div>
           </div>
           <Badge variant="outline" className="text-sentinel-emerald border-sentinel-emerald/30 flex items-center gap-1">
@@ -218,7 +294,7 @@ export default function SourceConnectionsTab() {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          Web scanning is included — no setup needed. Select "News", "Blogs", or "Web" when creating a scan.
+          Web and review site scanning is included — no setup needed. Select "News", "Blogs", "Web", or "Review Sites" when creating a scan.
         </p>
       </Card>
 
