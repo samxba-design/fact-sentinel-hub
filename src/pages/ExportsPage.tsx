@@ -161,7 +161,17 @@ export default function ExportsPage() {
         URL.revokeObjectURL(url);
         toast({ title: "CSV Downloaded", description: `${dataType} export ready.` });
       } else {
-        if (!sheetId.trim()) { toast({ title: "Missing Sheet ID", variant: "destructive" }); setExporting(null); return; }
+        if (!sheetId.trim()) {
+          toast({
+            title: "Missing Sheet ID",
+            description: "Enter your Google Sheet ID above. You can find it in the sheet URL: docs.google.com/spreadsheets/d/SHEET_ID/edit",
+            variant: "destructive",
+          });
+          // Scroll the sheet ID input into view
+          document.getElementById("sheet-id-input")?.focus();
+          setExporting(null);
+          return;
+        }
         if (!googleToken) { toast({ title: "Not Connected", variant: "destructive" }); setExporting(null); return; }
         const { data, error } = await supabase.functions.invoke("export-data", {
           body: { org_id: currentOrg.id, data_type: dataType, mode: "sheets", sheet_id: sheetId.trim() },
@@ -279,7 +289,7 @@ export default function ExportsPage() {
               <p className="text-xs text-muted-foreground">
                 From the sheet URL: docs.google.com/spreadsheets/d/<strong className="text-primary">THIS_PART</strong>/edit
               </p>
-              <Input value={sheetId} onChange={e => setSheetId(e.target.value)}
+              <Input id="sheet-id-input" value={sheetId} onChange={e => setSheetId(e.target.value)}
                 placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
                 className="bg-muted border-border font-mono text-xs" />
             </Card>
