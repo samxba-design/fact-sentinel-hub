@@ -24,6 +24,8 @@ import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import SentimentSparklines from "@/components/dashboard/SentimentSparklines";
 import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
+import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget";
+import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
@@ -153,7 +155,6 @@ export default function DashboardPage() {
   const [negativeMentions, setNegativeMentions] = useState(0);
   const [emergencies, setEmergencies] = useState(0);
   const [activeIncidents, setActiveIncidents] = useState(0);
-  const [narratives, setNarratives] = useState<{ id: string; name: string; status: string | null; mention_count: number }[]>([]);
   const [incidentMode, setIncidentMode] = useState(false);
   const [volumeData, setVolumeData] = useState<{ date: string; mentions: number }[]>([]);
   const [sentimentData, setSentimentData] = useState<{ name: string; value: number }[]>([]);
@@ -175,29 +176,13 @@ export default function DashboardPage() {
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", rangeAgo),
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", prevRangeAgo).lt("posted_at", rangeAgo),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
-      supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).eq("status", "active").order("created_at", { ascending: false }).limit(5),
       supabase.from("mentions").select("posted_at, sentiment_label").eq("org_id", currentOrg.id).gte("posted_at", rangeAgo).order("posted_at"),
-    ]).then(async ([total, neg, emg, prev, incidents, narr, mentionsRaw]) => {
+    ]).then(async ([total, neg, emg, prev, incidents, mentionsRaw]) => {
       setTotalMentions(total.count ?? 0);
       setNegativeMentions(neg.count ?? 0);
       setEmergencies(emg.count ?? 0);
       setPrevTotal(prev.count ?? 0);
       setActiveIncidents(incidents.count ?? 0);
-
-      const narrData = narr.data || [];
-      if (narrData.length > 0) {
-        const countResults = await Promise.all(
-          narrData.map(n =>
-            supabase.from("mention_narratives").select("mention_id", { count: "exact", head: true }).eq("narrative_id", n.id)
-          )
-        );
-        setNarratives(narrData.map((n, i) => ({
-          id: n.id, name: n.name, status: n.status,
-          mention_count: countResults[i].count ?? 0,
-        })));
-      } else {
-        setNarratives([]);
-      }
 
       const mentions = mentionsRaw.data || [];
       const dayMap: Record<string, number> = {};
@@ -350,35 +335,10 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <Card className="bg-card border-border p-5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-            Top Narratives
-            <InfoTooltip text="Active narrative clusters detected by AI grouping similar mentions together. Click to explore." />
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => navigate("/narratives")} className="text-xs text-primary h-6 px-2">View all</Button>
-        </div>
-        <div className="mt-4 space-y-3">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)
-          ) : narratives.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No active narratives yet.</p>
-          ) : (
-            narratives.map((n, i) => (
-              <div key={i} className="flex items-center justify-between cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors" onClick={() => navigate(`/narratives/${n.id}`)}>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
-                  <span className="text-sm text-card-foreground">{n.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">{n.mention_count} mentions</span>
-                  <Badge variant="outline" className="text-[10px] border-sentinel-emerald/30 text-sentinel-emerald capitalize">{n.status}</Badge>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <NarrativeHealthWidget />
+        <LiveThreatFeed />
+      </div>
     </div>
   );
 }

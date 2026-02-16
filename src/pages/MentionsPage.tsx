@@ -336,6 +336,14 @@ export default function MentionsPage() {
                         <Badge variant="outline" className={`text-[10px] ${severityColors[m.severity || "low"]}`}>{m.severity || "low"}</Badge>
                         <div className={`text-xs font-medium ${sentimentColors[m.sentiment_label || "neutral"]}`}>{m.sentiment_label || "neutral"}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">{formatReach(m.author_follower_count)} reach</div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/respond?mention=${m.id}`); }}
+                        >
+                          <MessageCircleReply className="h-3 w-3 mr-1" /> Draft Reply
+                        </Button>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
