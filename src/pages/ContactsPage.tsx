@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import EmptyState from "@/components/EmptyState";
 
 interface InternalContact {
   id: string;
@@ -170,10 +171,13 @@ export default function ContactsPage() {
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
             ) : filteredContacts.length === 0 ? (
-              <Card className="bg-card border-border p-8 text-center">
-                <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No contacts yet. Add your first contact to build your internal directory.</p>
-              </Card>
+              <EmptyState
+                icon={Users}
+                title="No contacts yet"
+                description="Add your first contact to build your internal directory for escalation routing."
+                actionLabel="Add Contact"
+                onAction={() => { setEditData(null); setFormOpen(true); }}
+              />
             ) : (
               filteredContacts.map(c => (
                 <Card key={c.id} className="bg-card border-border p-4 hover:border-primary/30 transition-colors">
@@ -229,9 +233,11 @@ export default function ContactsPage() {
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
             ) : filteredMembers.length === 0 ? (
-              <Card className="bg-card border-border p-8 text-center">
-                <p className="text-sm text-muted-foreground">No team members found.</p>
-              </Card>
+              <EmptyState
+                icon={UserCheck}
+                title="No team members found"
+                description="Invite team members from the Settings page to collaborate on monitoring."
+              />
             ) : (
               filteredMembers.map(m => (
                 <Card key={m.id} className="bg-card border-border p-4">

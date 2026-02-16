@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
+import EmptyState from "@/components/EmptyState";
 
 interface Incident {
   id: string;
@@ -59,9 +60,13 @@ export default function IncidentsPage() {
         {loading ? (
           Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
         ) : incidents.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No incidents. Create one when an active crisis requires coordinated response.</p>
-          </Card>
+          <EmptyState
+            icon={Siren}
+            title="No incidents yet"
+            description="Create an incident when an active crisis requires coordinated response across your team."
+            actionLabel="New Incident"
+            onAction={() => setFormOpen(true)}
+          />
         ) : (
           incidents.map(inc => (
             <Card
