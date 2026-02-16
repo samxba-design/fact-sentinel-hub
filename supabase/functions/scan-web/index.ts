@@ -185,9 +185,6 @@ Deno.serve(async (req) => {
           return null;
         }
 
-        // Try to extract actual publish date from content
-        const extractedDate = extractDateFromContent(rawContent);
-
         return {
           source,
           content: cleanedContent.slice(0, 800),
@@ -196,7 +193,11 @@ Deno.serve(async (req) => {
           author_name: (() => {
             try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
           })(),
-          posted_at: extractedDate || new Date().toISOString(),
+          // Don't try to extract dates from article body text - it picks up
+          // historical dates mentioned in content (e.g. "FTX collapsed in 2023")
+          // and causes valid results to be filtered as "out of range".
+          // Firecrawl's tbs parameter already handles time filtering.
+          posted_at: new Date().toISOString(),
         };
       })
       .filter(Boolean);

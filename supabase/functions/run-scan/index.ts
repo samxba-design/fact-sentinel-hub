@@ -347,15 +347,17 @@ Deno.serve(async (req) => {
     const dateToMs = date_to ? new Date(date_to).getTime() : 0;
     const cleanedResults: RawResult[] = [];
     for (const r of allResults) {
-      // Enforce date range across ALL sources
-      if (dateFromMs > 0 && r.posted_at) {
+      // Only enforce date range for sources with reliable timestamps (Twitter, YouTube, Reddit)
+      // Web/news/review scraped dates are unreliable (extracted from body text) so skip date filtering for those
+      const hasReliableDate = ["twitter", "reddit", "youtube"].includes(r.source);
+      if (hasReliableDate && dateFromMs > 0 && r.posted_at) {
         const postedMs = new Date(r.posted_at).getTime();
         if (postedMs < dateFromMs) {
           console.log("Filtering out-of-range result:", r.url, r.posted_at);
           continue;
         }
       }
-      if (dateToMs > 0 && r.posted_at) {
+      if (hasReliableDate && dateToMs > 0 && r.posted_at) {
         const postedMs = new Date(r.posted_at).getTime();
         if (postedMs > dateToMs) continue;
       }
