@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrgProvider, useOrg } from "@/contexts/OrgContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import AppLayout from "@/components/AppLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import RoleGate from "@/components/RoleGate";
@@ -36,6 +37,7 @@ const GuidePage = React.lazy(() => import("@/pages/GuidePage"));
 const CompetitorsPage = React.lazy(() => import("@/pages/CompetitorsPage"));
 const ContactsPage = React.lazy(() => import("@/pages/ContactsPage"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
+const IndexPage = React.lazy(() => import("@/pages/Index"));
 
 const queryClient = new QueryClient();
 
@@ -53,7 +55,7 @@ function AppRoutes() {
 
   if (authLoading || (user && orgLoading)) {
     return (
-      <div className="dark min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -66,9 +68,10 @@ function AppRoutes() {
     return (
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          <Route path="/" element={<IndexPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/pricing" element={<PricingPage />} />
-          <Route path="*" element={<Navigate to="/auth" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     );
@@ -143,19 +146,21 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <OrgProvider>
-            <ErrorBoundary fallbackTitle="Application error">
-              <AppRoutes />
-            </ErrorBoundary>
-          </OrgProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <OrgProvider>
+              <ErrorBoundary fallbackTitle="Application error">
+                <AppRoutes />
+              </ErrorBoundary>
+            </OrgProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

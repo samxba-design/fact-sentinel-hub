@@ -5,12 +5,13 @@ import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import FloatingReportButton from "@/components/reports/FloatingReportButton";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 export default function AppLayout() {
   useKeyboardShortcuts();
 
   return (
-    <div className="dark min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <AppSidebar />
@@ -22,6 +23,7 @@ export default function AppLayout() {
       {/* Desktop top bar with search + notifications */}
       <div className="hidden lg:flex fixed top-0 left-64 right-0 h-14 bg-card/80 backdrop-blur-sm border-b border-border items-center justify-end px-6 z-40 gap-2">
         <GlobalSearch />
+        <ThemeSwitcher />
         <NotificationBell />
       </div>
 
