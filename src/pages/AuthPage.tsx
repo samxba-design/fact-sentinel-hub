@@ -49,7 +49,7 @@ export default function AuthPage() {
             <div className="p-2.5 rounded-xl bg-primary/10 sentinel-glow">
               <Shield className="h-8 w-8 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Sentinel</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">Sentinel</h1>
           </div>
           <p className="text-muted-foreground text-sm">
             Enterprise Sentiment & Risk Monitoring
