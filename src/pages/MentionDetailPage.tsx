@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
+import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
-  Trash2, Sparkles, Loader2, AlertCircle,
+  Trash2, Sparkles, Loader2, AlertCircle, Ban,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -151,6 +152,24 @@ export default function MentionDetailPage() {
     if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
     if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
     return String(count);
+  };
+
+  const ignoreSource = async (domain: string) => {
+    if (!currentOrg) return;
+    const { error } = await supabase.from("ignored_sources").insert({
+      org_id: currentOrg.id,
+      domain,
+      reason: "Blocked from mention detail",
+    });
+    if (error) {
+      if (error.code === "23505") {
+        toast({ title: "Already blocked", description: `${domain} is already on your block list.` });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+      return;
+    }
+    toast({ title: "Source blocked", description: `${domain} will be hidden from future results.` });
   };
 
   const updateStatus = async (newStatus: string) => {
@@ -388,16 +407,22 @@ export default function MentionDetailPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{mention.author_handle || "—"}</span>
-                <span>·</span>
-                <span>{formatReach(mention.author_follower_count)} followers</span>
+                {mention.author_handle && <span>{mention.author_handle}</span>}
+                {(() => {
+                  const reach = formatReachDisplay(mention.author_follower_count, mention.source);
+                  if (!reach) return null;
+                  return (
+                    <>
+                      {mention.author_handle && <span>·</span>}
+                      <span>{reach.value} {reach.label}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[10px]">
-              <span className="text-muted-foreground mr-1">Source:</span> <span className="capitalize">{mention.source}</span>
-            </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <SourceBadge source={mention.source} onClick={() => setSourceIntelOpen(true)} className="cursor-pointer" />
             {mention.url && getDomain(mention.url) !== "unknown" && (
               <Badge
                 variant="outline"
@@ -408,6 +433,17 @@ export default function MentionDetailPage() {
                 {getDomain(mention.url)}
                 <Sparkles className="h-2.5 w-2.5 ml-1 text-primary" />
               </Badge>
+            )}
+            {mention.url && getDomain(mention.url) !== "unknown" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                onClick={() => ignoreSource(getDomain(mention.url))}
+                title="Block this source"
+              >
+                <Ban className="h-3.5 w-3.5" />
+              </Button>
             )}
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
               <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
@@ -587,6 +623,7 @@ export default function MentionDetailPage() {
         domain={mention?.url ? getDomain(mention.url) : null}
         open={sourceIntelOpen}
         onOpenChange={setSourceIntelOpen}
+        onIgnore={(d) => ignoreSource(d)}
       />
     </div>
   );
