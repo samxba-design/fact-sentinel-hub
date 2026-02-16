@@ -211,7 +211,7 @@ export default function OnboardingPage() {
             <div className="p-2.5 rounded-xl bg-primary/10 sentinel-glow">
               <Shield className="h-8 w-8 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Sentinel</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">SentiWatch</h1>
           </div>
            <p className="text-muted-foreground">
              {isNewOrg ? "Set up a new organization" : "Set up your organization"}
@@ -374,7 +374,7 @@ export default function OnboardingPage() {
                 <Clock className="h-5 w-5 text-primary" />
                 <h2 className="text-xl font-semibold text-card-foreground">Scan Schedule</h2>
               </div>
-              <p className="text-sm text-muted-foreground">Choose how often Sentinel scans for mentions.</p>
+              <p className="text-sm text-muted-foreground">Choose how often SentiWatch scans for mentions.</p>
 
               <div className="space-y-3">
                 {[

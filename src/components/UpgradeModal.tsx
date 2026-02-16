@@ -66,7 +66,7 @@ export default function UpgradeModal({ open, onOpenChange, feature }: UpgradeMod
             Upgrade to Pro
           </DialogTitle>
           <DialogDescription>
-            {feature ? `${feature} requires a Pro plan.` : "Unlock the full power of Sentinel."}
+            {feature ? `${feature} requires a Pro plan.` : "Unlock the full power of SentiWatch."}
           </DialogDescription>
         </DialogHeader>
 
