@@ -33,7 +33,22 @@ function cleanContent(raw: string): string {
   text = text.replace(/[#*_~`>|]/g, "");
   text = text.replace(/[-=]{3,}/g, " ");
   text = text.replace(/\s+/g, " ").trim();
-  return text;
+  // Strip leading boilerplate
+  text = text.replace(/^skip to (content|main|navigation)\s*/i, "");
+  text = text.replace(/^(menu|navigation|home|about|contact|sign in|log in|subscribe)(\s+(menu|navigation|home|about|contact|sign in|log in|subscribe))*\s*/i, "");
+  return text.trim();
+}
+
+// Convert date_from to Firecrawl tbs time filter
+function dateToTbs(dateFrom: string | undefined): string | undefined {
+  if (!dateFrom) return undefined;
+  const diffMs = Date.now() - new Date(dateFrom).getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  if (diffDays <= 1) return "qdr:d";
+  if (diffDays <= 7) return "qdr:w";
+  if (diffDays <= 30) return "qdr:m";
+  if (diffDays <= 365) return "qdr:y";
+  return undefined;
 }
 
 // Detect blocked/error pages
@@ -161,6 +176,7 @@ Deno.serve(async (req) => {
           const webResult = await callFunction("scan-web", {
             keywords: keywords?.length > 0 ? keywords : ["brand"],
             limit: 10,
+            tbs: dateToTbs(date_from),
           });
           if (webResult.success && webResult.results) {
             allResults.push(...webResult.results);
