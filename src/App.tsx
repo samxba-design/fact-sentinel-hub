@@ -27,6 +27,7 @@ import ExportsPage from "@/pages/ExportsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AdminPage from "@/pages/AdminPage";
 import PricingPage from "@/pages/PricingPage";
+import GuidePage from "@/pages/GuidePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -101,6 +102,7 @@ function AppRoutes() {
         <Route path="/exports" element={<ExportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Route>
       {/* Allow onboarding for creating additional orgs */}

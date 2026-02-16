@@ -5,7 +5,7 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard, Plus
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ const navItems = [
   { to: "/escalations", icon: TicketCheck, label: "Escalations" },
   { to: "/exports", icon: Download, label: "Exports" },
   { to: "/pricing", icon: CreditCard, label: "Pricing" },
+  { to: "/guide", icon: BookOpen, label: "Getting Started" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
