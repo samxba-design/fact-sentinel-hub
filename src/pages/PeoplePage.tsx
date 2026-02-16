@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { User2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import AddPersonDialog from "@/components/people/AddPersonDialog";
 
 interface PersonRow {
   person_id: string;
@@ -24,8 +26,9 @@ export default function PeoplePage() {
   const { currentOrg } = useOrg();
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchPeople = () => {
     if (!currentOrg) return;
     setLoading(true);
     supabase
@@ -38,21 +41,31 @@ export default function PeoplePage() {
         setPeople((data as any) || []);
         setLoading(false);
       });
-  }, [currentOrg]);
+  };
+
+  useEffect(() => { fetchPeople(); }, [currentOrg]);
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">People</h1>
-        <p className="text-sm text-muted-foreground mt-1">Executive exposure and people tracking</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">People</h1>
+          <p className="text-sm text-muted-foreground mt-1">Executive exposure and people tracking</p>
+        </div>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Add Person
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)
         ) : people.length === 0 ? (
-          <Card className="bg-card border-border p-8 text-center col-span-full">
-            <p className="text-sm text-muted-foreground">No people tracked yet. Add people via Settings or let scans detect them.</p>
+          <Card className="bg-card border-border p-8 text-center col-span-full space-y-3">
+            <p className="text-sm text-muted-foreground">No people tracked yet.</p>
+            <Button variant="outline" onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Add your first person
+            </Button>
           </Card>
         ) : (
           people.map(p => (
@@ -71,7 +84,7 @@ export default function PeoplePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-muted-foreground">Followers</div>
-                  <div className="text-sm font-mono text-card-foreground">{p.people?.follower_count ?? 0}</div>
+                  <div className="text-sm font-mono text-card-foreground">{p.people?.follower_count ? p.people.follower_count.toLocaleString() : "N/A"}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Tier</div>
@@ -82,6 +95,8 @@ export default function PeoplePage() {
           ))
         )}
       </div>
+
+      <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onSaved={fetchPeople} />
     </div>
   );
 }

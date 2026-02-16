@@ -281,11 +281,11 @@ export default function MentionDetailPage() {
               <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{mention.language.toUpperCase()}</span>
             )}
           </div>
-          {mention.url && (
-            <a href={mention.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-              <ExternalLink className="h-3 w-3" /> View Original
-            </a>
-          )}
+          {mention.url ? (
+            <span className="flex items-center gap-1 text-muted-foreground text-[10px]">
+              <Bot className="h-3 w-3" /> AI-Simulated mention — no original source
+            </span>
+          ) : null}
         </div>
       </Card>
 
@@ -309,14 +309,15 @@ export default function MentionDetailPage() {
         {/* Metrics */}
         <Card className="bg-card border-border p-5 space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Engagement Metrics</h3>
+          <p className="text-[10px] text-muted-foreground italic">Metrics are AI-estimated and may not reflect actual engagement</p>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Likes", value: metrics.likes ?? 0 },
-              { label: "Shares", value: metrics.shares ?? 0 },
-              { label: "Comments", value: metrics.comments ?? 0 },
+              { label: "Likes", value: metrics.likes },
+              { label: "Shares", value: metrics.shares },
+              { label: "Comments", value: metrics.comments },
             ].map(m => (
               <div key={m.label} className="text-center">
-                <div className="text-lg font-bold font-mono text-foreground">{formatReach(m.value)}</div>
+                <div className="text-lg font-bold font-mono text-foreground">{m.value != null ? formatReach(m.value) : "N/A"}</div>
                 <div className="text-[10px] text-muted-foreground">{m.label}</div>
               </div>
             ))}

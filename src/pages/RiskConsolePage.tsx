@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X } from "lucide-react";
+import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X, Scan } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import UpgradeBanner from "@/components/UpgradeBanner";
 import { formatDistanceToNow } from "date-fns";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface RiskMention {
   id: string;
@@ -42,6 +43,17 @@ const ALERT_COLORS: Record<string, string> = {
   viral_risk: "text-sentinel-red",
 };
 
+type QueueFilter = string | null;
+
+const QUEUE_DESCRIPTIONS: Record<string, string> = {
+  emergencies: "Critical-severity mentions requiring immediate action",
+  high: "High-severity mentions that need attention soon",
+  "false-claims": "Mentions flagged as containing misinformation",
+  regulatory: "Mentions with potential regulatory compliance risks",
+  scams: "Mentions flagged for scam or impersonation activity",
+  spikes: "Active alerts for unusual mention volume spikes",
+};
+
 export default function RiskConsolePage() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
@@ -50,6 +62,7 @@ export default function RiskConsolePage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [counts, setCounts] = useState({ emergencies: 0, high: 0, falseClaims: 0, regulatory: 0, scams: 0, spikes: 0 });
   const [loading, setLoading] = useState(true);
+  const [activeQueue, setActiveQueue] = useState<QueueFilter>(null);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -121,25 +134,65 @@ export default function RiskConsolePage() {
     { key: "spikes", label: "Spikes", icon: TrendingUp, count: counts.spikes, color: "text-sentinel-cyan" },
   ];
 
+  const filteredMentions = mentions.filter(m => {
+    if (!activeQueue) return true;
+    const f = m.flags as any || {};
+    switch (activeQueue) {
+      case "emergencies": return m.severity === "critical";
+      case "high": return m.severity === "high";
+      case "false-claims": return f.misinformation;
+      case "regulatory": return f.regulatory_risk;
+      case "scams": return f.scam || f.impersonation;
+      default: return true;
+    }
+  });
+
   const activeAlerts = alerts.filter(a => a.status === "active");
 
   return (
     <div className="space-y-6 animate-fade-up">
       <UpgradeBanner feature="Risk Console" className="mb-2" />
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
-        <p className="text-sm text-muted-foreground mt-1">Triage and manage operational risks, spikes, and alerts</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Risk Console</h1>
+          <p className="text-sm text-muted-foreground mt-1">Triage and manage operational risks, spikes, and alerts</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate("/scans")}>
+          <Scan className="h-4 w-4 mr-2" /> Run New Scan
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {queues.map(q => (
-          <Card key={q.key} className="bg-card border-border p-4 text-center hover:border-primary/30 transition-colors cursor-pointer">
-            <q.icon className={`h-5 w-5 mx-auto ${q.color}`} />
-            <div className="text-xl font-bold font-mono text-card-foreground mt-2">{loading ? "—" : q.count}</div>
-            <div className="text-[10px] text-muted-foreground mt-1">{q.label}</div>
-          </Card>
+          <Tooltip key={q.key}>
+            <TooltipTrigger asChild>
+              <Card
+                className={`bg-card border-border p-4 text-center hover:border-primary/30 transition-colors cursor-pointer ${activeQueue === q.key ? "ring-1 ring-primary border-primary/40" : ""}`}
+                onClick={() => setActiveQueue(activeQueue === q.key ? null : q.key)}
+              >
+                <q.icon className={`h-5 w-5 mx-auto ${q.color}`} />
+                <div className="text-xl font-bold font-mono text-card-foreground mt-2">{loading ? "—" : q.count}</div>
+                <div className="text-[10px] text-muted-foreground mt-1">{q.label}</div>
+                {activeQueue === q.key && <div className="text-[9px] text-primary mt-1">Filtering ↓</div>}
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs max-w-48">
+              {QUEUE_DESCRIPTIONS[q.key]}
+            </TooltipContent>
+          </Tooltip>
         ))}
       </div>
+
+      {activeQueue && (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+            Filtered: {queues.find(q => q.key === activeQueue)?.label}
+          </Badge>
+          <Button size="sm" variant="ghost" onClick={() => setActiveQueue(null)} className="text-xs h-6 px-2">
+            Clear filter ×
+          </Button>
+        </div>
+      )}
 
       {/* Active Alerts */}
       <Card className="bg-card border-border p-5">
@@ -156,7 +209,6 @@ export default function RiskConsolePage() {
               const AlertIcon = ALERT_ICONS[alert.type] || Bell;
               const alertColor = ALERT_COLORS[alert.type] || "text-primary";
               const payload = alert.payload as any || {};
-
               return (
                 <div key={alert.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -210,14 +262,26 @@ export default function RiskConsolePage() {
 
       {/* Risk Mentions */}
       <Card className="bg-card border-border p-5">
-        <h3 className="text-sm font-medium text-card-foreground mb-4">Latest Risk Items</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-card-foreground">
+            {activeQueue ? `${queues.find(q => q.key === activeQueue)?.label} Items` : "Latest Risk Items"}
+            {" "}({filteredMentions.length})
+          </h3>
+          {filteredMentions.length === 0 && !loading && (
+            <Button size="sm" variant="outline" onClick={() => navigate("/scans")}>
+              <Scan className="h-3.5 w-3.5 mr-1.5" /> Scan Now
+            </Button>
+          )}
+        </div>
         <div className="space-y-3">
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)
-          ) : mentions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No high-severity mentions detected.</p>
+          ) : filteredMentions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {activeQueue ? "No items match this filter." : "No high-severity mentions detected. Run a scan to check."}
+            </p>
           ) : (
-            mentions.slice(0, 10).map(item => (
+            filteredMentions.slice(0, 15).map(item => (
               <div
                 key={item.id}
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
