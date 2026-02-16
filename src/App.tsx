@@ -103,6 +103,7 @@ function AppRoutes() {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Route>
+      {/* Allow onboarding for creating additional orgs */}
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/auth" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFound />} />
