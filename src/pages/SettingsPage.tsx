@@ -428,74 +428,17 @@ export default function SettingsPage() {
         {/* ALERTS TAB */}
         <TabsContent value="alerts">
           <Card className="bg-card border-border p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-card-foreground">Alert & Scan Configuration</h3>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate("/contacts")}>
-                <Users className="h-3 w-3 mr-1" /> Manage Contacts
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Alert Emails (comma-separated)</Label>
-                <Input
-                  placeholder="alert@example.com, team@example.com"
-                  value={alertEmails}
-                  onChange={e => setAlertEmails(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Escalation Emails (comma-separated)</Label>
-                <Input
-                  placeholder="escalation@example.com"
-                  value={escalationEmails}
-                  onChange={e => setEscalationEmails(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Scan Schedule</Label>
-                <Select value={scanSchedule} onValueChange={setScanSchedule}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manual only</SelectItem>
-                    <SelectItem value="6h">Every 6 hours</SelectItem>
-                    <SelectItem value="12h">Every 12 hours</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">How often automated scans run. Spike detection runs independently every 15 minutes.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Quiet Hours (UTC) — Optional</Label>
-                <div className="flex items-center gap-2">
-                  <Select value={quietStart != null ? String(quietStart) : "none"} onValueChange={v => setQuietStart(v === "none" ? null : Number(v))}>
-                    <SelectTrigger className="w-24"><SelectValue placeholder="Start" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Off</SelectItem>
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-xs text-muted-foreground">to</span>
-                  <Select value={quietEnd != null ? String(quietEnd) : "none"} onValueChange={v => setQuietEnd(v === "none" ? null : Number(v))}>
-                    <SelectTrigger className="w-24"><SelectValue placeholder="End" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Off</SelectItem>
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-[10px] text-muted-foreground">Default: 24/7 monitoring (no quiet hours). Set quiet hours to pause alerts during off-hours.</p>
+            <div className="flex items-center gap-3">
+              <Bell className="h-5 w-5 text-primary" />
+              <div>
+                <h3 className="text-sm font-medium text-card-foreground">Alert & Monitoring Configuration</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Scan schedules, alert emails, and monitoring settings are managed from the dedicated Alerts & Monitoring page for a unified experience.
+                </p>
               </div>
             </div>
-
-            <Button onClick={saveAlertConfig} disabled={savingAlerts}>
-              {savingAlerts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              Save Alert Settings
+            <Button onClick={() => navigate("/alerts")} className="gap-2">
+              <Bell className="h-4 w-4" /> Go to Alerts & Monitoring
             </Button>
           </Card>
         </TabsContent>

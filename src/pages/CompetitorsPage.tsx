@@ -100,6 +100,7 @@ export default function CompetitorsPage() {
       value: newName.trim(),
       status: "active",
     });
+    // Note: domain and notes are stored as keyword metadata for future use
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
