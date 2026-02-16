@@ -7,14 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  ArrowLeft, Pencil, Plus, Siren, Clock, User2, MessageSquare,
-  Trash2, Link2, Loader2, X,
+  Pencil, Plus, Siren, Clock, User2, MessageSquare,
+  Link2, Loader2, X, Network, ChevronDown, Check,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
 
 interface Incident {
@@ -72,9 +75,13 @@ export default function IncidentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
 
-  // Attach mention state
-  const [mentionIdInput, setMentionIdInput] = useState("");
+  // Dropdowns for linking
+  const [availableMentions, setAvailableMentions] = useState<{ id: string; label: string; sublabel: string }[]>([]);
+  const [availableNarratives, setAvailableNarratives] = useState<{ id: string; label: string; sublabel: string }[]>([]);
+  const [mentionPopoverOpen, setMentionPopoverOpen] = useState(false);
+  const [narrativePopoverOpen, setNarrativePopoverOpen] = useState(false);
   const [attachingMention, setAttachingMention] = useState(false);
+  const [attachingNarrative, setAttachingNarrative] = useState(false);
 
   // Add note state
   const [noteInput, setNoteInput] = useState("");
@@ -96,38 +103,75 @@ export default function IncidentDetailPage() {
     setLoading(false);
   }, [id, currentOrg]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Load available items for linking
+  const loadAvailable = useCallback(async () => {
+    if (!currentOrg) return;
+    const linkedMentionIds = new Set(mentions.map(m => m.mention_id));
+    const linkedNarrativeIds = new Set(narratives.map(n => n.narrative_id));
 
-  const handleAttachMention = async () => {
-    if (!id || !mentionIdInput.trim()) return;
+    const [mRes, nRes] = await Promise.all([
+      supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
+    ]);
+
+    setAvailableMentions(
+      (mRes.data || [])
+        .filter(m => !linkedMentionIds.has(m.id))
+        .map(m => ({
+          id: m.id,
+          label: (m.content || "").slice(0, 80) || "No content",
+          sublabel: `${m.source}${m.author_name ? ` · ${m.author_name}` : ""}`,
+        }))
+    );
+    setAvailableNarratives(
+      (nRes.data || [])
+        .filter(n => !linkedNarrativeIds.has(n.id))
+        .map(n => ({
+          id: n.id,
+          label: n.name,
+          sublabel: n.status || "active",
+        }))
+    );
+  }, [currentOrg, mentions, narratives]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { if (!loading) loadAvailable(); }, [loading, loadAvailable]);
+
+  const handleAttachMention = async (mentionId: string) => {
+    if (!id) return;
     setAttachingMention(true);
     try {
-      // Search for mention by partial content or id
-      const { data: found } = await supabase
-        .from("mentions")
-        .select("id")
-        .eq("org_id", currentOrg!.id)
-        .or(`id.eq.${mentionIdInput.trim()},content.ilike.%${mentionIdInput.trim()}%`)
-        .limit(1)
-        .single();
-      if (!found) throw new Error("Mention not found");
-
-      const { error } = await supabase.from("incident_mentions").insert({ incident_id: id, mention_id: found.id });
+      const { error } = await supabase.from("incident_mentions").insert({ incident_id: id, mention_id: mentionId });
       if (error) throw error;
-
       await supabase.from("incident_events").insert({
-        incident_id: id,
-        event_type: "mention_added",
-        description: `Mention attached`,
+        incident_id: id, event_type: "mention_added", description: "Mention attached",
       });
-
-      setMentionIdInput("");
+      setMentionPopoverOpen(false);
       toast({ title: "Mention attached" });
       fetchAll();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAttachingMention(false);
+    }
+  };
+
+  const handleAttachNarrative = async (narrativeId: string) => {
+    if (!id) return;
+    setAttachingNarrative(true);
+    try {
+      const { error } = await supabase.from("incident_narratives").insert({ incident_id: id, narrative_id: narrativeId });
+      if (error) throw error;
+      await supabase.from("incident_events").insert({
+        incident_id: id, event_type: "narrative_added", description: "Narrative attached",
+      });
+      setNarrativePopoverOpen(false);
+      toast({ title: "Narrative attached" });
+      fetchAll();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setAttachingNarrative(false);
     }
   };
 
@@ -150,9 +194,7 @@ export default function IncidentDetailPage() {
     setAddingNote(true);
     try {
       await supabase.from("incident_events").insert({
-        incident_id: id,
-        event_type: "note",
-        description: noteInput.trim(),
+        incident_id: id, event_type: "note", description: noteInput.trim(),
       });
       setNoteInput("");
       toast({ title: "Note added" });
@@ -177,9 +219,7 @@ export default function IncidentDetailPage() {
   if (!incident) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/incidents")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back
-        </Button>
+        <Breadcrumbs items={[{ label: "Incidents", href: "/incidents" }, { label: "Not found" }]} />
         <Card className="bg-card border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">Incident not found.</p>
         </Card>
@@ -189,13 +229,8 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
-      {/* Breadcrumbs */}
-      <Breadcrumbs items={[
-        { label: "Incidents", href: "/incidents" },
-        { label: incident.name },
-      ]} />
+      <Breadcrumbs items={[{ label: "Incidents", href: "/incidents" }, { label: incident.name }]} />
 
-      {/* Header */}
       <div className="flex items-center justify-end">
         <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
           <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
@@ -234,10 +269,17 @@ export default function IncidentDetailPage() {
           </span>
         </div>
 
+        {/* Stats row */}
         <div className="flex items-center gap-4 text-xs">
-          <span className="text-muted-foreground">{mentions.length} mentions</span>
-          <span className="text-muted-foreground">{narratives.length} narratives</span>
-          <span className="text-muted-foreground">{events.length} events</span>
+          <Badge variant="secondary" className="text-[10px] font-normal gap-1">
+            <MessageSquare className="h-3 w-3" /> {mentions.length} mentions
+          </Badge>
+          <Badge variant="secondary" className="text-[10px] font-normal gap-1">
+            <Network className="h-3 w-3" /> {narratives.length} narratives
+          </Badge>
+          <Badge variant="secondary" className="text-[10px] font-normal gap-1">
+            📝 {events.length} events
+          </Badge>
         </div>
       </Card>
 
@@ -253,7 +295,6 @@ export default function IncidentDetailPage() {
               <div className="relative space-y-0">
                 {events.map((ev, i) => (
                   <div key={ev.id} className="flex gap-3 pb-4 relative">
-                    {/* Timeline line */}
                     {i < events.length - 1 && (
                       <div className="absolute left-[15px] top-7 bottom-0 w-px bg-border" />
                     )}
@@ -293,7 +334,10 @@ export default function IncidentDetailPage() {
         <div className="space-y-4">
           {/* Linked Mentions */}
           <Card className="bg-card border-border p-5 space-y-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Linked Mentions</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Linked Mentions</h3>
+              <Badge variant="secondary" className="text-[9px]">{mentions.length}</Badge>
+            </div>
 
             {mentions.length === 0 ? (
               <p className="text-xs text-muted-foreground">No mentions linked.</p>
@@ -321,23 +365,40 @@ export default function IncidentDetailPage() {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Input
-                value={mentionIdInput}
-                onChange={e => setMentionIdInput(e.target.value)}
-                placeholder="Search mention..."
-                className="flex-1 text-xs"
-                onKeyDown={e => { if (e.key === "Enter") handleAttachMention(); }}
-              />
-              <Button size="sm" variant="outline" onClick={handleAttachMention} disabled={attachingMention || !mentionIdInput.trim()}>
-                {attachingMention ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-              </Button>
-            </div>
+            {/* Dropdown to add mention */}
+            <Popover open={mentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full text-xs gap-1.5">
+                  <Plus className="h-3 w-3" /> Link Mention
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search mentions..." className="text-xs" />
+                  <CommandList>
+                    <CommandEmpty className="text-xs py-3 text-center">No unlinked mentions found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableMentions.map(m => (
+                        <CommandItem key={m.id} value={m.label} onSelect={() => handleAttachMention(m.id)} className="text-xs cursor-pointer">
+                          <div className="flex-1 min-w-0">
+                            <span className="truncate block">{m.label}</span>
+                            <span className="text-[10px] text-muted-foreground">{m.sublabel}</span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </Card>
 
           {/* Linked Narratives */}
           <Card className="bg-card border-border p-5 space-y-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Linked Narratives</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Linked Narratives</h3>
+              <Badge variant="secondary" className="text-[9px]">{narratives.length}</Badge>
+            </div>
 
             {narratives.length === 0 ? (
               <p className="text-xs text-muted-foreground">No narratives linked.</p>
@@ -345,7 +406,10 @@ export default function IncidentDetailPage() {
               <div className="space-y-2">
                 {narratives.map(n => (
                   <div key={n.narrative_id} className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border">
-                    <div>
+                    <div
+                      className="flex-1 cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => navigate(`/narratives/${n.narrative_id}`)}
+                    >
                       <p className="text-xs text-foreground">{(n.narratives as any)?.name || "—"}</p>
                       <Badge variant="outline" className="text-[8px] mt-1 capitalize">
                         {(n.narratives as any)?.status || "active"}
@@ -358,6 +422,33 @@ export default function IncidentDetailPage() {
                 ))}
               </div>
             )}
+
+            {/* Dropdown to add narrative */}
+            <Popover open={narrativePopoverOpen} onOpenChange={setNarrativePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full text-xs gap-1.5">
+                  <Plus className="h-3 w-3" /> Link Narrative
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search narratives..." className="text-xs" />
+                  <CommandList>
+                    <CommandEmpty className="text-xs py-3 text-center">No unlinked narratives found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableNarratives.map(n => (
+                        <CommandItem key={n.id} value={n.label} onSelect={() => handleAttachNarrative(n.id)} className="text-xs cursor-pointer">
+                          <div className="flex-1 min-w-0">
+                            <span className="truncate block">{n.label}</span>
+                            <span className="text-[10px] text-muted-foreground capitalize">{n.sublabel}</span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </Card>
         </div>
       </div>
