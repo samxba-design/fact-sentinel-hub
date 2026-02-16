@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,12 +60,27 @@ export default function MentionsPage() {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const scanFilter = searchParams.get("scan");
+  const daysParam = searchParams.get("days");
+
+  // Apply URL query params to filters on mount
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    const sentiment = searchParams.get("sentiment");
+    const severity = searchParams.get("severity");
+    const status = searchParams.get("status");
+    if (sentiment) setSentimentFilter(sentiment);
+    if (severity) setSeverityFilter(severity);
+    if (status) setStatusFilter(status);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -79,11 +94,18 @@ export default function MentionsPage() {
 
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
 
+    // Apply days filter from URL param
+    if (daysParam) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
+      query = query.gte("posted_at", daysAgo.toISOString());
+    }
+
     query.then(({ data }) => {
       setMentions(data || []);
       setLoading(false);
     });
-  }, [currentOrg, scanFilter]);
+  }, [currentOrg, scanFilter, daysParam]);
 
   const updateMentionStatus = async (mentionId: string, newStatus: string) => {
     const { error } = await supabase.from("mentions").update({ status: newStatus }).eq("id", mentionId);
@@ -149,6 +171,7 @@ export default function MentionsPage() {
     if (statusFilter === "active" && (mStatus === "ignored" || mStatus === "snoozed" || mStatus === "resolved")) return false;
     if (statusFilter !== "active" && statusFilter !== "all" && mStatus !== statusFilter) return false;
     if (severityFilter !== "all" && m.severity !== severityFilter) return false;
+    if (sentimentFilter !== "all" && m.sentiment_label !== sentimentFilter) return false;
     if (sourceFilter !== "all" && m.source !== sourceFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -177,13 +200,23 @@ export default function MentionsPage() {
 
   const clearScanFilter = () => {
     searchParams.delete("scan");
+    searchParams.delete("days");
+    searchParams.delete("sentiment");
+    searchParams.delete("severity");
+    searchParams.delete("status");
     setSearchParams(searchParams, { replace: true });
+    setSentimentFilter("all");
+    setSeverityFilter("all");
+    setStatusFilter("active");
   };
 
-  const currentFilters = { statusFilter, severityFilter, sourceFilter, search };
+  const hasUrlFilters = searchParams.has("sentiment") || searchParams.has("severity") || searchParams.has("days") || searchParams.has("status");
+
+  const currentFilters = { statusFilter, severityFilter, sentimentFilter, sourceFilter, search };
   const applyFilters = (f: Record<string, any>) => {
     if (f.statusFilter) setStatusFilter(f.statusFilter);
     if (f.severityFilter) setSeverityFilter(f.severityFilter);
+    if (f.sentimentFilter) setSentimentFilter(f.sentimentFilter);
     if (f.sourceFilter) setSourceFilter(f.sourceFilter);
     if (f.search !== undefined) setSearch(f.search);
   };
@@ -195,11 +228,18 @@ export default function MentionsPage() {
         <p className="text-sm text-muted-foreground mt-1">All detected mentions across sources</p>
       </div>
 
-      {scanFilter && (
+      {(scanFilter || hasUrlFilters) && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <span className="text-sm text-primary">Filtered by scan run</span>
+          <span className="text-sm text-primary">
+            {scanFilter ? "Filtered by scan run" : `Filtered: ${[
+              sentimentFilter !== "all" ? sentimentFilter + " sentiment" : "",
+              severityFilter !== "all" ? severityFilter + " severity" : "",
+              daysParam ? `last ${daysParam} days` : "",
+              statusFilter !== "active" ? statusFilter + " status" : "",
+            ].filter(Boolean).join(", ")}`}
+          </span>
           <Button size="sm" variant="ghost" onClick={clearScanFilter} className="h-6 px-2 text-xs">
-            <ArrowLeft className="h-3 w-3 mr-1" /> Show all mentions
+            <ArrowLeft className="h-3 w-3 mr-1" /> Clear filters
           </Button>
         </div>
       )}
@@ -237,6 +277,16 @@ export default function MentionsPage() {
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
             {uniqueSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sentiment</SelectItem>
+            <SelectItem value="positive">Positive</SelectItem>
+            <SelectItem value="neutral">Neutral</SelectItem>
+            <SelectItem value="negative">Negative</SelectItem>
+            <SelectItem value="mixed">Mixed</SelectItem>
           </SelectContent>
         </Select>
         <SavedFilters currentFilters={currentFilters} onApply={applyFilters} />
