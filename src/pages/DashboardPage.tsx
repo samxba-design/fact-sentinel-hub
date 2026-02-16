@@ -9,12 +9,13 @@ import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
+  Clock, FileWarning,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -158,9 +159,12 @@ export default function DashboardPage() {
   const [negativeMentions, setNegativeMentions] = useState(0);
   const [emergencies, setEmergencies] = useState(0);
   const [activeIncidents, setActiveIncidents] = useState(0);
+  const [pendingEscalations, setPendingEscalations] = useState(0);
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
   const [incidentMode, setIncidentMode] = useState(false);
   const [volumeData, setVolumeData] = useState<{ date: string; mentions: number }[]>([]);
   const [sentimentData, setSentimentData] = useState<{ name: string; value: number }[]>([]);
+  const [sourceData, setSourceData] = useState<{ name: string; value: number }[]>([]);
   const [prevTotal, setPrevTotal] = useState(0);
   const [rangeDays, setRangeDays] = useState(7);
 
@@ -179,17 +183,22 @@ export default function DashboardPage() {
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").gte("posted_at", rangeAgo),
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).gte("posted_at", prevRangeAgo).lt("posted_at", rangeAgo),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
-      supabase.from("mentions").select("posted_at, sentiment_label").eq("org_id", currentOrg.id).gte("posted_at", rangeAgo).order("posted_at"),
-    ]).then(async ([total, neg, emg, prev, incidents, mentionsRaw]) => {
+      supabase.from("mentions").select("posted_at, sentiment_label, source").eq("org_id", currentOrg.id).gte("posted_at", rangeAgo).order("posted_at"),
+      supabase.from("escalations").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).in("status", ["open", "in_progress"]),
+      supabase.from("scan_runs").select("finished_at").eq("org_id", currentOrg.id).eq("status", "completed").order("finished_at", { ascending: false }).limit(1),
+    ]).then(async ([total, neg, emg, prev, incidents, mentionsRaw, escalations, lastScan]) => {
       setTotalMentions(total.count ?? 0);
       setNegativeMentions(neg.count ?? 0);
       setEmergencies(emg.count ?? 0);
       setPrevTotal(prev.count ?? 0);
       setActiveIncidents(incidents.count ?? 0);
+      setPendingEscalations(escalations.count ?? 0);
+      setLastScanAt(lastScan.data?.[0]?.finished_at || null);
 
       const mentions = mentionsRaw.data || [];
       const dayMap: Record<string, number> = {};
       const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
+      const srcMap: Record<string, number> = {};
 
       for (let i = rangeDays - 1; i >= 0; i--) {
         const d = format(subDays(now, i), "MMM dd");
@@ -203,10 +212,13 @@ export default function DashboardPage() {
         }
         const label = m.sentiment_label || "neutral";
         if (label in sentMap) sentMap[label]++;
+        const src = m.source || "unknown";
+        srcMap[src] = (srcMap[src] || 0) + 1;
       });
 
       setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
       setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
+      setSourceData(Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })));
       setLoading(false);
     });
   }, [currentOrg, rangeDays]);
@@ -262,7 +274,15 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last {rangeDays} days</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-sm text-muted-foreground">Monitoring overview — Last {rangeDays} days</p>
+            {lastScanAt && (
+              <span className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Last scan: {formatDistanceToNow(new Date(lastScanAt), { addSuffix: true })}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ReportGeneratorDialog />
@@ -320,15 +340,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
+          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
         ) : (
           <>
             <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate(`/mentions?days=${rangeDays}`)} tooltip="Total mentions detected across all sources in the selected time period." />
             <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate(`/mentions?sentiment=negative&days=${rangeDays}`)} tooltip="Mentions classified as having negative sentiment by AI analysis." />
             <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate(`/mentions?severity=critical&days=${rangeDays}`)} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
             <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents?status=active")} tooltip="Open incident war-rooms currently being tracked." />
+            <MetricCard icon={FileWarning} label="Open Escalations" value={pendingEscalations} accentClass="bg-primary/10" onClick={() => navigate("/escalations")} tooltip="Escalations currently open or in progress requiring attention." />
           </>
         )}
       </div>
@@ -418,8 +439,33 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Source Breakdown + Narratives + Live Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <NarrativeHealthWidget />
+
+        {/* Source Breakdown */}
+        <Card className="bg-card border-border p-5 space-y-3">
+          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+            Source Breakdown
+            <InfoTooltip text="Distribution of mentions by source platform in the selected period." />
+          </span>
+          {loading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : sourceData.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No source data yet. Run a scan to populate.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={sourceData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={70} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Mentions" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
         <LiveThreatFeed />
       </div>
     </div>
