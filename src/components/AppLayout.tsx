@@ -1,7 +1,10 @@
 import { Outlet } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 export default function AppLayout() {
+  useKeyboardShortcuts();
+
   return (
     <div className="dark min-h-screen bg-background">
       <AppSidebar />
