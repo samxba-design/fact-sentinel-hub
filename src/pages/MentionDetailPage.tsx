@@ -423,40 +423,49 @@ export default function MentionDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <SourceBadge source={mention.source} />
-            {mention.url && getDomain(mention.url) !== "unknown" && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors gap-1"
-                  >
-                    <Globe className="h-3 w-3" />
-                    {getDomain(mention.url)}
-                    <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
-                  </Badge>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => setSourceIntelOpen(true)}>
-                    <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> Source Intelligence
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(`/mentions?source=${mention.source}`)}>
-                    <Search className="h-3.5 w-3.5 mr-2" /> All mentions from this source
-                  </DropdownMenuItem>
-                  {mention.url && (
-                    <DropdownMenuItem onClick={() => window.open(mention.url!, "_blank")}>
-                      <ExternalLink className="h-3.5 w-3.5 mr-2" /> Visit {getDomain(mention.url)}
+            {mention.url && getDomain(mention.url) !== "unknown" && (() => {
+              const domain = getDomain(mention.url);
+              const authorDisplay = (mention.author_name || "").toLowerCase();
+              const isDuplicate = authorDisplay === domain.toLowerCase();
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors gap-1"
+                    >
+                      <Globe className="h-3 w-3" />
+                      {domain}
+                      <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+                    </Badge>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setSourceIntelOpen(true)}>
+                      <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> Source Intelligence
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => ignoreSource(getDomain(mention.url))}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Ban className="h-3.5 w-3.5 mr-2" /> Block this source
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                    <DropdownMenuItem onClick={() => navigate(`/mentions?source=${mention.source}`)}>
+                      <Search className="h-3.5 w-3.5 mr-2" /> All mentions from this source
+                    </DropdownMenuItem>
+                    {mention.url && (
+                      <DropdownMenuItem onClick={() => window.open(mention.url!, "_blank")}>
+                        <ExternalLink className="h-3.5 w-3.5 mr-2" /> Visit {domain}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate(`/people?search=${encodeURIComponent(mention.author_name || mention.author_handle || "")}`)}>
+                      <User className="h-3.5 w-3.5 mr-2" /> Track author in People
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => ignoreSource(domain)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Ban className="h-3.5 w-3.5 mr-2" /> Block this source
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })()}
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
               <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
             </Badge>
@@ -596,11 +605,11 @@ export default function MentionDetailPage() {
             <Hash className="h-3 w-3" /> Topics
           </h3>
           {topics.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No topics linked.</p>
+            <p className="text-xs text-muted-foreground">No topics linked to this mention yet.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {topics.map(t => (
-                <Badge key={t.topic_id} variant="secondary" className="text-xs">
+                <Badge key={t.topic_id} variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
                   {(t.topics as any)?.name || t.topic_id}
                 </Badge>
               ))}
@@ -615,8 +624,12 @@ export default function MentionDetailPage() {
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Linked Narratives</h3>
           <div className="space-y-2">
             {narratives.map(n => (
-              <div key={n.narrative_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
-                <span className="text-sm text-foreground">{(n.narratives as any)?.name || n.narrative_id}</span>
+              <div
+                key={n.narrative_id}
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:border-primary/30 transition-colors cursor-pointer"
+                onClick={() => navigate(`/narratives/${n.narrative_id}`)}
+              >
+                <span className="text-sm text-primary hover:underline">{(n.narratives as any)?.name || n.narrative_id}</span>
                 <Badge variant="outline" className="text-[10px] capitalize">
                   {(n.narratives as any)?.status || "active"}
                 </Badge>

@@ -11,22 +11,6 @@ import { useNavigate } from "react-router-dom";
 
 const PLANS = [
   {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "/month",
-    description: "Get started with basic monitoring",
-    features: [
-      "5 scans per month",
-      "50 mentions tracked",
-      "Basic sentiment analysis",
-      "Email alerts",
-      "1 user seat",
-    ],
-    cta: "Current Plan",
-    disabled: true,
-  },
-  {
     id: "monthly",
     name: "Pro Monthly",
     price: "$99",
@@ -116,7 +100,7 @@ export default function PricingPage() {
       </div>
 
       {/* Plan Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
         {PLANS.map((plan) => (
           <Card
             key={plan.id}
@@ -157,28 +141,28 @@ export default function PricingPage() {
             <Button
               className="w-full"
               variant={plan.popular ? "default" : "outline"}
-              disabled={plan.disabled || isActive || loadingPlan !== null}
+              disabled={isActive || loadingPlan !== null}
               onClick={() => handleSubscribe(plan)}
             >
               {loadingPlan === plan.id ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : plan.id !== "free" ? (
+              ) : (
                 <CreditCard className="h-4 w-4 mr-2" />
-              ) : null}
-              {isActive && plan.id !== "free" ? "Already Subscribed" : plan.cta}
+              )}
+              {isActive ? "Already Subscribed" : plan.cta}
             </Button>
           </Card>
         ))}
       </div>
 
-      {/* FAQ / Contact */}
+      {/* Enterprise / Contact */}
       <div className="text-center text-sm text-muted-foreground max-w-md mx-auto space-y-2">
         <p>
           Need a custom enterprise plan?{" "}
-          <a href="/settings" className="text-primary underline underline-offset-4">
-            Request manual approval
+          <a href="/contact" className="text-primary underline underline-offset-4">
+            Contact our sales team
           </a>{" "}
-          or contact our sales team.
+          for custom integrations, SLA guarantees, and unlimited seats.
         </p>
       </div>
     </div>

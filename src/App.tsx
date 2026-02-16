@@ -38,6 +38,9 @@ const CompetitorsPage = React.lazy(() => import("@/pages/CompetitorsPage"));
 const ContactsPage = React.lazy(() => import("@/pages/ContactsPage"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
 const IndexPage = React.lazy(() => import("@/pages/Index"));
+const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
+const ContactPage = React.lazy(() => import("@/pages/ContactPage"));
+const FeaturesPage = React.lazy(() => import("@/pages/FeaturesPage"));
 
 const queryClient = new QueryClient();
 
@@ -71,6 +74,9 @@ function AppRoutes() {
           <Route path="/" element={<IndexPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
