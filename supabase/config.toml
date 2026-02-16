@@ -5,3 +5,12 @@ verify_jwt = false
 
 [functions.check-spikes]
 verify_jwt = false
+
+[functions.google-sheets-auth]
+verify_jwt = false
+
+[functions.google-sheets-callback]
+verify_jwt = false
+
+[functions.export-data]
+verify_jwt = false

@@ -346,35 +346,70 @@ serve(async (req) => {
       });
     }
 
-    // Google Sheets mode
+    // Google Sheets mode — per-user OAuth tokens
     if (mode === "sheets") {
-      const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
-      if (!serviceAccountKey) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Google service account key not configured. Please add it in project settings.",
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
       if (!sheet_id) {
         return new Response(
-          JSON.stringify({
-            error: "No Google Sheet ID provided. Enter the sheet ID from the URL.",
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "No Google Sheet ID provided." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const accessToken = await getGoogleAccessToken(serviceAccountKey);
+      // Get user's Google token
+      const { data: tokenRow, error: tokenErr } = await supabase
+        .from("user_google_tokens")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("org_id", org_id)
+        .maybeSingle();
+
+      if (tokenErr || !tokenRow) {
+        return new Response(
+          JSON.stringify({ error: "Google account not connected. Please connect your Google account first." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      let accessToken = tokenRow.access_token;
+
+      // Refresh if expired
+      if (new Date(tokenRow.token_expires_at) <= new Date()) {
+        const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+        const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+        if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+          throw new Error("Google OAuth credentials not configured");
+        }
+
+        const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            refresh_token: tokenRow.refresh_token,
+            grant_type: "refresh_token",
+          }),
+        });
+
+        if (!refreshRes.ok) {
+          // Token revoked — delete and ask user to reconnect
+          await supabase.from("user_google_tokens").delete().eq("id", tokenRow.id);
+          return new Response(
+            JSON.stringify({ error: "Google token expired. Please reconnect your Google account." }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const refreshData = await refreshRes.json();
+        accessToken = refreshData.access_token;
+        const newExpiry = new Date(Date.now() + (refreshData.expires_in || 3600) * 1000).toISOString();
+
+        await supabase
+          .from("user_google_tokens")
+          .update({ access_token: accessToken, token_expires_at: newExpiry })
+          .eq("id", tokenRow.id);
+      }
+
       await ensureSheetTab(accessToken, sheet_id, sheetTabName);
       await writeToSheet(accessToken, sheet_id, sheetTabName, rows);
 
