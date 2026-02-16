@@ -727,7 +727,7 @@ export default function MentionsPage() {
           </SelectContent>
         </Select>
         <Select value={sourceFilter} onValueChange={setSourceFilter}>
-          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
             {uniqueSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
