@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { BookCheck, Plus, Search, CheckCircle2, Clock, Archive, Pencil, Trash2, ExternalLink, FileText, Link2 } from "lucide-react";
+import {
+  BookCheck, Plus, Search, CheckCircle2, Clock, Archive, Pencil, Trash2,
+  ExternalLink, FileText, Link2, ShieldCheck, Sparkles, MessageSquareText, AlertTriangle, ArrowRight, Info
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import FactFormDialog from "@/components/facts/FactFormDialog";
+import { useNavigate } from "react-router-dom";
 
 interface Fact {
   id: string;
@@ -31,10 +35,34 @@ const statusConfig: Record<string, { icon: any; className: string; label: string
   deprecated: { icon: Archive, className: "border-muted-foreground/30 text-muted-foreground", label: "Deprecated" },
 };
 
+const HOW_IT_WORKS = [
+  {
+    icon: Plus,
+    title: "Add verified facts",
+    description: "Document your organization's official positions, stats, and approved statements with source links.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "AI uses them as ground truth",
+    description: "When drafting responses, the AI only uses approved facts — never hallucinated data.",
+  },
+  {
+    icon: Sparkles,
+    title: "Templates auto-reference facts",
+    description: "Response templates pull from this library, ensuring every public reply is accurate and consistent.",
+  },
+  {
+    icon: AlertTriangle,
+    title: "Missing facts trigger escalations",
+    description: "If no matching fact exists for a claim, the system blocks the response and escalates for human review.",
+  },
+];
+
 export default function ApprovedFactsPage() {
   const { currentOrg } = useOrg();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [facts, setFacts] = useState<Fact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -43,20 +71,23 @@ export default function ApprovedFactsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [templateCount, setTemplateCount] = useState<Record<string, number>>({});
+  const [draftCount, setDraftCount] = useState(0);
 
   const fetchFacts = async () => {
     if (!currentOrg) return;
     setLoading(true);
-    const [factsRes, templatesRes] = await Promise.all([
+    const [factsRes, templatesRes, draftsRes] = await Promise.all([
       supabase.from("approved_facts")
         .select("id, title, statement_text, category, status, owner_department, last_reviewed, jurisdiction, source_link")
         .eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(200),
       supabase.from("approved_templates")
         .select("id, required_fact_categories").eq("org_id", currentOrg.id),
+      supabase.from("response_drafts")
+        .select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
     ]);
     setFacts(factsRes.data || []);
+    setDraftCount(draftsRes.count || 0);
 
-    // Count how many templates reference each fact category
     const counts: Record<string, number> = {};
     (templatesRes.data || []).forEach(t => {
       (t.required_fact_categories || []).forEach((cat: string) => {
@@ -118,18 +149,112 @@ export default function ApprovedFactsPage() {
     ? facts.filter(f => f.title.toLowerCase().includes(search.toLowerCase()) || f.statement_text.toLowerCase().includes(search.toLowerCase()) || f.category?.toLowerCase().includes(search.toLowerCase()))
     : facts;
 
-  // Category stats
   const categories = [...new Set(facts.map(f => f.category).filter(Boolean))] as string[];
+  const activeFacts = facts.filter(f => f.status === "active").length;
+  const reviewFacts = facts.filter(f => f.status === "under_review").length;
+  const totalTemplatesLinked = Object.values(templateCount).reduce((a, b) => a + b, 0);
 
   return (
     <TooltipProvider>
       <div className="space-y-6 animate-fade-up">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Approved Facts</h1>
-            <p className="text-sm text-muted-foreground mt-1">Governance library of verified facts — used by the response engine and templates</p>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <BookCheck className="h-6 w-6 text-primary" /> Approved Facts
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your single source of truth — every AI-generated response is grounded in these verified statements
+            </p>
           </div>
-          <Button onClick={() => { setEditingFact(null); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />Add Fact</Button>
+          <Button onClick={() => { setEditingFact(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />Add Fact
+          </Button>
+        </div>
+
+        {/* How it works banner — show when few or no facts */}
+        {facts.length < 5 && !loading && (
+          <Card className="bg-primary/5 border-primary/20 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">How Approved Facts power your responses</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {HOW_IT_WORKS.map((step, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="shrink-0 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <step.icon className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">{step.title}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card className="bg-card border-border p-4 text-center">
+            <p className="text-2xl font-bold text-foreground">{facts.length}</p>
+            <p className="text-[11px] text-muted-foreground">Total Facts</p>
+          </Card>
+          <Card className="bg-card border-border p-4 text-center">
+            <p className="text-2xl font-bold text-sentinel-emerald">{activeFacts}</p>
+            <p className="text-[11px] text-muted-foreground">Active & Ready</p>
+          </Card>
+          <Card className="bg-card border-border p-4 text-center">
+            <p className="text-2xl font-bold text-sentinel-amber">{reviewFacts}</p>
+            <p className="text-[11px] text-muted-foreground">Under Review</p>
+          </Card>
+          <Card className="bg-card border-border p-4 text-center">
+            <p className="text-2xl font-bold text-primary">{totalTemplatesLinked}</p>
+            <p className="text-[11px] text-muted-foreground">Template Links</p>
+          </Card>
+        </div>
+
+        {/* Where facts are used — connection cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card className="bg-card border-border p-4 hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate("/respond")}>
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <MessageSquareText className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-foreground">Response Drafting</p>
+                <p className="text-[11px] text-muted-foreground">AI matches claims to facts before generating replies</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {draftCount > 0 && <p className="text-[10px] text-primary mt-2">{draftCount} drafts generated using your facts</p>}
+          </Card>
+          <Card className="bg-card border-border p-4 hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate("/approved-templates")}>
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <FileText className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-foreground">Response Templates</p>
+                <p className="text-[11px] text-muted-foreground">Templates auto-inject approved facts by category</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {totalTemplatesLinked > 0 && <p className="text-[10px] text-primary mt-2">{totalTemplatesLinked} template-fact connections</p>}
+          </Card>
+          <Card className="bg-card border-border p-4 hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate("/escalations")}>
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle className="h-4.5 w-4.5 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-foreground">Escalation Safety Net</p>
+                <p className="text-[11px] text-muted-foreground">No matching fact? Response is blocked & escalated</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </Card>
         </div>
 
         {/* Category quick stats */}
@@ -166,7 +291,10 @@ export default function ApprovedFactsPage() {
             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
           ) : filtered.length === 0 ? (
             <Card className="bg-card border-border p-8 text-center">
-              <p className="text-sm text-muted-foreground">No approved facts yet. Add facts to enable the strict response engine.</p>
+              <BookCheck className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-foreground mb-1">No approved facts yet</p>
+              <p className="text-xs text-muted-foreground mb-4">Add your first fact to activate the strict response engine — the AI will only respond using verified information.</p>
+              <Button onClick={() => { setEditingFact(null); setDialogOpen(true); }}><Plus className="h-4 w-4 mr-2" />Add Your First Fact</Button>
             </Card>
           ) : (
             filtered.map(f => {
@@ -180,7 +308,7 @@ export default function ApprovedFactsPage() {
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-card-foreground">{f.title}</div>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{f.statement_text}</p>
-                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground flex-wrap">
                           <span>{f.owner_department || "—"}</span>
                           <span>·</span>
                           <span>{f.jurisdiction || "Global"}</span>
@@ -237,7 +365,7 @@ export default function ApprovedFactsPage() {
           <AlertDialogContent className="bg-card border-border">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Fact</AlertDialogTitle>
-              <AlertDialogDescription>This will permanently remove this approved fact. This action cannot be undone.</AlertDialogDescription>
+              <AlertDialogDescription>This will permanently remove this approved fact. Any templates referencing its category will no longer have this fact available.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
