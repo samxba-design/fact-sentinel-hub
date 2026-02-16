@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X
+  Ban, Globe, BarChart3, X, Sparkles
 } from "lucide-react";
 import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import BulkActionsBar from "@/components/mentions/BulkActionsBar";
 import SavedFilters from "@/components/mentions/SavedFilters";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
+import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import { format } from "date-fns";
 
 interface Mention {
@@ -101,6 +102,8 @@ export default function MentionsPage() {
   const [ignoredSources, setIgnoredSources] = useState<{ id: string; domain: string; reason: string | null }[]>([]);
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
+  const [sourceIntelDomain, setSourceIntelDomain] = useState<string | null>(null);
+  const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
@@ -595,6 +598,12 @@ export default function MentionsPage() {
       </div>
 
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} onCreated={refetchMentions} />
+      <SourceIntelSheet
+        domain={sourceIntelDomain}
+        open={sourceIntelOpen}
+        onOpenChange={setSourceIntelOpen}
+        onIgnore={(d) => ignoreSource(d, "Blocked from source intelligence panel")}
+      />
 
       {/* Coordinated FUD / suspicious pattern warnings */}
       {coordWarnings.length > 0 && (
@@ -743,6 +752,19 @@ export default function MentionsPage() {
                       />
                     </div>
                   </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
+                        onClick={() => { setSourceIntelDomain(domain); setSourceIntelOpen(true); }}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>AI Source Intelligence</TooltipContent>
+                  </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

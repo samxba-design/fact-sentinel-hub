@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
@@ -113,8 +114,12 @@ export default function MentionDetailPage() {
   const [aiSummary, setAiSummary] = useState<{ summary: string; impact: string; action: string } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
 
-  // Determine back destination from referrer
+  const getDomain = (url: string | null): string => {
+    if (!url) return "unknown";
+    try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
+  };
   const goBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -393,6 +398,17 @@ export default function MentionDetailPage() {
             <Badge variant="outline" className="text-[10px]">
               <span className="text-muted-foreground mr-1">Source:</span> <span className="capitalize">{mention.source}</span>
             </Badge>
+            {mention.url && getDomain(mention.url) !== "unknown" && (
+              <Badge
+                variant="outline"
+                className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => setSourceIntelOpen(true)}
+              >
+                <Globe className="h-3 w-3 mr-1" />
+                {getDomain(mention.url)}
+                <Sparkles className="h-2.5 w-2.5 ml-1 text-primary" />
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
               <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
             </Badge>
@@ -567,6 +583,11 @@ export default function MentionDetailPage() {
           </div>
         </Card>
       )}
+      <SourceIntelSheet
+        domain={mention?.url ? getDomain(mention.url) : null}
+        open={sourceIntelOpen}
+        onOpenChange={setSourceIntelOpen}
+      />
     </div>
   );
 }
