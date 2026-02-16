@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import InfoTooltip from "@/components/InfoTooltip";
 import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
@@ -184,7 +185,8 @@ export default function MentionDetailPage() {
   };
 
   const handleRespond = () => {
-    navigate("/respond");
+    const cleanContent = cleanContentText(mention?.content || null);
+    navigate("/respond", { state: { prefillText: cleanContent, sourceMentionId: mention?.id } });
   };
 
   const handleEscalate = async () => {
@@ -535,6 +537,7 @@ export default function MentionDetailPage() {
               </div>
               <div className="text-xs text-muted-foreground">
                 Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${(Number(mention.sentiment_confidence) > 1 ? Number(mention.sentiment_confidence).toFixed(0) : (Number(mention.sentiment_confidence) * 100).toFixed(0))}%` : "—"}
+                <InfoTooltip text="How confident the AI is in this sentiment classification. Higher = more certain the sentiment label is correct." />
               </div>
             </div>
           </div>
@@ -650,7 +653,10 @@ export default function MentionDetailPage() {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{c.claim_text}</p>
                   {c.confidence && (
-                    <p className="text-[10px] text-muted-foreground mt-1">Confidence: {(Number(c.confidence) * 100).toFixed(0)}%</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                      Confidence: {(Number(c.confidence) > 1 ? Number(c.confidence).toFixed(0) : (Number(c.confidence) * 100).toFixed(0))}%
+                      <InfoTooltip text="How confident the AI is that this specific claim was actually made in the content. Higher = clearer and more explicit claim." />
+                    </p>
                   )}
                 </div>
               </div>

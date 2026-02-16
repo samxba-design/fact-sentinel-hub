@@ -144,7 +144,9 @@ export default function PersonDetailPage() {
   const handles = person?.handles || {};
   const handleEntries = Object.entries(handles as Record<string, string>).filter(([, v]) => v);
 
-  const confidencePct = orgPerson?.confidence != null ? Math.round(Number(orgPerson.confidence) * 100) : null;
+  const confidencePct = orgPerson?.confidence != null 
+    ? (Number(orgPerson.confidence) > 1 ? Math.round(Number(orgPerson.confidence)) : Math.round(Number(orgPerson.confidence) * 100))
+    : null;
 
   if (loading) {
     return (

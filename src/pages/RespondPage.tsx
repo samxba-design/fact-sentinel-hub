@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import PageGuide from "@/components/PageGuide";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   MessageCircleReply, AlertTriangle, CheckCircle2, Ban, Loader2,
@@ -38,7 +39,9 @@ export default function RespondPage() {
   const { currentOrg } = useOrg();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [inputText, setInputText] = useState("");
+  const location = useLocation();
+  const prefill = (location.state as any) || {};
+  const [inputText, setInputText] = useState(prefill.prefillText || "");
   const [platform, setPlatform] = useState("general");
   const [intent, setIntent] = useState("");
   const [result, setResult] = useState<ResponseResult | null>(null);
@@ -115,6 +118,11 @@ export default function RespondPage() {
   return (
     <div className="space-y-6 animate-fade-up max-w-4xl">
       <UpgradeBanner feature="AI Response Drafting" className="mb-2" />
+      {prefill.sourceMentionId && (
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/mentions/${prefill.sourceMentionId}`)} className="gap-1.5 -mb-3">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to Mention
+        </Button>
+      )}
       <div>
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
         <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>
