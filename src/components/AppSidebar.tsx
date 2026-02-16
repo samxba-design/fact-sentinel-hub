@@ -5,7 +5,7 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2
+  ChevronDown, Building2, ShieldCheck
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -31,7 +31,7 @@ const navItems = [
 ];
 
 export default function AppSidebar() {
-  const { signOut } = useAuth();
+  const { signOut, isSuperAdmin } = useAuth();
   const { orgs, currentOrg, setCurrentOrg } = useOrg();
   const location = useLocation();
 
@@ -87,6 +87,21 @@ export default function AppSidebar() {
             {item.label}
           </NavLink>
         ))}
+        {isSuperAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors mt-2 border-t border-sidebar-border pt-3 ${
+                isActive
+                  ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`
+            }
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            Admin Panel
+          </NavLink>
+        )}
       </nav>
 
       {/* Sign out */}
