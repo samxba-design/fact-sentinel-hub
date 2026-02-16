@@ -1235,6 +1235,50 @@ export type Database = {
           },
         ]
       }
+      user_google_tokens: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          google_email: string | null
+          id: string
+          org_id: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          google_email?: string | null
+          id?: string
+          org_id: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          google_email?: string | null
+          id?: string
+          org_id?: string
+          refresh_token?: string
+          token_expires_at?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_google_tokens_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
