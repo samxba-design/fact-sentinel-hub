@@ -175,6 +175,13 @@ Deno.serve(async (req) => {
     const orgDomain = orgData?.domain?.toLowerCase() || "";
     const orgName = orgData?.name?.toLowerCase() || "";
 
+    // Load ignored source domains
+    const { data: ignoredSourcesData } = await supabase
+      .from("ignored_sources")
+      .select("domain")
+      .eq("org_id", org_id);
+    const ignoredDomains = new Set((ignoredSourcesData || []).map((s: any) => s.domain.toLowerCase()));
+
     // Verify membership
     const { data: membership } = await supabase
       .from("org_memberships")
@@ -376,6 +383,14 @@ Deno.serve(async (req) => {
         console.log("Filtering out self-published content from org domain:", r.url);
         continue;
       }
+      // Filter out ignored source domains
+      try {
+        const urlDomain = new URL(r.url || "").hostname.replace("www.", "").toLowerCase();
+        if (ignoredDomains.has(urlDomain)) {
+          console.log("Filtering out ignored source domain:", r.url);
+          continue;
+        }
+      } catch { /* skip URL parse errors */ }
 
       const correctedSource = classifySource(r.url || "", r.source);
       cleanedResults.push({ ...r, content: cleaned.slice(0, 800), source: correctedSource });
