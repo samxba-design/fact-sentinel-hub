@@ -578,7 +578,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Use AI to analyze sentiment, severity, AND generate clean summaries
+    // === TWO-PASS AI ANALYSIS ===
+    // Pass 1: Relevance + Sentiment (combined for efficiency)
+    const brandContext = orgData?.name || brandKws[0] || "the brand";
+    const brandAliases = kwGroups.brand.join(", ");
+    
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -587,33 +591,40 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        temperature: 0.2,
+        temperature: 0.1,
         messages: [
           {
             role: "system",
-            content: `You are a reputation intelligence engine. For each mention, analyze AND rewrite the content.
+            content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
 
-For each mention, return:
-- clean_summary: A clear 2-4 sentence summary of WHAT the article/post actually says. Focus on claims, facts, and opinions. NEVER include navigation text, cookie notices, ticker data, website UI elements, or boilerplate. If the raw text is mostly junk/navigation, write "Unable to extract meaningful content from this source."
-- sentiment_label: "positive", "negative", "neutral", or "mixed"
-- sentiment_score: number between -1 (very negative) and 1 (very positive)
-- sentiment_confidence: number between 0 and 1
-- severity: "low", "medium", "high", or "critical" based on reputational risk
+For each mention, you MUST first determine RELEVANCE then analyze sentiment.
+
+RELEVANCE RULES (CRITICAL):
+- relevant=true ONLY if the content is SUBSTANTIVELY about "${brandContext}" — meaning it discusses the brand's actions, products, reputation, leadership, legal matters, partnerships, or user experiences
+- relevant=false if:
+  - The content merely lists "${brandContext}" in a table, sidebar, menu, or comparison chart without substantive discussion
+  - The content is a generic "about us" page for a review site, news aggregator, or other platform
+  - The content is primarily about a DIFFERENT company and only mentions "${brandContext}" in passing
+  - The content is a tag page, category page, or index page
+  - The content cannot be determined to be about "${brandContext}" specifically
+- When in doubt, set relevant=false — precision matters more than recall
+
+For RELEVANT mentions only, also return:
+- clean_summary: 2-4 sentence summary of what the content says about "${brandContext}". Focus on claims, facts, opinions ABOUT the brand. NEVER include navigation text, cookie notices, tickers, or boilerplate.
+- sentiment_label: "positive", "negative", "neutral", or "mixed" (relative to "${brandContext}")
+- sentiment_score: -1 (very negative) to 1 (very positive)
+- sentiment_confidence: 0 to 1
+- severity: "low", "medium", "high", or "critical" based on reputational risk to "${brandContext}"
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
+- rejection_reason: null for relevant, or a short reason like "generic review site page", "brand mentioned in passing", "tag/category page"
 
-CRITICAL rules for coordinated/bot detection:
-- coordinated=true ONLY if mentions from DIFFERENT authors/domains share near-identical phrasing suggesting an organized campaign
-- Do NOT flag multiple articles from the same website/news outlet as coordinated — that's just one source publishing multiple articles
-- bot_likely=true only if the content appears auto-generated or the author seems non-human
-- viral_potential=true if the content has high engagement potential or emotional charge
-
-Return JSON: { "analyses": [ { "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
+Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
           },
           {
             role: "user",
-            content: `Analyze these ${cleanedResults.length} mentions:\n${JSON.stringify(
-              cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 500) }))
+            content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
+              cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
             )}`,
           },
         ],
@@ -631,10 +642,27 @@ Return ONLY valid JSON, no markdown.`,
       } catch {
         console.error("Failed to parse AI analysis, using defaults");
       }
+    } else {
+      console.error("AI analysis failed with status:", aiRes.status);
     }
 
-    // Filter by sentiment if requested, then insert mentions
-    let filteredResults = cleanedResults.map((r, i) => ({ result: r, analysis: analyses[i] || {} }));
+    // Filter by relevance first, then sentiment
+    let filteredResults = cleanedResults
+      .map((r, i) => ({ result: r, analysis: analyses[i] || {} }))
+      .filter(({ analysis, result }) => {
+        // AI relevance gate: reject irrelevant content
+        if (analysis.relevant === false) {
+          console.log("AI rejected as irrelevant:", result.url, "reason:", analysis.rejection_reason || "not about brand");
+          return false;
+        }
+        // Also reject if AI couldn't extract meaningful content
+        const summary = analysis.clean_summary || "";
+        if (summary.toLowerCase().includes("unable to extract meaningful content")) {
+          console.log("AI couldn't extract content:", result.url);
+          return false;
+        }
+        return true;
+      });
     
     if (sentiment_filter && sentiment_filter !== "all") {
       filteredResults = filteredResults.filter(({ analysis }) => {
@@ -644,12 +672,6 @@ Return ONLY valid JSON, no markdown.`,
         return true;
       });
     }
-
-    // Filter out mentions where AI couldn't extract meaningful content
-    filteredResults = filteredResults.filter(({ analysis }) => {
-      const summary = analysis.clean_summary || "";
-      return !summary.toLowerCase().includes("unable to extract meaningful content");
-    });
 
     const mentionRows = filteredResults.map(({ result: r, analysis }) => {
       const cleanSummary = analysis.clean_summary || r.content || "";
@@ -833,9 +855,9 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
         scan_run_id: scanRun.id,
         mentions_created: mentionRows.length,
         total_found: allResults.length,
-        filtered_out: allResults.length - cleanedResults.length,
-        duplicates_removed: seenUrls.size < allResults.filter(r => r.url).length ? allResults.filter(r => r.url).length - seenUrls.size : 0,
-        ai_filtered: cleanedResults.length - filteredResults.length,
+        quality_filtered: allResults.length - cleanedResults.length,
+        ai_irrelevant: cleanedResults.length - filteredResults.length - (sentiment_filter && sentiment_filter !== "all" ? 0 : 0),
+        relevance_rejections: analyses.filter((a: any) => a?.relevant === false).map((a: any) => a?.rejection_reason).filter(Boolean),
         negative_pct: Math.round((negCount / mentionRows.length) * 100),
         emergencies: emergencyCount,
         scan_log: scanLog,
