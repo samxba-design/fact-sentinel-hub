@@ -15,6 +15,7 @@ import MentionDetailPage from "@/pages/MentionDetailPage";
 import NarrativesPage from "@/pages/NarrativesPage";
 import NarrativeDetailPage from "@/pages/NarrativeDetailPage";
 import PeoplePage from "@/pages/PeoplePage";
+import PersonDetailPage from "@/pages/PersonDetailPage";
 import RiskConsolePage from "@/pages/RiskConsolePage";
 import IncidentsPage from "@/pages/IncidentsPage";
 import IncidentDetailPage from "@/pages/IncidentDetailPage";
@@ -68,6 +69,7 @@ function AppRoutes() {
         <Route path="/narratives" element={<NarrativesPage />} />
         <Route path="/narratives/:id" element={<NarrativeDetailPage />} />
         <Route path="/people" element={<PeoplePage />} />
+        <Route path="/people/:id" element={<PersonDetailPage />} />
         <Route path="/risk-console" element={<RiskConsolePage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/incidents/:id" element={<IncidentDetailPage />} />
