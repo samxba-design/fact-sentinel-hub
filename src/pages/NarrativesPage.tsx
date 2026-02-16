@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Network, ArrowUpRight } from "lucide-react";
@@ -17,6 +18,7 @@ interface Narrative {
 }
 
 export default function NarrativesPage() {
+  const navigate = useNavigate();
   const { currentOrg } = useOrg();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export default function NarrativesPage() {
           </Card>
         ) : (
           narratives.map(n => (
-            <Card key={n.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer">
+            <Card key={n.id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/narratives/${n.id}`)}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Network className="h-5 w-5 text-primary" />
