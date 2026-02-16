@@ -11,6 +11,7 @@ import {
   ArrowLeft, ExternalLink, Shield, AlertTriangle, Bot, Flame, Flag,
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
+  Trash2, Sparkles, Loader2, AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -77,9 +78,31 @@ const sentimentColors: Record<string, string> = {
   mixed: "text-sentinel-amber",
 };
 
+// Clean junk content (markdown links, SVG data URIs, navigation chrome)
+function cleanContentText(raw: string | null): string {
+  if (!raw) return "";
+  let text = raw;
+  // Remove markdown image tags with data URIs
+  text = text.replace(/!\[.*?\]\(data:.*?\)/g, "");
+  // Remove markdown links but keep link text
+  text = text.replace(/\[([^\]]*)\]\(https?:[^)]*\)/g, "$1");
+  // Remove raw URLs
+  text = text.replace(/https?:\/\/\S+/g, "");
+  // Remove SVG/data URI fragments
+  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+  // Remove leftover markdown artifacts
+  text = text.replace(/[#*_~`>]/g, "");
+  // Collapse whitespace
+  text = text.replace(/\s+/g, " ").trim();
+  // If result is too short or just navigation junk, return empty
+  if (text.length < 30) return "";
+  return text;
+}
+
 export default function MentionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentOrg } = useOrg();
   const { toast } = useToast();
   const [mention, setMention] = useState<MentionDetail | null>(null);
@@ -87,6 +110,18 @@ export default function MentionDetailPage() {
   const [topics, setTopics] = useState<TopicLink[]>([]);
   const [narratives, setNarratives] = useState<NarrativeLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiSummary, setAiSummary] = useState<{ summary: string; impact: string; action: string } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Determine back destination from referrer
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/mentions");
+    }
+  };
 
   useEffect(() => {
     if (!id || !currentOrg) return;
@@ -147,9 +182,52 @@ export default function MentionDetailPage() {
   };
 
   const handleAddToIncident = async () => {
-    // For now navigate to incidents - in the future this could open a picker
     navigate("/incidents");
   };
+
+  const deleteMention = async () => {
+    if (!mention) return;
+    setDeleting(true);
+    const { error } = await supabase.from("mentions").delete().eq("id", mention.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setDeleting(false);
+    } else {
+      toast({ title: "Mention deleted" });
+      goBack();
+    }
+  };
+
+  // Generate AI summary
+  const generateSummary = async () => {
+    if (!mention?.content || summaryLoading) return;
+    setSummaryLoading(true);
+    try {
+      const cleanContent = cleanContentText(mention.content);
+      const res = await supabase.functions.invoke("generate-ai-summary", {
+        body: {
+          content: cleanContent,
+          source: mention.source,
+          severity: mention.severity,
+          sentiment: mention.sentiment_label,
+          author: mention.author_name || mention.author_handle,
+        },
+      });
+      if (res.error) throw new Error(res.error.message);
+      setAiSummary(res.data);
+    } catch (err: any) {
+      toast({ title: "Summary failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  // Auto-generate summary when mention loads
+  useEffect(() => {
+    if (mention?.content && !aiSummary && !summaryLoading) {
+      generateSummary();
+    }
+  }, [mention]);
 
   if (loading) {
     return (
@@ -183,15 +261,20 @@ export default function MentionDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
-      {/* Breadcrumbs */}
-      <Breadcrumbs items={[
-        { label: "Mentions", href: "/mentions" },
-        { label: mention.author_name || mention.author_handle || "Mention Detail" },
-      ]} />
+      {/* Back button - prominent */}
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="sm" onClick={goBack} className="gap-1.5">
+          <ArrowLeft className="h-4 w-4" /> Back to Results
+        </Button>
+        <Breadcrumbs items={[
+          { label: "Mentions", href: "/mentions" },
+          { label: mention.author_name || mention.author_handle || "Mention Detail" },
+        ]} />
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {mention.status && mention.status !== "new" && (
             <Badge variant="outline" className={`text-xs ${
               mention.status === "ignored" ? "text-muted-foreground" : mention.status === "snoozed" ? "text-sentinel-amber" : "text-sentinel-emerald"
@@ -238,10 +321,52 @@ export default function MentionDetailPage() {
                   Reopen
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={deleteMention} className="text-destructive focus:text-destructive" disabled={deleting}>
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      {/* AI Summary Card */}
+      <Card className="bg-primary/5 border-primary/20 p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+          </h3>
+          {aiSummary && (
+            <Button size="sm" variant="ghost" onClick={generateSummary} disabled={summaryLoading} className="h-6 text-[10px]">
+              Regenerate
+            </Button>
+          )}
+        </div>
+        {summaryLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Analyzing content...
+          </div>
+        ) : aiSummary ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">What's being said</p>
+              <p className="text-sm text-foreground">{aiSummary.summary}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Potential impact</p>
+              <p className="text-sm text-foreground">{aiSummary.impact}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Suggested action</p>
+              <p className="text-sm text-foreground">{aiSummary.action}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4" /> Could not generate summary.
+            <Button size="sm" variant="ghost" onClick={generateSummary} className="h-6 text-xs">Try again</Button>
+          </div>
+        )}
+      </Card>
 
       {/* Main Content Card */}
       <Card className="bg-card border-border p-6 space-y-4">
@@ -265,15 +390,21 @@ export default function MentionDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[10px] capitalize">{mention.source}</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              <span className="text-muted-foreground mr-1">Source:</span> <span className="capitalize">{mention.source}</span>
+            </Badge>
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
-              {mention.severity || "low"}
+              <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
             </Badge>
           </div>
         </div>
 
         <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-4 border border-border">
-          {mention.content || "No content available."}
+          {cleanContentText(mention.content) || (
+            <span className="text-muted-foreground italic">
+              Content could not be extracted. {mention.url && <a href={mention.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">View original source →</a>}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">

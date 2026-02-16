@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus } from "lucide-react";
+import { Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft, MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2 } from "lucide-react";
 import SourceBadge from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -119,12 +119,44 @@ export default function MentionsPage() {
     }
   };
 
+  const deleteMention = async (mentionId: string) => {
+    const { error } = await supabase.from("mentions").delete().eq("id", mentionId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setMentions(prev => prev.filter(m => m.id !== mentionId));
+      setSelected(prev => { const n = new Set(prev); n.delete(mentionId); return n; });
+      toast({ title: "Mention deleted" });
+    }
+  };
+
+  // Clean junk content for preview
+  const cleanPreview = (raw: string | null): string => {
+    if (!raw) return "No content";
+    let text = raw;
+    text = text.replace(/!\[.*?\]\(data:.*?\)/g, "");
+    text = text.replace(/\[([^\]]*)\]\(https?:[^)]*\)/g, "$1");
+    text = text.replace(/https?:\/\/\S+/g, "");
+    text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
+    text = text.replace(/[#*_~`>]/g, "");
+    text = text.replace(/\s+/g, " ").trim();
+    if (text.length < 20) return "Content not extractable — click to view source";
+    return text;
+  };
+
   const handleBulkAction = async (action: string) => {
     if (selected.size === 0) return;
     const ids = Array.from(selected);
 
-    if (action === "escalate") {
-      // Create escalation for selected mentions
+    if (action === "delete") {
+      const { error } = await supabase.from("mentions").delete().in("id", ids);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        setMentions(prev => prev.filter(m => !ids.includes(m.id)));
+        toast({ title: `${ids.length} mentions deleted` });
+      }
+    } else if (action === "escalate") {
       if (!currentOrg) return;
       const { error } = await supabase.from("escalations").insert({
         org_id: currentOrg.id,
@@ -140,7 +172,6 @@ export default function MentionsPage() {
         toast({ title: `${ids.length} mentions escalated` });
       }
     } else {
-      // Bulk status update
       const { error } = await supabase.from("mentions").update({ status: action }).in("id", ids);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -395,7 +426,7 @@ export default function MentionsPage() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-card-foreground line-clamp-2">{m.content || "No content"}</p>
+                      <p className="text-sm text-card-foreground line-clamp-2">{cleanPreview(m.content)}</p>
                       {m.url && (
                         <a
                           href={m.url}
@@ -437,6 +468,9 @@ export default function MentionsPage() {
                           {mStatus !== "snoozed" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "snoozed")}><Clock className="h-3.5 w-3.5 mr-2" /> Snooze</DropdownMenuItem>}
                           {mStatus !== "resolved" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "resolved")}><CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Resolved</DropdownMenuItem>}
                           {mStatus !== "new" && <DropdownMenuItem onClick={() => updateMentionStatus(m.id, "new")}>Reopen</DropdownMenuItem>}
+                          <DropdownMenuItem onClick={() => deleteMention(m.id)} className="text-destructive focus:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

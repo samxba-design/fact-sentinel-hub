@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { EyeOff, Clock, CheckCircle2, Siren, Download, X } from "lucide-react";
+import { EyeOff, Clock, CheckCircle2, Siren, Trash2, X } from "lucide-react";
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -25,6 +25,9 @@ export default function BulkActionsBar({ selectedCount, onAction, onClear }: Bul
       </Button>
       <Button size="sm" variant="outline" onClick={() => onAction("escalate")} className="h-7 text-xs gap-1.5">
         <Siren className="h-3 w-3" /> Escalate
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => onAction("delete")} className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive">
+        <Trash2 className="h-3 w-3" /> Delete
       </Button>
       <Button size="sm" variant="ghost" onClick={onClear} className="h-7 w-7 p-0">
         <X className="h-3.5 w-3.5" />
