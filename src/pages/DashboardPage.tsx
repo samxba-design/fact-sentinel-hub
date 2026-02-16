@@ -214,8 +214,9 @@ export default function DashboardPage() {
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">Monitoring overview — Last 7 days</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 italic">Data shown is AI-simulated from scans — not sourced from real platforms</p>
         </div>
         <Badge variant="outline" className={`${incidentMode ? "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5" : "border-sentinel-amber/30 text-sentinel-amber bg-sentinel-amber/5"}`}>
           <Flame className="h-3 w-3 mr-1" />
@@ -244,7 +245,7 @@ export default function DashboardPage() {
               <button className="flex items-center justify-between w-full text-left">
                 <div className="flex items-center gap-2">
                   <Siren className="h-4 w-4 text-sentinel-red" />
-                  <span className="text-sm font-medium text-card-foreground">{emergencies} Emergency {emergencies === 1 ? "Detection" : "Detections"}</span>
+                  <span className="text-sm font-medium text-card-foreground">{emergencies} Critical {emergencies === 1 ? "Detection" : "Detections"} (AI-Simulated)</span>
                 </div>
                 {emergenciesOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </button>
@@ -319,6 +320,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-card-foreground flex items-center gap-2">
               <Quote className="h-4 w-4 text-primary" /> Recent Notable Detections
+              <Badge variant="outline" className="text-[9px] text-muted-foreground border-border ml-1">AI-Simulated</Badge>
             </span>
             <Button size="sm" variant="ghost" onClick={() => navigate("/mentions")} className="text-xs text-primary">
               View all <ExternalLink className="h-3 w-3 ml-1" />
