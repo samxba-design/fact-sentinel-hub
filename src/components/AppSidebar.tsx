@@ -1,11 +1,11 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -35,6 +35,7 @@ export default function AppSidebar() {
   const { signOut, isSuperAdmin } = useAuth();
   const { orgs, currentOrg, setCurrentOrg } = useOrg();
   const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50">
@@ -62,8 +63,16 @@ export default function AppSidebar() {
                 <DropdownMenuItem key={org.id} onClick={() => setCurrentOrg(org)}>
                   <Building2 className="h-4 w-4 mr-2" />
                   {org.name}
+                  {org.id === currentOrg?.id && <span className="ml-auto text-[10px] text-primary">Active</span>}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem
+                onClick={() => navigate("/onboarding?new=true")}
+                className="border-t border-border mt-1 pt-2"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Organization
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

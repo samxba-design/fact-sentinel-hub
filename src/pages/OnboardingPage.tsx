@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,12 +41,24 @@ interface ProfileSuggestion {
 
 export default function OnboardingPage() {
   const { user, isSuperAdmin } = useAuth();
-  const { refetchOrgs } = useOrg();
+  const { orgs, refetchOrgs } = useOrg();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [isNewOrg, setIsNewOrg] = useState(false);
+
+  // If user already has orgs and didn't explicitly come here to create a new one,
+  // redirect them to the dashboard
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const intentNew = params.get("new") === "true";
+    setIsNewOrg(intentNew);
+    if (orgs.length > 0 && !intentNew) {
+      navigate("/", { replace: true });
+    }
+  }, [orgs, navigate]);
 
   // Step 1: Company details
   const [orgName, setOrgName] = useState("");
@@ -201,8 +213,18 @@ export default function OnboardingPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Sentinel</h1>
           </div>
-           <p className="text-muted-foreground">Set up your organization</p>
-          {isSuperAdmin && (
+           <p className="text-muted-foreground">
+             {isNewOrg ? "Set up a new organization" : "Set up your organization"}
+           </p>
+          {isNewOrg && (
+            <button
+              onClick={() => navigate("/")}
+              className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary hover:text-primary/80 underline underline-offset-4"
+            >
+              ← Back to Dashboard
+            </button>
+          )}
+          {isSuperAdmin && !isNewOrg && (
             <a href="/admin" className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary hover:text-primary/80 underline underline-offset-4">
               <Shield className="h-3.5 w-3.5" />
               Go to Admin Panel
