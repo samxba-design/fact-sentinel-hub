@@ -22,18 +22,102 @@ function classifySourceFromUrl(url: string): string {
   return "news";
 }
 
-// Use Lovable AI (Gemini) as a grounded search discovery engine
-// Gemini has access to web search via grounding and returns cited results
+// Evergreen/reference domains to auto-reject
+const BLOCK_DOMAINS = new Set([
+  "en.wikipedia.org", "wikipedia.org", "investopedia.com", "www.investopedia.com",
+  "help.wealthsimple.com", "apps.apple.com", "play.google.com",
+  "ca.investing.com", "investing.com", "support.google.com", "support.apple.com",
+  "howstuffworks.com", "about.com", "dictionary.com", "merriam-webster.com",
+  "britannica.com", "www.britannica.com", "corporatefinanceinstitute.com",
+  "nerdwallet.com", "bankrate.com", "academy.binance.com",
+]);
+
+function isBlockedDomain(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace("www.", "").toLowerCase();
+    return BLOCK_DOMAINS.has(hostname);
+  } catch { return false; }
+}
+
+// Clean scraped content
+function cleanContent(raw: string): string {
+  let text = raw;
+  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
+  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  text = text.replace(/https?:\/\/\S+/g, "");
+  text = text.replace(/<[^>]+>/g, " ");
+  text = text.replace(/[#*_~`>|]/g, "");
+  text = text.replace(/[-=]{3,}/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  text = text.replace(/^skip to (content|main|navigation)\s*/i, "");
+  text = text.replace(/(?:^|\s)(?:[A-Z][a-zA-Z&]{0,20}\s*-\s*){2,}[A-Z][a-zA-Z&]{0,20}(?:\s|$)/g, " ");
+  text = text.replace(/\b[A-Z]{2,5}\s+\$[\d,]+\.?\d*\s+[\d.]+%\s*/g, "");
+  text = text.replace(/\b(cookie|privacy) (policy|notice|settings)\b[^.]*\./gi, " ");
+  text = text.replace(/©\s*\d{4}[^.]*\./g, " ");
+  text = text.replace(/all rights reserved[^.]*\.?/gi, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+// Extract publish date from Firecrawl metadata
+function extractDate(metadata: any, url: string, content: string): { date: string | null; source: string } {
+  // 1. Metadata
+  if (metadata) {
+    const fields = [
+      metadata.publishedTime, metadata["article:published_time"],
+      metadata["og:article:published_time"], metadata.datePublished,
+      metadata["date"], metadata.modifiedTime, metadata["article:modified_time"],
+    ];
+    for (const raw of fields) {
+      if (!raw) continue;
+      try {
+        const d = new Date(raw);
+        if (!isNaN(d.getTime()) && d.getFullYear() >= 2015 && d.getTime() <= Date.now() + 86400000) {
+          return { date: d.toISOString(), source: "metadata" };
+        }
+      } catch { /* skip */ }
+    }
+  }
+  // 2. URL pattern /2025/02/16/
+  if (url) {
+    const m = url.match(/\/(20[12]\d)\/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\//);
+    if (m) {
+      try {
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}`);
+        if (!isNaN(d.getTime())) return { date: d.toISOString(), source: "url" };
+      } catch { /* skip */ }
+    }
+  }
+  // 3. Content text (first 500 chars)
+  if (content) {
+    const header = content.slice(0, 500);
+    const relMatch = header.match(/(\d{1,2})\s+(hours?|days?|weeks?)\s+ago/i);
+    if (relMatch) {
+      const num = parseInt(relMatch[1]);
+      const unit = relMatch[2].toLowerCase();
+      let ms = 0;
+      if (unit.startsWith("hour")) ms = num * 3600000;
+      else if (unit.startsWith("day")) ms = num * 86400000;
+      else if (unit.startsWith("week")) ms = num * 7 * 86400000;
+      return { date: new Date(Date.now() - ms).toISOString(), source: "content" };
+    }
+  }
+  return { date: null, source: "none" };
+}
+
+// Two-layer approach:
+// Layer 1: Firecrawl SEARCH for real URLs + content (the search engine)
+// Layer 2: Post-processing to clean/filter (done here + AI relevance in run-scan)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
+    const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
+    if (!firecrawlKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "LOVABLE_API_KEY not configured" }),
+        JSON.stringify({ success: false, error: "Firecrawl not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -46,249 +130,147 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Build smart search queries based on search_type
     const maxResults = Math.min(limit || 15, 30);
-    const queryTerms = keywords.join(", ");
-    
-    // Build date context for the prompt
-    const now = new Date();
-    const currentDate = now.toISOString().split("T")[0];
-    let dateContext = `today is ${currentDate}.`;
-    if (date_from) {
-      dateContext += ` Only include articles published after ${date_from}.`;
-    }
-    if (date_to) {
-      dateContext += ` Only include articles published before ${date_to}.`;
-    }
-    if (!date_from) {
-      // Default to last 7 days
-      const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
-      dateContext += ` Focus on the last 7 days (since ${weekAgo}).`;
-    }
+    let searchQueries: string[] = [];
 
-    // Build site restriction context
-    let siteContext = "";
-    if (sites?.length > 0) {
-      siteContext = `\nPrioritize results from these domains: ${sites.join(", ")}. But also include other credible news sources.`;
-    }
-
-    // Determine search focus based on search_type
-    let searchFocus = "";
     if (search_type === "risk") {
-      searchFocus = `Focus on NEGATIVE coverage: lawsuits, controversies, regulatory actions, security breaches, customer complaints, executive scandals, data leaks, fraud allegations, boycotts, or any reputational threats.`;
+      // Threat-focused: each keyword pair gets its own search
+      searchQueries = keywords.map((k: string) => `${k} latest news`);
     } else if (search_type === "social") {
-      searchFocus = `Focus on social media discussions, viral posts, trending opinions, and community sentiment.`;
+      searchQueries = keywords.map((k: string) => k);
     } else {
-      searchFocus = `Find the most important and recent news stories, developments, and public discussions.`;
+      // General: combine with OR
+      searchQueries = [keywords.map((k: string) => `"${k}"`).join(" OR ") + " latest news"];
     }
 
-    const systemPrompt = `You are a real-time news intelligence researcher. Your job is to find REAL, RECENT, SPECIFIC news articles and reports about the given topics.
+    // Add site filters if provided
+    const siteFilter = sites?.length > 0 ? ` site:${sites.join(" OR site:")}` : "";
 
-CRITICAL RULES:
-1. Every result MUST be a REAL article that EXISTS on the internet right now. Do NOT fabricate or hallucinate URLs or articles.
-2. Every result MUST have a REAL, working URL from a credible source.
-3. Every result MUST describe a SPECIFIC recent event, not a generic company description.
-4. Do NOT include: Wikipedia pages, encyclopedia entries, "What is X" explainers, app store listings, help docs, tutorials, company "About" pages, or product marketing pages.
-5. ${dateContext}
-6. ${searchFocus}${siteContext}
+    // Calculate time filter from date_from
+    let tbs: string | undefined;
+    if (date_from) {
+      const diffMs = Date.now() - new Date(date_from).getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays <= 1) tbs = "qdr:d";
+      else if (diffDays <= 7) tbs = "qdr:w";
+      else if (diffDays <= 30) tbs = "qdr:m";
+      else if (diffDays <= 365) tbs = "qdr:y";
+    } else {
+      tbs = "qdr:w"; // Default to last week
+    }
 
-For each article found, provide:
-- title: the actual article headline
-- url: the real, full URL of the article  
-- published_date: the publication date in ISO format (YYYY-MM-DD) if known, or null
-- source_domain: the domain name (e.g. "reuters.com")
-- summary: 2-3 sentence summary of WHAT specifically happened, focusing on facts
-- relevance_note: why this is relevant to the search terms
+    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
+    const dateToMs = date_to ? new Date(date_to).getTime() : 0;
 
-Return EXACTLY this JSON format:
-{ "results": [ { "title": "...", "url": "...", "published_date": "...", "source_domain": "...", "summary": "...", "relevance_note": "..." } ] }
+    // Run all search queries in parallel
+    const allResults: any[] = [];
+    const perQueryLimit = Math.ceil(maxResults / searchQueries.length);
 
-Find up to ${maxResults} results. Quality over quantity — only include articles you are confident are real and recent. Return ONLY valid JSON, no markdown.`;
+    console.log(`Firecrawl search: ${searchQueries.length} queries, tbs=${tbs}, limit=${perQueryLimit} each`);
 
-    const userPrompt = `Find recent news and coverage about: ${queryTerms}
+    const searchPromises = searchQueries.map(async (query) => {
+      const fullQuery = `${query}${siteFilter}`;
+      try {
+        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${firecrawlKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: fullQuery,
+            limit: perQueryLimit,
+            tbs,
+            scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+          }),
+        });
 
-Search for real articles published recently. I need actual news stories with real URLs.`;
+        const contentType = response.headers.get("content-type");
+        if (!contentType?.includes("application/json")) {
+          console.error("Firecrawl non-JSON response for:", fullQuery);
+          return [];
+        }
 
-    console.log("Gemini discovery search for:", queryTerms, "type:", search_type || "general");
+        const data = await response.json();
+        if (!response.ok) {
+          console.error("Firecrawl error:", data.error || response.status, "for:", fullQuery);
+          return [];
+        }
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+        return (data.data || []).map((item: any) => ({ ...item, _query: fullQuery }));
+      } catch (e: any) {
+        console.error("Firecrawl fetch error:", e.message, "for:", fullQuery);
+        return [];
+      }
     });
 
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("Gemini discovery error:", aiRes.status, errText);
-      
-      if (aiRes.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: "AI rate limit exceeded, try again shortly" }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (aiRes.status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, error: "AI credits exhausted" }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ success: false, error: `AI discovery failed (${aiRes.status})` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const queryResults = await Promise.all(searchPromises);
+    for (const batch of queryResults) {
+      allResults.push(...batch);
     }
 
-    const aiData = await aiRes.json();
-    let rawContent = aiData.choices?.[0]?.message?.content || "{}";
-    rawContent = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    // Process and filter results
+    const seenUrls = new Set<string>();
+    const results: any[] = [];
 
-    let discoveredArticles: any[] = [];
-    try {
-      const parsed = JSON.parse(rawContent);
-      discoveredArticles = parsed.results || [];
-    } catch (e) {
-      console.error("Failed to parse Gemini discovery results:", e, "raw:", rawContent.slice(0, 500));
-      return new Response(
-        JSON.stringify({ success: false, error: "Failed to parse discovery results", results: [] }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    for (const item of allResults) {
+      const url = item.url || "";
+      const rawContent = item.markdown || item.description || "";
 
-    // Now optionally use Firecrawl to deep-scrape the discovered URLs for richer content
-    const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
-    
-    // Convert discovered articles to scan results format
-    const results = [];
-    
-    // If we have Firecrawl, scrape top URLs for better content; otherwise use Gemini summaries
-    if (firecrawlKey && discoveredArticles.length > 0) {
-      // Scrape top articles in parallel for richer content (limit to avoid timeouts)
-      const urlsToScrape = discoveredArticles.slice(0, 10).map(a => a.url).filter(Boolean);
-      
-      if (urlsToScrape.length > 0) {
-        console.log("Deep-scraping", urlsToScrape.length, "discovered URLs via Firecrawl");
-        
-        // Scrape in parallel batches
-        const scrapePromises = urlsToScrape.map(async (url: string) => {
-          try {
-            const scrapeRes = await fetch("https://api.firecrawl.dev/v1/scrape", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${firecrawlKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                url,
-                formats: ["markdown"],
-                onlyMainContent: true,
-                timeout: 15000,
-              }),
-            });
-            if (scrapeRes.ok) {
-              const scrapeData = await scrapeRes.json();
-              return { url, content: scrapeData.data?.markdown || null, metadata: scrapeData.data?.metadata || null };
-            }
-            return { url, content: null, metadata: null };
-          } catch {
-            return { url, content: null, metadata: null };
-          }
-        });
-        
-        const scrapeResults = await Promise.all(scrapePromises);
-        const scrapeMap = new Map(scrapeResults.map(s => [s.url, s]));
-        
-        for (const article of discoveredArticles) {
-          const scraped = scrapeMap.get(article.url);
-          let content = article.summary || "";
-          let postedAt = article.published_date || null;
-          
-          if (scraped?.content) {
-            // Clean and use scraped content (richer than AI summary)
-            let scrapedText = scraped.content;
-            scrapedText = scrapedText.replace(/!\[.*?\]\([^)]*\)/g, "");
-            scrapedText = scrapedText.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-            scrapedText = scrapedText.replace(/<[^>]+>/g, " ");
-            scrapedText = scrapedText.replace(/[#*_~`>|]/g, "");
-            scrapedText = scrapedText.replace(/\s+/g, " ").trim();
-            if (scrapedText.length > 60) {
-              content = scrapedText.slice(0, 800);
-            }
-            
-            // Try to get better date from metadata
-            if (!postedAt && scraped.metadata) {
-              const meta = scraped.metadata;
-              const dateFields = [meta.publishedTime, meta["article:published_time"], meta.datePublished, meta["date"]];
-              for (const raw of dateFields) {
-                if (!raw) continue;
-                try {
-                  const d = new Date(raw);
-                  if (!isNaN(d.getTime()) && d.getFullYear() >= 2015) {
-                    postedAt = d.toISOString();
-                    break;
-                  }
-                } catch { /* skip */ }
-              }
-            }
-          }
+      // Skip blocked domains
+      if (isBlockedDomain(url)) {
+        console.log("Blocked domain:", url);
+        continue;
+      }
 
-          if (postedAt && !postedAt.includes("T")) {
-            postedAt = new Date(postedAt + "T00:00:00Z").toISOString();
-          }
-          
-          results.push({
-            source: classifySourceFromUrl(article.url || ""),
-            content,
-            title: article.title || "",
-            url: article.url || "",
-            author_name: article.source_domain || (() => {
-              try { return new URL(article.url).hostname.replace("www.", ""); } catch { return "unknown"; }
-            })(),
-            posted_at: postedAt,
-            date_verified: !!postedAt,
-            date_source: postedAt ? "metadata" : "none",
-            matched_query: queryTerms,
-          });
+      // Deduplicate
+      const normalizedUrl = url.toLowerCase().replace(/\/$/, "");
+      if (seenUrls.has(normalizedUrl)) continue;
+      seenUrls.add(normalizedUrl);
+
+      // Clean content
+      const cleaned = cleanContent(rawContent);
+      if (cleaned.length < 50) {
+        console.log("Too short:", url);
+        continue;
+      }
+
+      // Extract date
+      const { date: publishDate, source: dateSource } = extractDate(item.metadata, url, rawContent);
+
+      // Date range filtering
+      if (publishDate && dateFromMs > 0) {
+        const pubMs = new Date(publishDate).getTime();
+        if (pubMs < dateFromMs) {
+          console.log("Out of date range:", url, publishDate);
+          continue;
         }
       }
-    }
-    
-    // Fallback: if no Firecrawl or no scrape results, use Gemini summaries directly
-    if (results.length === 0) {
-      for (const article of discoveredArticles) {
-        let postedAt = article.published_date || null;
-        if (postedAt && !postedAt.includes("T")) {
-          postedAt = new Date(postedAt + "T00:00:00Z").toISOString();
-        }
-        
-        results.push({
-          source: classifySourceFromUrl(article.url || ""),
-          content: article.summary || "",
-          title: article.title || "",
-          url: article.url || "",
-          author_name: article.source_domain || "unknown",
-          posted_at: postedAt,
-          date_verified: !!postedAt,
-          date_source: postedAt ? "ai" : "none",
-          matched_query: queryTerms,
-        });
+      if (publishDate && dateToMs > 0) {
+        const pubMs = new Date(publishDate).getTime();
+        if (pubMs > dateToMs) continue;
       }
+
+      results.push({
+        source: classifySourceFromUrl(url),
+        content: cleaned.slice(0, 800),
+        title: item.title || "",
+        url,
+        author_name: (() => {
+          try { return new URL(url).hostname.replace("www.", ""); } catch { return "unknown"; }
+        })(),
+        posted_at: publishDate,
+        date_verified: !!publishDate,
+        date_source: dateSource,
+        matched_query: item._query || keywords.join(", "),
+      });
     }
 
-    console.log(`Gemini discovery: found ${discoveredArticles.length} articles, returned ${results.length} results`);
+    console.log(`Firecrawl: ${allResults.length} raw → ${results.length} after filtering`);
 
     return new Response(
-      JSON.stringify({ success: true, results, query_used: queryTerms, discovery_engine: "gemini" }),
+      JSON.stringify({ success: true, results, query_used: searchQueries.join(" | "), discovery_engine: "firecrawl" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
