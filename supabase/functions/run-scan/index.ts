@@ -66,17 +66,7 @@ function cleanContent(raw: string): string {
   return text;
 }
 
-// Convert date_from to Firecrawl tbs time filter
-function dateToTbs(dateFrom: string | undefined): string | undefined {
-  if (!dateFrom) return undefined;
-  const diffMs = Date.now() - new Date(dateFrom).getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  if (diffDays <= 1) return "qdr:d";
-  if (diffDays <= 7) return "qdr:w";
-  if (diffDays <= 30) return "qdr:m";
-  if (diffDays <= 365) return "qdr:y";
-  return undefined;
-}
+// (dateToTbs removed — no longer needed with Gemini discovery)
 
 // Detect blocked/error pages and non-article junk
 function isJunkContent(text: string): boolean {
@@ -305,24 +295,19 @@ Deno.serve(async (req) => {
 
     // === SMART KEYWORD GROUPING for Web/News ===
     if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
-      // Search 1: Brand/alias keywords with recency bias
+      // Search 1: Brand keywords — general news discovery via Gemini
       scanPromises.push((async () => {
         try {
-          // Add recency context to search queries to avoid evergreen SEO pages
-          const currentYear = new Date().getFullYear();
-          const currentMonth = new Date().toLocaleString('en', { month: 'long' });
-          const recencyBrandKws = brandKws.map(k => `"${k}" ${currentYear}`);
-          
           const webResult = await callFunction("scan-web", {
-            keywords: recencyBrandKws,
-            limit: 25,
-            tbs: dateToTbs(date_from),
+            keywords: brandKws,
+            limit: 20,
             date_from,
-            accept_undated: false, // REJECT undated content — likely evergreen pages
+            date_to,
+            search_type: "general",
           });
           if (webResult.success && webResult.results) {
             allResults.push(...webResult.results);
-            scanLog.push({ source: "web-brand", query: webResult.query_used || recencyBrandKws.join(" OR "), found: webResult.results.length });
+            scanLog.push({ source: "web-brand", query: webResult.query_used || brandKws.join(", "), found: webResult.results.length });
           } else if (webResult.error) {
             errors.push(`Web (brand): ${webResult.error}`);
           }
@@ -331,22 +316,22 @@ Deno.serve(async (req) => {
         }
       })());
 
-      // Search 2: Brand + Risk keywords (reputation threat search)
+      // Search 2: Brand + Risk keywords — threat-focused discovery via Gemini
       if (kwGroups.risk.length > 0 && kwGroups.brand.length > 0) {
         const primaryBrand = kwGroups.brand[0];
-        const riskQueries = kwGroups.risk.slice(0, 4).map(r => `"${primaryBrand}" "${r}"`);
+        const riskKws = kwGroups.risk.slice(0, 4).map(r => `${primaryBrand} ${r}`);
         scanPromises.push((async () => {
           try {
-          const webResult = await callFunction("scan-web", {
-              keywords: riskQueries,
+            const webResult = await callFunction("scan-web", {
+              keywords: riskKws,
               limit: 15,
-              tbs: dateToTbs(date_from),
               date_from,
-              accept_undated: false,
+              date_to,
+              search_type: "risk",
             });
             if (webResult.success && webResult.results) {
               allResults.push(...webResult.results);
-              scanLog.push({ source: "web-risk", query: webResult.query_used || riskQueries.join(" OR "), found: webResult.results.length });
+              scanLog.push({ source: "web-risk", query: webResult.query_used || riskKws.join(", "), found: webResult.results.length });
             } else if (webResult.error) {
               errors.push(`Web (risk): ${webResult.error}`);
             }
@@ -357,7 +342,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // === Google News via Firecrawl with site filter ===
+    // === Google News — Gemini discovery with site prioritization ===
     if (selectedSources.includes("google-news")) {
       scanPromises.push((async () => {
         try {
@@ -365,9 +350,9 @@ Deno.serve(async (req) => {
             keywords: brandKws.slice(0, 3),
             sites: ["reuters.com", "bloomberg.com", "cnbc.com", "bbc.com", "techcrunch.com", "forbes.com", "coindesk.com", "cointelegraph.com", "theblock.co", "decrypt.co", "theverge.com", "wired.com"],
             limit: 15,
-            tbs: dateToTbs(date_from),
             date_from,
-            accept_undated: false,
+            date_to,
+            search_type: "general",
           });
           if (gnResult.success && gnResult.results) {
             allResults.push(...gnResult.results);
@@ -398,14 +383,14 @@ Deno.serve(async (req) => {
             allResults.push(...redditResult.results);
             scanLog.push({ source: "reddit-api", query: brandKws.join(" OR "), found: redditResult.results.length });
           } else {
-            // Fallback: search Reddit via Firecrawl web search with better queries
-            console.log("Reddit API unavailable or returned no results, falling back to web search");
-            const redditQueries = brandKws.slice(0, 3).map(k => `${k} site:reddit.com`);
+            // Fallback: search Reddit via Gemini discovery
+            console.log("Reddit API unavailable or returned no results, falling back to AI discovery");
+            const redditQueries = brandKws.slice(0, 3).map(k => `${k} reddit discussion`);
             const webRedditResult = await callFunction("scan-web", {
               keywords: redditQueries,
               limit: 20,
-              tbs: dateToTbs(date_from),
-              accept_undated: false,
+              date_from,
+              search_type: "social",
             });
             if (webRedditResult.success && webRedditResult.results) {
               allResults.push(...webRedditResult.results);
@@ -415,12 +400,12 @@ Deno.serve(async (req) => {
         } catch (e: any) {
           // Fallback on error too
           try {
-            const redditQueries2 = brandKws.slice(0, 3).map(k => `${k} site:reddit.com`);
+            const redditQueries2 = brandKws.slice(0, 3).map(k => `${k} reddit discussion`);
             const webRedditResult = await callFunction("scan-web", {
               keywords: redditQueries2,
               limit: 20,
-              tbs: dateToTbs(date_from),
-              accept_undated: false,
+              date_from,
+              search_type: "social",
             });
             if (webRedditResult.success && webRedditResult.results) {
               allResults.push(...webRedditResult.results);
@@ -436,13 +421,13 @@ Deno.serve(async (req) => {
     if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin", "facebook"].includes(s))) {
       scanPromises.push((async () => {
         try {
-          const socialQueries = brandKws.slice(0, 3).map(k => `${k} site:twitter.com OR site:x.com OR site:linkedin.com`);
+          const socialQueries = brandKws.slice(0, 3).map(k => `${k} social media discussion`);
           const socialResult = await callFunction("scan-web", {
             keywords: socialQueries,
             limit: 15,
-            tbs: dateToTbs(date_from),
             date_from,
-            accept_undated: false,
+            date_to,
+            search_type: "social",
           });
           if (socialResult.success && socialResult.results) {
             allResults.push(...socialResult.results);
