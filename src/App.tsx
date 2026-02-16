@@ -41,6 +41,7 @@ const IndexPage = React.lazy(() => import("@/pages/Index"));
 const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
 const ContactPage = React.lazy(() => import("@/pages/ContactPage"));
 const FeaturesPage = React.lazy(() => import("@/pages/FeaturesPage"));
+const AlertsPage = React.lazy(() => import("@/pages/AlertsPage"));
 
 const queryClient = new QueryClient();
 
@@ -127,6 +128,7 @@ function AppRoutes() {
           <Route path="/people" element={<ErrorBoundary><PeoplePage /></ErrorBoundary>} />
           <Route path="/people/:id" element={<ErrorBoundary><PersonDetailPage /></ErrorBoundary>} />
           <Route path="/risk-console" element={<ErrorBoundary><RiskConsolePage /></ErrorBoundary>} />
+          <Route path="/alerts" element={<ErrorBoundary><AlertsPage /></ErrorBoundary>} />
           <Route path="/incidents" element={<ErrorBoundary><IncidentsPage /></ErrorBoundary>} />
           <Route path="/incidents/:id" element={<ErrorBoundary><IncidentDetailPage /></ErrorBoundary>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
