@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Keyword { id: string; type: string; value: string; locked: boolean | null }
 interface Topic { id: string; name: string; org_id: string | null; is_default: boolean | null }
@@ -19,6 +22,8 @@ interface Source { id: string; type: string; enabled: boolean | null }
 
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -234,6 +239,7 @@ export default function SettingsPage() {
           <TabsTrigger value="topics"><Layers className="h-3.5 w-3.5 mr-1.5" />Topics</TabsTrigger>
           <TabsTrigger value="sources"><Globe className="h-3.5 w-3.5 mr-1.5" />Sources</TabsTrigger>
           <TabsTrigger value="alerts"><Bell className="h-3.5 w-3.5 mr-1.5" />Alerts</TabsTrigger>
+          <TabsTrigger value="subscription"><CreditCard className="h-3.5 w-3.5 mr-1.5" />Subscription</TabsTrigger>
           <TabsTrigger value="integrations"><Link2 className="h-3.5 w-3.5 mr-1.5" />Integrations</TabsTrigger>
         </TabsList>
 
@@ -451,6 +457,11 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* SUBSCRIPTION TAB */}
+        <TabsContent value="subscription">
+          <SubscriptionTab orgId={currentOrg?.id} userId={user?.id} />
+        </TabsContent>
+
         {/* INTEGRATIONS TAB */}
         <TabsContent value="integrations">
           <Card className="bg-card border-border p-6 space-y-4">
@@ -471,5 +482,169 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [requestType, setRequestType] = useState("monthly");
+  const [message, setMessage] = useState("");
+
+  const { data: org } = useQuery({
+    queryKey: ["org-subscription", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("organizations")
+        .select("subscription_status, subscription_type, subscription_expires_at")
+        .eq("id", orgId!)
+        .single();
+      return data;
+    },
+  });
+
+  const { data: requests, isLoading } = useQuery({
+    queryKey: ["subscription-requests", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("subscription_requests")
+        .select("*")
+        .eq("org_id", orgId!)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+  });
+
+  const hasPending = requests?.some((r: any) => r.status === "pending");
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("subscription_requests").insert({
+        org_id: orgId!,
+        requested_by: userId!,
+        requested_type: requestType,
+        message: message.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Request submitted", description: "An admin will review your upgrade request." });
+      setMessage("");
+      queryClient.invalidateQueries({ queryKey: ["subscription-requests", orgId] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const statusColor = (s: string) => {
+    if (s === "active") return "default";
+    if (s === "pending") return "secondary";
+    return "outline";
+  };
+
+  return (
+    <Card className="bg-card border-border p-6 space-y-6">
+      {/* Current Plan */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-card-foreground">Current Plan</h3>
+        <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border border-border">
+          <CreditCard className="h-5 w-5 text-primary" />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-card-foreground capitalize">
+                {org?.subscription_type || "Free"}
+              </span>
+              <Badge variant={statusColor(org?.subscription_status || "free")}>
+                {org?.subscription_status || "free"}
+              </Badge>
+            </div>
+            {org?.subscription_expires_at && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Expires: {new Date(org.subscription_expires_at).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Request Upgrade */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-card-foreground">Request Upgrade</h3>
+        {hasPending ? (
+          <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
+            You already have a pending upgrade request. An admin will review it shortly.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: "monthly", label: "Monthly", desc: "Billed monthly" },
+                { value: "yearly", label: "Yearly", desc: "Billed annually — save 20%" },
+              ].map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => setRequestType(opt.value)}
+                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                    requestType === opt.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/50 hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-card-foreground">{opt.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Message (optional)</Label>
+              <Textarea
+                placeholder="Any notes for the admin..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="resize-none"
+                rows={3}
+              />
+            </div>
+            <Button
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending || !orgId || !userId}
+            >
+              {submitMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="h-4 w-4 mr-2" />
+              )}
+              Submit Upgrade Request
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Request History */}
+      {isLoading ? (
+        <Skeleton className="h-16 w-full" />
+      ) : requests && requests.length > 0 ? (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-card-foreground">Request History</h3>
+          <div className="space-y-2">
+            {requests.map((r: any) => (
+              <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
+                <div>
+                  <span className="text-xs text-card-foreground capitalize">{r.requested_type}</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {new Date(r.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <Badge variant={statusColor(r.status)}>{r.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Card>
   );
 }
