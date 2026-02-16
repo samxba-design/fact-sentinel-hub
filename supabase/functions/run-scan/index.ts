@@ -242,8 +242,106 @@ Return ONLY valid JSON, no markdown.`,
       };
     });
 
-    const { error: insertErr } = await supabase.from("mentions").insert(mentionRows);
+    const { data: insertedMentions, error: insertErr } = await supabase.from("mentions").insert(mentionRows).select("id");
     if (insertErr) throw insertErr;
+
+    // === Narrative Auto-Clustering ===
+    // Ask AI to cluster the mentions into narrative themes
+    try {
+      const narrativeRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content: `You are a narrative intelligence engine. Given a set of mentions, identify distinct narrative themes.
+For each narrative, provide:
+- name: short descriptive name (e.g. "Security breach rumors")
+- description: 1-2 sentence summary
+- status: "active" or "watch"
+- confidence: number 0-1
+- example_phrases: array of 2-3 key phrases from the mentions
+- mention_indices: array of indices (0-based) of mentions belonging to this narrative
+
+Return JSON: { "narratives": [...] }
+Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
+            },
+            {
+              role: "user",
+              content: `Cluster these ${allResults.length} mentions into narrative themes:\n${JSON.stringify(
+                allResults.map((r, i) => ({ index: i, source: r.source, content: r.content?.slice(0, 200) }))
+              )}`,
+            },
+          ],
+        }),
+      });
+
+      if (narrativeRes.ok) {
+        const narrativeData = await narrativeRes.json();
+        let rawNarr = narrativeData.choices?.[0]?.message?.content || "{}";
+        rawNarr = rawNarr.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        try {
+          const parsed = JSON.parse(rawNarr);
+          const narrativeClusters = parsed.narratives || [];
+          const mentionIds = (insertedMentions || []).map((m: any) => m.id);
+
+          for (const cluster of narrativeClusters) {
+            if (!cluster.name || !cluster.mention_indices?.length) continue;
+
+            // Check if a similar narrative already exists
+            const { data: existing } = await supabase
+              .from("narratives")
+              .select("id")
+              .eq("org_id", org_id)
+              .ilike("name", `%${cluster.name.slice(0, 20)}%`)
+              .limit(1);
+
+            let narrativeId: string;
+
+            if (existing && existing.length > 0) {
+              narrativeId = existing[0].id;
+              // Update last_seen
+              await supabase.from("narratives").update({
+                last_seen: new Date().toISOString(),
+                confidence: cluster.confidence || 0.5,
+              }).eq("id", narrativeId);
+            } else {
+              const { data: newNarr } = await supabase.from("narratives").insert({
+                org_id,
+                name: cluster.name,
+                description: cluster.description || "",
+                status: cluster.status || "active",
+                confidence: cluster.confidence || 0.5,
+                example_phrases: cluster.example_phrases || [],
+                first_seen: new Date().toISOString(),
+                last_seen: new Date().toISOString(),
+              }).select("id").single();
+              if (!newNarr) continue;
+              narrativeId = newNarr.id;
+            }
+
+            // Link mentions to narrative
+            const links = cluster.mention_indices
+              .filter((idx: number) => idx >= 0 && idx < mentionIds.length)
+              .map((idx: number) => ({ mention_id: mentionIds[idx], narrative_id: narrativeId }));
+            if (links.length > 0) {
+              await supabase.from("mention_narratives").insert(links);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to parse narrative clusters:", e);
+        }
+      }
+    } catch (e: any) {
+      console.error("Narrative clustering failed:", e.message);
+      // Non-fatal — scan still succeeds
+    }
 
     // Calculate stats
     const negCount = mentionRows.filter(m =>

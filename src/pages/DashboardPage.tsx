@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/collapsible";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import SentimentSparklines from "@/components/dashboard/SentimentSparklines";
+import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 
 function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick }: {
@@ -88,6 +89,7 @@ const SENTIMENT_COLORS: Record<string, string> = {
   negative: "hsl(0, 84%, 60%)",
   neutral: "hsl(220, 9%, 46%)",
   positive: "hsl(142, 71%, 45%)",
+  mixed: "hsl(38, 92%, 50%)",
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -159,7 +161,7 @@ export default function DashboardPage() {
 
       const mentions = mentionsRaw.data || [];
       const dayMap: Record<string, number> = {};
-      const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0 };
+      const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
 
       for (let i = 6; i >= 0; i--) {
         const d = format(subDays(now, i), "MMM dd");
@@ -188,6 +190,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <OnboardingTour />
+      <GettingStartedChecklist />
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
       <div className="flex items-center justify-between">
         <div>
