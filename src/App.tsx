@@ -44,6 +44,7 @@ const ContactPage = React.lazy(() => import("@/pages/ContactPage"));
 const FeaturesPage = React.lazy(() => import("@/pages/FeaturesPage"));
 const AlertsPage = React.lazy(() => import("@/pages/AlertsPage"));
 const SharedViewPage = React.lazy(() => import("@/pages/SharedViewPage"));
+const PrivacyPolicyPage = React.lazy(() => import("@/pages/PrivacyPolicyPage"));
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ function AppRoutes() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/shared/:token/*" element={<SharedViewPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

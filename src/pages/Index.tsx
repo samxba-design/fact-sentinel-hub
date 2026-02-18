@@ -146,7 +146,10 @@ export default function Index() {
             <Shield className="h-4 w-4 text-primary" />
             <span>SentiWatch</span>
           </div>
-          <p>© {new Date().getFullYear()} SentiWatch. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <p>© {new Date().getFullYear()} SentiWatch. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
