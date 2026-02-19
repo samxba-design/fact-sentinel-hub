@@ -6,6 +6,7 @@ import NotificationBell from "@/components/NotificationBell";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import FloatingReportButton from "@/components/reports/FloatingReportButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import LinkScannerDialog from "@/components/LinkScannerDialog";
 
 export default function AppLayout() {
   useKeyboardShortcuts();
@@ -23,6 +24,7 @@ export default function AppLayout() {
       {/* Desktop top bar with search + notifications */}
       <div className="hidden lg:flex fixed top-0 left-64 right-0 h-14 bg-card/80 backdrop-blur-sm border-b border-border items-center justify-end px-6 z-40 gap-2">
         <GlobalSearch />
+        <LinkScannerDialog />
         <ThemeSwitcher />
         <NotificationBell />
       </div>

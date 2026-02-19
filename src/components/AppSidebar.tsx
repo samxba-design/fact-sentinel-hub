@@ -6,8 +6,9 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2
 } from "lucide-react";
+import LinkScannerDialog from "@/components/LinkScannerDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -136,6 +137,18 @@ export default function AppSidebar() {
           </NavLink>
         )}
       </nav>
+
+      {/* Quick Tools */}
+      <div className="px-3 py-2 border-t border-sidebar-border">
+        <LinkScannerDialog
+          trigger={
+            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground w-full transition-colors">
+              <Link2 className="h-4 w-4" />
+              Scan Link
+            </button>
+          }
+        />
+      </div>
 
       {/* Sign out */}
       <div className="p-3 border-t border-sidebar-border">
