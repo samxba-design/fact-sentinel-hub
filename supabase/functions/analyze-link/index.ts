@@ -16,6 +16,112 @@ const PAYWALL_INDICATORS = [
   "free articles remaining", "register to continue",
 ];
 
+const JS_BLOCK_INDICATORS = [
+  "enable javascript", "javascript is not available", "javascript needs to be enabled",
+  "please enable javascript", "please turn javascript on", "javascript is required",
+  "this site requires javascript", "browser doesn't support javascript",
+  "disable your ad blocker", "ad blocker", "adblocker detected",
+  "turn off your ad blocker", "please disable adblock",
+  "checking your browser", "just a moment", "verifying you are human",
+  "access denied", "403 forbidden", "captcha",
+];
+
+function isJsBlocked(content: string): boolean {
+  const lower = content.toLowerCase();
+  const matches = JS_BLOCK_INDICATORS.filter(i => lower.includes(i));
+  return matches.length >= 1 && content.length < 1500;
+}
+
+// Try to fetch content from Google Cache or Archive.org
+async function fetchArchiveFallback(url: string): Promise<{ content: string; title: string; source: string } | null> {
+  // 1. Try Google Cache
+  try {
+    const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`;
+    const cacheRes = await fetch(cacheUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+      redirect: "follow",
+    });
+    if (cacheRes.ok) {
+      const html = await cacheRes.text();
+      if (html.length > 500 && !html.toLowerCase().includes("did not match any documents")) {
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const text = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length > 300) {
+          console.log("[ARCHIVE-FALLBACK] Google Cache hit for:", url);
+          return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "google_cache" };
+        }
+      }
+    }
+  } catch (e: any) {
+    console.log("[ARCHIVE-FALLBACK] Google Cache failed:", e.message);
+  }
+
+  // 2. Try Archive.org Wayback Machine
+  try {
+    const wbAvail = await fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}&timestamp=${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    const wbData = await wbAvail.json();
+    const snapshot = wbData?.archived_snapshots?.closest;
+    if (snapshot?.available && snapshot.url) {
+      const archiveRes = await fetch(snapshot.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (archiveRes.ok) {
+        const html = await archiveRes.text();
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const text = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length > 300) {
+          console.log("[ARCHIVE-FALLBACK] Archive.org hit for:", url, "snapshot:", snapshot.timestamp);
+          return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "archive_org" };
+        }
+      }
+    }
+  } catch (e: any) {
+    console.log("[ARCHIVE-FALLBACK] Archive.org failed:", e.message);
+  }
+
+  // 3. Try 12ft.io proxy
+  try {
+    const proxyUrl = `https://12ft.io/api/proxy?q=${encodeURIComponent(url)}`;
+    const proxyRes = await fetch(proxyUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (proxyRes.ok) {
+      const html = await proxyRes.text();
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const text = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (text.length > 300) {
+        console.log("[ARCHIVE-FALLBACK] 12ft.io hit for:", url);
+        return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "12ft_proxy" };
+      }
+    }
+  } catch (e: any) {
+    console.log("[ARCHIVE-FALLBACK] 12ft.io failed:", e.message);
+  }
+
+  return null;
+}
+
 function detectPaywall(content: string, html?: string): { is_paywalled: boolean; paywall_type: string | null } {
   const lower = (content + " " + (html || "")).toLowerCase();
   for (const indicator of PAYWALL_INDICATORS) {
@@ -158,8 +264,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 2: Paywall detection
+    // Step 2: Paywall & JS-block detection
     const paywallResult = detectPaywall(markdown, html);
+    const jsBlocked = isJsBlocked(markdown);
+    let contentSource = "direct";
+
+    // Step 2b: If paywalled or JS-blocked, try archive fallbacks
+    if (paywallResult.is_paywalled || jsBlocked || markdown.length < 200) {
+      console.log(`[ANALYZE-LINK] Content issue detected — paywalled: ${paywallResult.is_paywalled}, jsBlocked: ${jsBlocked}, length: ${markdown.length}. Trying archive fallbacks...`);
+      const fallback = await fetchArchiveFallback(formattedUrl);
+      if (fallback && fallback.content.length > markdown.length) {
+        console.log(`[ANALYZE-LINK] Archive fallback succeeded via ${fallback.source}, content length: ${fallback.content.length} (was ${markdown.length})`);
+        markdown = fallback.content;
+        if (fallback.title && !pageTitle) pageTitle = fallback.title;
+        contentSource = fallback.source;
+        // Re-check paywall on new content
+        const recheck = detectPaywall(markdown, "");
+        if (!recheck.is_paywalled) {
+          paywallResult.is_paywalled = false;
+          paywallResult.paywall_type = null;
+        }
+      }
+    }
 
     // Step 3: Related coverage search with AI relevance filtering
     let socialPickup: any[] = [];
@@ -462,6 +588,8 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
     const knownUnknown = {
       content_accessible: scrapeSuccess && markdown.length > 100,
       paywall_status: paywallResult.is_paywalled ? `Paywalled (${paywallResult.paywall_type})` : "Accessible",
+      content_source: contentSource,
+      js_blocked: jsBlocked,
       social_pickup_found: socialPickup.length > 0,
       media_pickup_found: mediaPickup.length > 0,
       twitter_connected: twitterConnected,
