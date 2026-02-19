@@ -6,7 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Paywall indicators in HTML/content
 const PAYWALL_INDICATORS = [
   "subscribe to read", "subscribers only", "premium content", "paywall",
   "sign in to continue reading", "this article is for subscribers",
@@ -33,10 +32,8 @@ function detectPaywall(content: string, html?: string): { is_paywalled: boolean;
   return { is_paywalled: false, paywall_type: null };
 }
 
-// Sanitize URL — prevent doubling, clean whitespace
 function sanitizeUrl(raw: string): string {
   let u = raw.trim();
-  // Remove URL duplication (e.g. "https://example.comhttps://example.com")
   const httpsIdx = u.indexOf("https://", 1);
   const httpIdx = u.indexOf("http://", 1);
   const dupIdx = Math.min(
@@ -50,6 +47,31 @@ function sanitizeUrl(raw: string): string {
     u = `https://${u}`;
   }
   return u;
+}
+
+function extractJson(raw: string): any {
+  // Strip markdown code fences
+  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+  // Find JSON object boundaries
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  let jsonStr = cleaned.slice(start, end + 1);
+  // Fix trailing commas before } or ]
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
+  // Remove control characters
+  jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === "\n" || ch === "\r" || ch === "\t" ? ch : "");
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    // Try a more aggressive cleanup
+    try {
+      jsonStr = jsonStr.replace(/[\n\r\t]/g, " ");
+      return JSON.parse(jsonStr);
+    } catch {
+      return null;
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -112,7 +134,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fallback: use fetch directly
     if (!scrapeSuccess) {
       try {
         const res = await fetch(formattedUrl, {
@@ -140,16 +161,15 @@ Deno.serve(async (req) => {
     // Step 2: Paywall detection
     const paywallResult = detectPaywall(markdown, html);
 
-    // Step 3: Search for related coverage — with AI relevance filtering
+    // Step 3: Related coverage search with AI relevance filtering
     let socialPickup: any[] = [];
     let mediaPickup: any[] = [];
-    
+
     if (firecrawlKey) {
       const domain = new URL(formattedUrl).hostname.replace("www.", "");
       const pathSlug = new URL(formattedUrl).pathname.split("/").filter(Boolean).pop() || "";
-      // Use the page title for search if available, otherwise path slug
       const searchQuery = pageTitle || pathSlug;
-      
+
       if (searchQuery && searchQuery.length > 3) {
         try {
           const searchRes = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -159,19 +179,17 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              query: searchQuery,
+              query: `"${searchQuery}"`,
               limit: 15,
               tbs: "qdr:m",
             }),
           });
           const searchData = await searchRes.json();
           if (searchData.success && searchData.data) {
-            // Collect raw candidates — exclude self
             const candidates: any[] = [];
             for (const result of searchData.data) {
               const resUrl = (result.url || "").toLowerCase();
               if (resUrl === formattedUrl.toLowerCase()) continue;
-              // Skip same-domain results (not really "pickup")
               try {
                 const resDomain = new URL(result.url).hostname.replace("www.", "");
                 if (resDomain === domain) continue;
@@ -179,7 +197,6 @@ Deno.serve(async (req) => {
               candidates.push(result);
             }
 
-            // AI relevance filter — ask the model to filter only truly related results
             if (candidates.length > 0) {
               try {
                 const filterRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -194,13 +211,11 @@ Deno.serve(async (req) => {
                     messages: [
                       {
                         role: "system",
-                        content: `You are a relevance judge. Given an article title and a list of search results, return ONLY the indices (0-based) of results that are DIRECTLY about the same topic, event, or story as the article. A result must discuss the same specific subject matter — not just share a vague theme or keyword.
-
-Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].`,
+                        content: `You are a strict relevance judge. Given an article title and search results, return ONLY indices of results that discuss the EXACT SAME specific story, event, or subject. Results must be directly about the same topic — not just sharing a vague theme, keyword, or industry. If a result is about a different story even if it mentions the same person/company, it is NOT relevant. Return a JSON array of integers like [0, 2]. If none are relevant, return [].`,
                       },
                       {
                         role: "user",
-                        content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\nSource domain: ${domain}\n\nSearch results:\n${candidates.map((c, i) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                        content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\nSource: ${domain}\n\nResults:\n${candidates.map((c, i) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
                       },
                     ],
                   }),
@@ -210,7 +225,7 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
                   const rawFilter = filterData.choices?.[0]?.message?.content || "[]";
                   const jsonMatch = rawFilter.match(/\[[\s\S]*?\]/);
                   const relevantIndices: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-                  
+
                   const relevant = relevantIndices
                     .filter(i => i >= 0 && i < candidates.length)
                     .map(i => candidates[i]);
@@ -233,18 +248,74 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
                   }
                 }
               } catch (e: any) {
-                console.log("[ANALYZE-LINK] Relevance filter failed, skipping:", e.message);
-                // Don't show unfiltered results — better to show nothing than inaccurate data
+                console.log("[ANALYZE-LINK] Relevance filter failed:", e.message);
               }
             }
           }
         } catch (e: any) {
-          console.log("[ANALYZE-LINK] Social search failed:", e.message);
+          console.log("[ANALYZE-LINK] Coverage search failed:", e.message);
         }
       }
     }
 
-    // Step 4: Check for Twitter/Reddit API availability
+    // Step 4: Search engine visibility check
+    let searchVisibility: any = null;
+    if (firecrawlKey && pageTitle && pageTitle.length > 5) {
+      try {
+        // Search for the exact title to see how the article appears
+        const seoRes = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${firecrawlKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: `"${pageTitle.slice(0, 80)}"`,
+            limit: 10,
+          }),
+        });
+        const seoData = await seoRes.json();
+        if (seoData.success && seoData.data) {
+          const domain = new URL(formattedUrl).hostname.replace("www.", "");
+          const exactMatches = seoData.data.filter((r: any) => {
+            try {
+              return new URL(r.url).hostname.replace("www.", "") === domain;
+            } catch { return false; }
+          });
+          const isIndexed = exactMatches.length > 0;
+          const rankPosition = seoData.data.findIndex((r: any) => {
+            try {
+              return new URL(r.url).hostname.replace("www.", "") === domain;
+            } catch { return false; }
+          });
+
+          // Also search with key entity/topic terms to see how the content appears in related searches
+          const competingResults = seoData.data
+            .filter((r: any) => {
+              try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
+            })
+            .slice(0, 5)
+            .map((r: any) => ({
+              title: r.title,
+              url: r.url,
+              domain: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return r.url; } })(),
+            }));
+
+          searchVisibility = {
+            is_indexed: isIndexed,
+            search_rank: rankPosition >= 0 ? rankPosition + 1 : null,
+            title_search_query: pageTitle.slice(0, 80),
+            exact_match_count: exactMatches.length,
+            competing_results: competingResults,
+            search_snippet: exactMatches[0]?.description || null,
+          };
+        }
+      } catch (e: any) {
+        console.log("[ANALYZE-LINK] SEO check failed:", e.message);
+      }
+    }
+
+    // Step 5: Check API connections
     const serviceClient = createClient(supabaseUrl, supabaseKey);
     let twitterConnected = false;
     let redditConnected = false;
@@ -260,17 +331,15 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
       }
     }
 
-    // Step 5: Find similar content from existing mentions
+    // Step 6: Similar mentions
     let similarMentions: any[] = [];
     if (org_id && pageTitle) {
-      // Search mentions that share keywords with this article
       const keywords = pageTitle.toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
         .split(/\s+/)
         .filter(w => w.length > 3 && !["this", "that", "with", "from", "have", "been", "their", "about", "which", "would", "could", "should", "after", "before", "other", "these", "those", "than", "then", "into", "over", "also", "some", "more", "most", "very", "just", "even", "only"].includes(w));
 
       if (keywords.length >= 2) {
-        // Use the top 4 most distinctive keywords for a text search
         const searchTerms = keywords.slice(0, 4).join(" & ");
         try {
           const { data: mentions } = await serviceClient
@@ -281,7 +350,7 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
             .textSearch("content", searchTerms, { type: "plain" })
             .order("posted_at", { ascending: false })
             .limit(5);
-          
+
           if (mentions && mentions.length > 0) {
             similarMentions = mentions.map(m => ({
               id: m.id,
@@ -296,19 +365,18 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
           }
         } catch (e: any) {
           console.log("[ANALYZE-LINK] Similar mentions search failed:", e.message);
-          // Non-critical — continue
         }
       }
     }
 
-    // Step 6: AI Analysis
-    const contentForAI = markdown.slice(0, 4000);
+    // Step 7: AI Analysis — enhanced prompt
+    const contentForAI = markdown.slice(0, 6000);
     const socialContext = socialPickup.length > 0
-      ? `\n\nVerified social pickup found on: ${socialPickup.map(s => `${s.platform} (${s.title})`).join(", ")}`
+      ? `\n\nVerified social pickup: ${socialPickup.map(s => `${s.platform}: ${s.title}`).join(", ")}`
       : "\n\nNo verified social pickup found.";
     const mediaContext = mediaPickup.length > 0
       ? `\nVerified media coverage: ${mediaPickup.map(m => `${m.domain}: ${m.title}`).join(", ")}`
-      : "\nNo verified additional media coverage found.";
+      : "\nNo additional media coverage found.";
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -318,28 +386,47 @@ Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        temperature: 0.2,
+        temperature: 0.15,
         messages: [
           {
             role: "system",
-            content: `You are a media intelligence analyst. Analyze the given article/content and return a JSON report. Be precise and factual. If information is unknown, explicitly say "Unknown" or "Could not determine". Never fabricate data.
+            content: `You are an expert media intelligence analyst. Analyze the article content thoroughly and return a comprehensive JSON report. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.
 
-Return valid JSON with this structure:
+Return valid JSON (no markdown fences) with this structure:
 {
-  "headline": "string - main headline or title",
-  "summary": "string - 3-4 sentence summary of the content",
-  "sentiment": { "label": "positive|negative|neutral|mixed", "score": -1.0 to 1.0, "confidence": 0-100, "reasoning": "why this sentiment" },
-  "narratives": ["string - key narrative threads identified"],
-  "claims": [{ "text": "specific factual claim", "category": "fact|opinion|allegation|statistic", "verifiable": true/false }],
-  "key_entities": [{ "name": "person/org name", "role": "their role in the story", "sentiment_toward": "positive|negative|neutral" }],
-  "potential_impact": { "level": "low|medium|high|critical", "reasoning": "why this impact level", "affected_parties": ["who is affected"] },
-  "regional_scope": { "primary_region": "country/region or Global", "relevant_regions": ["list of regions where this matters"], "is_global": true/false },
-  "content_type": "news|opinion|analysis|press_release|social_post|blog|report|other",
-  "publication_date": "ISO date if detectable or null",
-  "author": "author name if detectable or null",
-  "reliability": { "score": 0-100, "factors": ["what affects reliability"], "source_type": "mainstream|independent|social|unknown" },
-  "social_sharing_assessment": "string - assessment of social spread potential and current sharing activity",
-  "recommended_actions": ["string - what should be done about this content"]
+  "headline": "string - the article's main headline",
+  "summary": "string - 4-6 sentence detailed summary covering: what the article says, who is involved, what actions/events are described, and the key takeaways",
+  "content_breakdown": {
+    "main_topic": "string - the primary subject of the article in one sentence",
+    "key_points": ["string - 4-6 key points or arguments made in the article"],
+    "tone": "string - the writing tone (e.g. investigative, promotional, neutral reporting, opinion, analytical)",
+    "target_audience": "string - who this content is aimed at"
+  },
+  "brand_impact": {
+    "brands_mentioned": [{ "name": "string", "context": "string - how the brand is discussed", "sentiment_toward": "positive|negative|neutral|mixed" }],
+    "overall_brand_risk": "none|low|medium|high|critical",
+    "brand_opportunities": ["string - potential positive outcomes for brands mentioned"],
+    "brand_threats": ["string - potential negative outcomes for brands mentioned"],
+    "reputation_implications": "string - summary of what this means for brand reputation"
+  },
+  "reach_and_impact": {
+    "estimated_reach": "string - estimated audience reach based on the publication",
+    "virality_potential": "low|medium|high",
+    "virality_reasoning": "string - why this content may or may not go viral",
+    "shareability_factors": ["string - what makes this content shareable or not"],
+    "audience_engagement_signals": "string - any indicators of engagement like comments, shares mentioned in the content"
+  },
+  "sentiment": { "label": "positive|negative|neutral|mixed", "score": -1.0, "confidence": 0, "reasoning": "string" },
+  "narratives": ["string - key narrative threads"],
+  "claims": [{ "text": "string", "category": "fact|opinion|allegation|statistic", "verifiable": true }],
+  "key_entities": [{ "name": "string", "role": "string", "sentiment_toward": "positive|negative|neutral" }],
+  "potential_impact": { "level": "low|medium|high|critical", "reasoning": "string", "affected_parties": ["string"] },
+  "regional_scope": { "primary_region": "string", "relevant_regions": ["string"], "is_global": false },
+  "content_type": "news|opinion|analysis|press_release|social_post|blog|report|interview|other",
+  "publication_date": "ISO date or null",
+  "author": "author name or null",
+  "reliability": { "score": 0, "factors": ["string"], "source_type": "mainstream|independent|trade|social|unknown" },
+  "recommended_actions": ["string"]
 }`,
           },
           {
@@ -348,7 +435,7 @@ Return valid JSON with this structure:
 
 Title: ${pageTitle}
 Description: ${pageDescription}
-${paywallResult.is_paywalled ? `⚠️ PAYWALL DETECTED (${paywallResult.paywall_type}): Content may be partial.` : ""}
+${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}
 ${socialContext}
 ${mediaContext}
 
@@ -363,12 +450,15 @@ ${contentForAI}`,
     if (aiRes.ok) {
       const aiData = await aiRes.json();
       const raw = aiData.choices?.[0]?.message?.content || "";
-      try {
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
-        if (jsonMatch) analysis = JSON.parse(jsonMatch[0]);
-      } catch {
-        analysis = { summary: raw, error: "Could not parse structured analysis" };
+      const parsed = extractJson(raw);
+      if (parsed) {
+        analysis = parsed;
+      } else {
+        console.log("[ANALYZE-LINK] JSON parse failed, raw length:", raw.length);
+        analysis = { summary: raw.slice(0, 500), error: "Could not parse structured analysis" };
       }
+    } else {
+      console.log("[ANALYZE-LINK] AI request failed:", aiRes.status);
     }
 
     const knownUnknown = {
@@ -393,11 +483,12 @@ ${contentForAI}`,
       social_pickup: socialPickup,
       media_pickup: mediaPickup,
       similar_mentions: similarMentions,
+      search_visibility: searchVisibility,
       data_confidence: knownUnknown,
       scanned_at: new Date().toISOString(),
     };
 
-    console.log("[ANALYZE-LINK] Analysis complete for:", formattedUrl, `| Social: ${socialPickup.length} | Media: ${mediaPickup.length} | Similar: ${similarMentions.length}`);
+    console.log("[ANALYZE-LINK] Complete:", formattedUrl, `| Social: ${socialPickup.length} | Media: ${mediaPickup.length} | Similar: ${similarMentions.length} | SEO: ${searchVisibility?.is_indexed ?? "N/A"}`);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
