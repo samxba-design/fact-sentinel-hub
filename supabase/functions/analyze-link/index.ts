@@ -385,62 +385,108 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         temperature: 0.15,
+        tools: [{
+          type: "function",
+          function: {
+            name: "analyze_article",
+            description: "Return a structured intelligence analysis of the article",
+            parameters: {
+              type: "object",
+              properties: {
+                headline: { type: "string", description: "The article's main headline" },
+                summary: { type: "string", description: "4-6 sentence detailed summary covering: what the article says, who is involved, what actions/events are described, and the key takeaways" },
+                content_breakdown: {
+                  type: "object",
+                  properties: {
+                    main_topic: { type: "string", description: "Primary subject in one sentence" },
+                    key_points: { type: "array", items: { type: "string" }, description: "4-6 key points or arguments" },
+                    tone: { type: "string", description: "Writing tone (investigative, promotional, neutral, opinion, analytical)" },
+                    target_audience: { type: "string", description: "Who this content is aimed at" },
+                  },
+                  required: ["main_topic", "key_points", "tone", "target_audience"],
+                },
+                brand_impact: {
+                  type: "object",
+                  properties: {
+                    brands_mentioned: { type: "array", items: { type: "object", properties: { name: { type: "string" }, context: { type: "string" }, sentiment_toward: { type: "string", enum: ["positive", "negative", "neutral", "mixed"] } }, required: ["name", "context", "sentiment_toward"] } },
+                    overall_brand_risk: { type: "string", enum: ["none", "low", "medium", "high", "critical"] },
+                    brand_opportunities: { type: "array", items: { type: "string" } },
+                    brand_threats: { type: "array", items: { type: "string" } },
+                    reputation_implications: { type: "string" },
+                  },
+                  required: ["brands_mentioned", "overall_brand_risk", "reputation_implications"],
+                },
+                reach_and_impact: {
+                  type: "object",
+                  properties: {
+                    estimated_reach: { type: "string", description: "Estimated audience reach" },
+                    virality_potential: { type: "string", enum: ["low", "medium", "high"] },
+                    virality_reasoning: { type: "string" },
+                    shareability_factors: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["estimated_reach", "virality_potential", "virality_reasoning"],
+                },
+                sentiment: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string", enum: ["positive", "negative", "neutral", "mixed"] },
+                    score: { type: "number", description: "-1.0 to 1.0" },
+                    confidence: { type: "number", description: "0-100" },
+                    reasoning: { type: "string" },
+                  },
+                  required: ["label", "score", "confidence", "reasoning"],
+                },
+                narratives: { type: "array", items: { type: "string" }, description: "Key narrative threads" },
+                claims: { type: "array", items: { type: "object", properties: { text: { type: "string" }, category: { type: "string", enum: ["fact", "opinion", "allegation", "statistic"] }, verifiable: { type: "boolean" } }, required: ["text", "category", "verifiable"] } },
+                key_entities: { type: "array", items: { type: "object", properties: { name: { type: "string" }, role: { type: "string" }, sentiment_toward: { type: "string", enum: ["positive", "negative", "neutral"] } }, required: ["name", "role", "sentiment_toward"] } },
+                potential_impact: {
+                  type: "object",
+                  properties: {
+                    level: { type: "string", enum: ["low", "medium", "high", "critical"] },
+                    reasoning: { type: "string" },
+                    affected_parties: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["level", "reasoning", "affected_parties"],
+                },
+                regional_scope: {
+                  type: "object",
+                  properties: {
+                    primary_region: { type: "string" },
+                    relevant_regions: { type: "array", items: { type: "string" } },
+                    is_global: { type: "boolean" },
+                  },
+                  required: ["primary_region", "is_global"],
+                },
+                content_type: { type: "string", enum: ["news", "opinion", "analysis", "press_release", "social_post", "blog", "report", "interview", "other"] },
+                publication_date: { type: "string", description: "ISO date or null" },
+                author: { type: "string", description: "Author name or null" },
+                reliability: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number", description: "0-100" },
+                    factors: { type: "array", items: { type: "string" } },
+                    source_type: { type: "string", enum: ["mainstream", "independent", "trade", "social", "unknown"] },
+                  },
+                  required: ["score", "source_type"],
+                },
+                recommended_actions: { type: "array", items: { type: "string" } },
+              },
+              required: ["headline", "summary", "content_breakdown", "brand_impact", "reach_and_impact", "sentiment", "potential_impact", "content_type", "recommended_actions"],
+              additionalProperties: false,
+            },
+          },
+        }],
+        tool_choice: { type: "function", function: { name: "analyze_article" } },
         messages: [
           {
             role: "system",
-            content: `You are an expert media intelligence analyst. Analyze the article content thoroughly and return a comprehensive JSON report. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.
-
-Return valid JSON (no markdown fences) with this structure:
-{
-  "headline": "string - the article's main headline",
-  "summary": "string - 4-6 sentence detailed summary covering: what the article says, who is involved, what actions/events are described, and the key takeaways",
-  "content_breakdown": {
-    "main_topic": "string - the primary subject of the article in one sentence",
-    "key_points": ["string - 4-6 key points or arguments made in the article"],
-    "tone": "string - the writing tone (e.g. investigative, promotional, neutral reporting, opinion, analytical)",
-    "target_audience": "string - who this content is aimed at"
-  },
-  "brand_impact": {
-    "brands_mentioned": [{ "name": "string", "context": "string - how the brand is discussed", "sentiment_toward": "positive|negative|neutral|mixed" }],
-    "overall_brand_risk": "none|low|medium|high|critical",
-    "brand_opportunities": ["string - potential positive outcomes for brands mentioned"],
-    "brand_threats": ["string - potential negative outcomes for brands mentioned"],
-    "reputation_implications": "string - summary of what this means for brand reputation"
-  },
-  "reach_and_impact": {
-    "estimated_reach": "string - estimated audience reach based on the publication",
-    "virality_potential": "low|medium|high",
-    "virality_reasoning": "string - why this content may or may not go viral",
-    "shareability_factors": ["string - what makes this content shareable or not"],
-    "audience_engagement_signals": "string - any indicators of engagement like comments, shares mentioned in the content"
-  },
-  "sentiment": { "label": "positive|negative|neutral|mixed", "score": -1.0, "confidence": 0, "reasoning": "string" },
-  "narratives": ["string - key narrative threads"],
-  "claims": [{ "text": "string", "category": "fact|opinion|allegation|statistic", "verifiable": true }],
-  "key_entities": [{ "name": "string", "role": "string", "sentiment_toward": "positive|negative|neutral" }],
-  "potential_impact": { "level": "low|medium|high|critical", "reasoning": "string", "affected_parties": ["string"] },
-  "regional_scope": { "primary_region": "string", "relevant_regions": ["string"], "is_global": false },
-  "content_type": "news|opinion|analysis|press_release|social_post|blog|report|interview|other",
-  "publication_date": "ISO date or null",
-  "author": "author name or null",
-  "reliability": { "score": 0, "factors": ["string"], "source_type": "mainstream|independent|trade|social|unknown" },
-  "recommended_actions": ["string"]
-}`,
+            content: `You are an expert media intelligence analyst. Analyze the article content thoroughly. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.${socialContext}${mediaContext}`,
           },
           {
             role: "user",
-            content: `Analyze this content from ${formattedUrl}:
-
-Title: ${pageTitle}
-Description: ${pageDescription}
-${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}
-${socialContext}
-${mediaContext}
-
-Content:
-${contentForAI}`,
+            content: `Analyze this content from ${formattedUrl}:\n\nTitle: ${pageTitle}\nDescription: ${pageDescription}\n${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}\n\nContent:\n${contentForAI}`,
           },
         ],
       }),
@@ -449,16 +495,24 @@ ${contentForAI}`,
     let analysis: any = {};
     if (aiRes.ok) {
       const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content || "";
-      const parsed = extractJson(raw);
-      if (parsed) {
-        analysis = parsed;
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        try {
+          analysis = JSON.parse(toolCall.function.arguments);
+        } catch {
+          const extracted = extractJson(toolCall.function.arguments);
+          analysis = extracted || { summary: "Analysis parsing failed", error: "parse_error" };
+        }
       } else {
-        console.log("[ANALYZE-LINK] JSON parse failed, raw length:", raw.length);
-        analysis = { summary: raw.slice(0, 500), error: "Could not parse structured analysis" };
+        // Fallback: try to parse content directly
+        const raw = aiData.choices?.[0]?.message?.content || "";
+        const parsed = extractJson(raw);
+        analysis = parsed || { summary: raw.slice(0, 500), error: "Could not parse structured analysis" };
       }
     } else {
-      console.log("[ANALYZE-LINK] AI request failed:", aiRes.status);
+      const errText = await aiRes.text();
+      console.log("[ANALYZE-LINK] AI request failed:", aiRes.status, errText.slice(0, 200));
+      analysis = { summary: "AI analysis temporarily unavailable. Content was scraped successfully.", error: `ai_${aiRes.status}` };
     }
 
     const knownUnknown = {
