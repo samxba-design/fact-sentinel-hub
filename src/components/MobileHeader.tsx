@@ -7,11 +7,12 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut, Menu, X,
-  ShieldCheck, CreditCard, BookOpen, Target, Contact
+  ShieldCheck, CreditCard, BookOpen, Target, Contact, Link2
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import LinkScannerDialog from "@/components/LinkScannerDialog";
 
 type RequiredAccess = "all" | "write" | "edit" | "manage";
 
@@ -126,6 +127,16 @@ export default function MobileHeader() {
                 </NavLink>
               )}
             </nav>
+            <div className="px-3 py-2 border-t border-border">
+              <LinkScannerDialog
+                trigger={
+                  <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/50 w-full transition-colors">
+                    <Link2 className="h-4 w-4" />
+                    Scan Link
+                  </button>
+                }
+              />
+            </div>
             <div className="p-3 border-t border-border">
               <button
                 onClick={() => { signOut(); setMenuOpen(false); }}
