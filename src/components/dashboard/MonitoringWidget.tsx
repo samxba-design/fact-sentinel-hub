@@ -47,12 +47,22 @@ const ALERT_LABELS: Record<string, string> = {
   viral_risk: "Viral Risk",
 };
 
-/** Maps alert types to a mentions page filter so clicking drills into relevant data */
-const ALERT_LINK: Record<string, string> = {
-  mention_spike: "/mentions?days=7",
-  negative_spike: "/mentions?sentiment=negative&days=7",
-  critical_mention: "/mentions?severity=critical&days=7",
-  viral_risk: "/mentions?severity=critical&days=7",
+/** Build dynamic link based on alert trigger time */
+function buildAlertLink(alert: Alert): string {
+  const meta = ALERT_FILTERS[alert.type];
+  const filter = meta || "";
+  const triggerDate = alert.triggered_at ? new Date(alert.triggered_at) : new Date();
+  const daysSince = Math.max(1, Math.ceil((Date.now() - triggerDate.getTime()) / (1000 * 60 * 60 * 24)) + 2);
+  const days = Math.min(daysSince, 30);
+  const params = filter ? `${filter}&days=${days}` : `days=${days}`;
+  return `/mentions?${params}`;
+}
+
+const ALERT_FILTERS: Record<string, string> = {
+  mention_spike: "",
+  negative_spike: "sentiment=negative",
+  critical_mention: "severity=critical",
+  viral_risk: "severity=critical",
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
@@ -189,7 +199,7 @@ export default function MonitoringWidget() {
             const Icon = ALERT_ICONS[alert.type] || Bell;
             const color = ALERT_COLORS[alert.type] || "text-primary";
             const label = ALERT_LABELS[alert.type] || alert.type.replace(/_/g, " ");
-            const link = ALERT_LINK[alert.type] || "/alerts";
+            const link = buildAlertLink(alert);
             const payload = alert.payload as any || {};
             return (
               <div
