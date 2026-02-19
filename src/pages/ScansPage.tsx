@@ -64,7 +64,7 @@ export default function ScansPage() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string>("");
-  const [scanResult, setScanResult] = useState<{ mentions: number; emergencies: number; narratives: number; scan_run_id: string } | null>(null);
+  const [scanResult, setScanResult] = useState<{ mentions: number; emergencies: number; narratives: number; scan_run_id: string; zero_reason?: string; scan_log?: any[]; keyword_groups?: any } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -168,24 +168,42 @@ export default function ScansPage() {
       const created = data.mentions_created || 0;
       const scanLogEntries = data.scan_log || [];
       const kwGroupsUsed = data.keyword_groups || {};
+      const zeroReason = data.zero_results_reason || "";
 
       const sourceBreakdown = scanLogEntries.map((s: any) => `${s.source}: ${s.found} found`).join(", ");
 
-      const details = [
-        `${created} mentions saved`,
-        totalFound > created ? `${totalFound} total found across sources` : null,
-        sourceBreakdown ? `Sources: ${sourceBreakdown}` : null,
-        filtered > 0 ? `${filtered} filtered (junk/out-of-range)` : null,
-        dupes > 0 ? `${dupes} duplicates removed` : null,
-        aiFiltered > 0 ? `${aiFiltered} removed by AI quality filter` : null,
-        kwGroupsUsed.brand?.length ? `Brand keywords: ${kwGroupsUsed.brand.slice(0, 3).join(", ")}` : null,
-        kwGroupsUsed.risk?.length ? `Risk keywords: ${kwGroupsUsed.risk.slice(0, 3).join(", ")}` : null,
-      ].filter(Boolean).join(" · ");
+      if (created === 0) {
+        // Zero results — give detailed explanation
+        const details = [
+          zeroReason || "No relevant mentions found.",
+          sourceBreakdown ? `Scanned: ${sourceBreakdown}` : null,
+          kwGroupsUsed.brand?.length ? `Keywords used: ${kwGroupsUsed.brand.slice(0, 5).join(", ")}` : null,
+          data.errors?.length ? `Issues: ${data.errors.slice(0, 2).join("; ")}` : null,
+          "💡 Try widening your date range, adding more keywords, or checking your keyword configuration in Settings.",
+        ].filter(Boolean).join("\n");
 
-      toast({
-        title: `Auto-scan complete! ${created} mentions found`,
-        description: details,
-      });
+        toast({
+          title: "Scan complete — no new mentions",
+          description: details,
+          duration: 15000,
+        });
+      } else {
+        const details = [
+          `${created} mentions saved`,
+          totalFound > created ? `${totalFound} total found across sources` : null,
+          sourceBreakdown ? `Sources: ${sourceBreakdown}` : null,
+          filtered > 0 ? `${filtered} filtered (junk/out-of-range)` : null,
+          dupes > 0 ? `${dupes} duplicates removed` : null,
+          aiFiltered > 0 ? `${aiFiltered} removed by AI quality filter` : null,
+          kwGroupsUsed.brand?.length ? `Brand keywords: ${kwGroupsUsed.brand.slice(0, 3).join(", ")}` : null,
+          kwGroupsUsed.risk?.length ? `Risk keywords: ${kwGroupsUsed.risk.slice(0, 3).join(", ")}` : null,
+        ].filter(Boolean).join(" · ");
+
+        toast({
+          title: `Auto-scan complete! ${created} mentions found`,
+          description: details,
+        });
+      }
       setScanProgress("");
       setScanDatePickerOpen(false);
       fetchRuns();
@@ -273,6 +291,9 @@ export default function ScansPage() {
         emergencies: data.emergencies || 0,
         narratives: data.narratives_created || 0,
         scan_run_id: data.scan_run_id || "",
+        zero_reason: data.zero_results_reason || "",
+        scan_log: data.scan_log || [],
+        keyword_groups: data.keyword_groups || {},
       });
       setScanProgress("");
 
@@ -710,33 +731,73 @@ export default function ScansPage() {
 
             {/* Scan Result Summary */}
             {scanResult && !scanning && (
-              <div className="space-y-3 p-4 rounded-lg bg-sentinel-emerald/5 border border-sentinel-emerald/20">
+              <div className={`space-y-3 p-4 rounded-lg border ${scanResult.mentions > 0 ? "bg-sentinel-emerald/5 border-sentinel-emerald/20" : "bg-sentinel-amber/5 border-sentinel-amber/20"}`}>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-sentinel-emerald" />
-                  <span className="text-sm font-medium text-sentinel-emerald">Scan Complete</span>
+                  {scanResult.mentions > 0 ? (
+                    <>
+                      <CheckCircle2 className="h-5 w-5 text-sentinel-emerald" />
+                      <span className="text-sm font-medium text-sentinel-emerald">Scan Complete</span>
+                    </>
+                  ) : (
+                    <>
+                      <Info className="h-5 w-5 text-sentinel-amber" />
+                      <span className="text-sm font-medium text-sentinel-amber">Scan Complete — No New Mentions</span>
+                    </>
+                  )}
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center">
-                    <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.mentions}</div>
-                    <div className="text-[10px] text-muted-foreground">Mentions Found</div>
+
+                {scanResult.mentions > 0 ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center">
+                        <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.mentions}</div>
+                        <div className="text-[10px] text-muted-foreground">Mentions Found</div>
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-xl font-bold font-mono ${scanResult.emergencies > 0 ? "text-sentinel-red" : "text-card-foreground"}`}>{scanResult.emergencies}</div>
+                        <div className="text-[10px] text-muted-foreground">Emergencies</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.narratives}</div>
+                        <div className="text-[10px] text-muted-foreground">Narratives</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate(`/mentions?scan=${scanResult.scan_run_id}`); }}>
+                        <ExternalLink className="h-3 w-3 mr-1.5" /> View Mentions
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate("/risk-console"); }}>
+                        <AlertTriangle className="h-3 w-3 mr-1.5" /> Risk Console
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    {scanResult.zero_reason && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">{scanResult.zero_reason}</p>
+                    )}
+                    {scanResult.scan_log && scanResult.scan_log.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Sources scanned:</span>{" "}
+                        {scanResult.scan_log.map((s: any) => `${s.source} (${s.found} raw)`).join(", ")}
+                      </div>
+                    )}
+                    {scanResult.keyword_groups?.brand?.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Keywords used:</span>{" "}
+                        {scanResult.keyword_groups.brand.slice(0, 5).join(", ")}
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate("/settings"); }}>
+                        <Settings2 className="h-3 w-3 mr-1.5" /> Check Keywords
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setScanResult(null)}>
+                        Try Again
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className={`text-xl font-bold font-mono ${scanResult.emergencies > 0 ? "text-sentinel-red" : "text-card-foreground"}`}>{scanResult.emergencies}</div>
-                    <div className="text-[10px] text-muted-foreground">Emergencies</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold font-mono text-card-foreground">{scanResult.narratives}</div>
-                    <div className="text-[10px] text-muted-foreground">Narratives</div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate(`/mentions?scan=${scanResult.scan_run_id}`); }}>
-                    <ExternalLink className="h-3 w-3 mr-1.5" /> View Mentions
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setBuilderOpen(false); setScanResult(null); navigate("/risk-console"); }}>
-                    <AlertTriangle className="h-3 w-3 mr-1.5" /> Risk Console
-                  </Button>
-                </div>
+                )}
               </div>
             )}
 

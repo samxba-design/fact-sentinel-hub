@@ -49,10 +49,10 @@ const ALERT_LABELS: Record<string, string> = {
 
 /** Maps alert types to a mentions page filter so clicking drills into relevant data */
 const ALERT_LINK: Record<string, string> = {
-  mention_spike: "/mentions?days=1",
-  negative_spike: "/mentions?sentiment=negative&days=1",
-  critical_mention: "/mentions?severity=critical&days=1",
-  viral_risk: "/mentions?severity=critical&days=1",
+  mention_spike: "/mentions?days=7",
+  negative_spike: "/mentions?sentiment=negative&days=7",
+  critical_mention: "/mentions?severity=critical&days=7",
+  viral_risk: "/mentions?severity=critical&days=7",
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
