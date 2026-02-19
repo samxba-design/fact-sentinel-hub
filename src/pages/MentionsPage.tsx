@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown
+  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2
 } from "lucide-react";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -594,6 +594,16 @@ export default function MentionsPage() {
                 <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5" title={m.created_at ? `Detected: ${format(new Date(m.created_at), "PPp")}` : undefined}>
                   <Eye className="h-2.5 w-2.5" /> Detected {timeAgo(m.created_at)}
                 </span>
+                {flags.paywall && (
+                  <Badge className="bg-sentinel-amber/10 text-sentinel-amber border-sentinel-amber/30 text-[10px]">
+                    <Lock className="h-3 w-3 mr-1" />Paywalled
+                  </Badge>
+                )}
+                {(flags.social_pickup_count > 0 || flags.media_pickup_count > 0) && (
+                  <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px]">
+                    <Share2 className="h-3 w-3 mr-1" />{flags.social_pickup_count || 0} social · {flags.media_pickup_count || 0} media
+                  </Badge>
+                )}
                 {flags.emergency && (
                   <Badge className="bg-sentinel-red/10 text-sentinel-red border-sentinel-red/30 text-[10px]">
                     <AlertTriangle className="h-3 w-3 mr-1" />Emergency

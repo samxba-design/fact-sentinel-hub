@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,8 @@ import {
   Link2, Loader2, Globe, AlertTriangle, TrendingUp, Shield,
   ExternalLink, Lock, Twitter, Hash, Eye, MapPin, Users,
   ThumbsUp, ThumbsDown, Minus, Info, ChevronDown, ChevronUp,
-  Sparkles, MessageSquare, Share2,
+  Sparkles, MessageSquare, Share2, Save, TicketCheck, MessageCircleReply,
+  Network, CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -59,8 +61,11 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     summary: true, sentiment: true, impact: true, social: true, media: false, claims: false, entities: false,
   });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const { toast } = useToast();
   const { currentOrg } = useOrg();
+  const navigate = useNavigate();
 
   const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -68,6 +73,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     if (!url.trim()) return;
     setLoading(true);
     setResult(null);
+    setSaved(false);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-link", {
         body: { url: url.trim(), org_id: currentOrg?.id },
@@ -79,6 +85,99 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // === ACTION HANDLERS ===
+  const saveAsMention = async () => {
+    if (!result || !currentOrg) return;
+    setSaving(true);
+    try {
+      const a = result.analysis || {};
+      const { error } = await supabase.from("mentions").insert({
+        org_id: currentOrg.id,
+        source: a.content_type || "news",
+        content: a.summary || result.description || result.title,
+        url: result.url,
+        author_name: a.author || null,
+        sentiment_label: a.sentiment?.label || "neutral",
+        sentiment_score: a.sentiment?.score || 0,
+        sentiment_confidence: (a.sentiment?.confidence || 50) / 100,
+        severity: a.potential_impact?.level === "critical" ? "critical" : a.potential_impact?.level || "low",
+        posted_at: a.publication_date || null,
+        status: "new",
+        flags: {
+          from_link_scanner: true,
+          paywall: result.paywall.is_paywalled,
+          paywall_type: result.paywall.paywall_type,
+          social_pickup_count: result.social_pickup.length,
+          media_pickup_count: result.media_pickup.length,
+          reliability_score: a.reliability?.score || null,
+        },
+        metrics: {
+          social_pickup: result.social_pickup.length,
+          media_pickup: result.media_pickup.length,
+        },
+      });
+      if (error) throw error;
+      setSaved(true);
+      toast({ title: "Saved as mention", description: "This link has been added to your mentions feed for tracking." });
+    } catch (err: any) {
+      toast({ title: "Error saving", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createEscalation = async () => {
+    if (!result || !currentOrg) return;
+    try {
+      const a = result.analysis || {};
+      const { error } = await supabase.from("escalations").insert({
+        org_id: currentOrg.id,
+        title: `Link Analysis: ${result.title || result.url}`,
+        description: `AI Analysis of ${result.url}\n\nSummary: ${a.summary || "N/A"}\nSentiment: ${a.sentiment?.label || "N/A"}\nImpact: ${a.potential_impact?.level || "N/A"} — ${a.potential_impact?.reasoning || ""}\n\nSocial Pickup: ${result.social_pickup.length} shares found\nMedia Coverage: ${result.media_pickup.length} outlets`,
+        priority: a.potential_impact?.level === "critical" ? "critical" : a.potential_impact?.level === "high" ? "high" : "medium",
+        pasted_text: a.summary || result.description,
+      });
+      if (error) throw error;
+      toast({ title: "Escalation created", description: "A new ticket has been created from this analysis." });
+      setOpen(false);
+      navigate("/escalations");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const draftResponse = () => {
+    if (!result) return;
+    const a = result.analysis || {};
+    const context = `Source: ${result.url}\n\nKey Points:\n${a.summary || result.description || ""}\n\nClaims:\n${(a.claims || []).map((c: any) => `- ${c.text} (${c.category})`).join("\n") || "None identified"}\n\nSentiment: ${a.sentiment?.label || "N/A"}\nImpact: ${a.potential_impact?.level || "N/A"}`;
+    setOpen(false);
+    navigate("/respond", { state: { prefillText: context } });
+  };
+
+  const trackNarrative = async () => {
+    if (!result || !currentOrg) return;
+    try {
+      const a = result.analysis || {};
+      const narrativeName = a.narratives?.[0] || result.title?.slice(0, 60) || "Link Scanner Narrative";
+      const { error } = await supabase.from("narratives").insert({
+        org_id: currentOrg.id,
+        name: narrativeName,
+        description: `Identified from link analysis of ${result.url}. ${a.summary || ""}`,
+        status: "active",
+        confidence: (a.reliability?.score || 50) / 100,
+        example_phrases: a.narratives?.slice(0, 5) || [],
+        first_seen: new Date().toISOString(),
+        last_seen: new Date().toISOString(),
+      });
+      if (error) throw error;
+      toast({ title: "Narrative created", description: `"${narrativeName}" is now being tracked.` });
+      setOpen(false);
+      navigate("/narratives");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
@@ -168,6 +267,23 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                   </Button>
                 </div>
               </Card>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={saveAsMention} disabled={saving || saved} className="gap-1.5 text-xs">
+                  {saved ? <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald" /> : <Save className="h-3.5 w-3.5" />}
+                  {saved ? "Saved" : saving ? "Saving..." : "Save as Mention"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={createEscalation} className="gap-1.5 text-xs">
+                  <TicketCheck className="h-3.5 w-3.5" /> Escalate
+                </Button>
+                <Button size="sm" variant="outline" onClick={draftResponse} className="gap-1.5 text-xs">
+                  <MessageCircleReply className="h-3.5 w-3.5" /> Draft Response
+                </Button>
+                <Button size="sm" variant="outline" onClick={trackNarrative} className="gap-1.5 text-xs">
+                  <Network className="h-3.5 w-3.5" /> Track Narrative
+                </Button>
+              </div>
 
               {/* Data Confidence Banner */}
               {result.data_confidence && (
