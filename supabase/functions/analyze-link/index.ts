@@ -390,7 +390,7 @@ Deno.serve(async (req) => {
     if (firecrawlKey && pageTitle && pageTitle.length > 5) {
       const domain = new URL(formattedUrl).hostname.replace("www.", "");
       
-      // 4a: Title-based visibility check (existing)
+      // 4a: Title-based visibility check — article-specific
       try {
         const seoRes = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
@@ -416,24 +416,61 @@ Deno.serve(async (req) => {
           const rankPosition = seoData.data.findIndex((r: any) => {
             try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
           });
-          // Fallback to domain match if exact URL not found
           const domainRank = rankPosition >= 0 ? rankPosition : seoData.data.findIndex((r: any) => {
             try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
           });
 
-          const competingResults = seoData.data
+          // Competing results: filter by AI for relevance to THIS article's topic
+          const otherResults = seoData.data
             .filter((r: any) => {
               try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
             })
-            .slice(0, 5)
-            .map((r: any) => ({
-              title: r.title,
-              url: r.url,
-              domain: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return r.url; } })(),
-            }));
+            .slice(0, 8);
 
-          // Use snippet from exact URL match first, fallback to domain match
-          const snippetSource = exactUrlMatches[0] || domainMatches[0];
+          let competingResults: any[] = [];
+          if (otherResults.length > 0) {
+            try {
+              const compFilterRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${lovableKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash-lite",
+                  temperature: 0,
+                  messages: [
+                    {
+                      role: "system",
+                      content: `You judge whether search results are about the SAME SPECIFIC story/topic as a given article. Return ONLY a JSON array of indices of results that cover the same specific event, claim, or subject. Not just same industry/company — must be the same story. If none match, return [].`,
+                    },
+                    {
+                      role: "user",
+                      content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\n\nResults:\n${otherResults.map((c: any, i: number) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                    },
+                  ],
+                }),
+              });
+              if (compFilterRes.ok) {
+                const compFilterData = await compFilterRes.json();
+                const rawIdx = compFilterData.choices?.[0]?.message?.content || "[]";
+                const idxMatch = rawIdx.match(/\[[\s\S]*?\]/);
+                const relevantIdx: number[] = idxMatch ? JSON.parse(idxMatch[0]) : [];
+                competingResults = relevantIdx
+                  .filter(i => i >= 0 && i < otherResults.length)
+                  .map(i => ({
+                    title: otherResults[i].title,
+                    url: otherResults[i].url,
+                    domain: (() => { try { return new URL(otherResults[i].url).hostname.replace("www.", ""); } catch { return otherResults[i].url; } })(),
+                  }));
+              }
+            } catch (e: any) {
+              console.log("[ANALYZE-LINK] Competing filter failed:", e.message);
+            }
+          }
+
+          // Search snippet: prefer article's own metadata, not generic search result description
+          const articleSnippet = pageDescription || exactUrlMatches[0]?.description || null;
 
           searchVisibility = {
             is_indexed: isIndexed,
@@ -441,7 +478,7 @@ Deno.serve(async (req) => {
             title_search_query: pageTitle.slice(0, 80),
             exact_match_count: exactUrlMatches.length,
             competing_results: competingResults,
-            search_snippet: snippetSource?.description || null,
+            search_snippet: articleSnippet,
           };
         }
       } catch (e: any) {
@@ -513,15 +550,23 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
                 });
                 const verifyData = await verifyRes.json();
                 if (verifyData.success && verifyData.data) {
-                  const rank = verifyData.data.findIndex((r: any) => {
+                  const targetUrl = formattedUrl.toLowerCase().replace(/\/$/, "");
+                  // Check exact URL match first
+                  const exactRank = verifyData.data.findIndex((r: any) => {
+                    try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
+                  });
+                  // Fallback to domain match only if exact not found
+                  const domainRank = exactRank >= 0 ? exactRank : verifyData.data.findIndex((r: any) => {
                     try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
                   });
+                  const rank = exactRank >= 0 ? exactRank : domainRank;
                   const competitors = verifyData.data.filter((r: any) => {
                     try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
                   });
                   return {
                     keyword: kw,
-                    surfaces_article: rank >= 0,
+                    surfaces_article: exactRank >= 0,
+                    surfaces_domain: domainRank >= 0 && exactRank < 0,
                     rank: rank >= 0 ? rank + 1 : null,
                     competing_count: competitors.length,
                     top_competitor: competitors[0]?.title || null,
@@ -530,7 +575,7 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
               } catch (e: any) {
                 console.log("[ANALYZE-LINK] Keyword verify failed for:", kw, e.message);
               }
-              return { keyword: kw, surfaces_article: false, rank: null, competing_count: 0, top_competitor: null };
+              return { keyword: kw, surfaces_article: false, surfaces_domain: false, rank: null, competing_count: 0, top_competitor: null };
             });
             
             const verified = await Promise.all(verifyPromises);
