@@ -836,6 +836,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                               <div className="shrink-0">
                                 {kw.surfaces_article ? (
                                   <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald" />
+                                ) : kw.surfaces_domain ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-amber-500" />
                                 ) : (
                                   <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                                 )}
@@ -845,11 +847,15 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   {kw.surfaces_article ? (
                                     <span className="text-[10px] text-sentinel-emerald">
-                                      Rank #{kw.rank} in results
+                                      Exact article at rank #{kw.rank}
+                                    </span>
+                                  ) : kw.surfaces_domain ? (
+                                    <span className="text-[10px] text-amber-500">
+                                      Site appears at #{kw.rank} — different page
                                     </span>
                                   ) : (
                                     <span className="text-[10px] text-muted-foreground">
-                                      Not in top 10 results
+                                      Article not in top 10
                                     </span>
                                   )}
                                   {kw.competing_count > 0 && (
