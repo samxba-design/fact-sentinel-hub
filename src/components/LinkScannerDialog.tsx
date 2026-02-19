@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   ThumbsUp, ThumbsDown, Minus, Info, ChevronDown, ChevronRight,
   Sparkles, MessageSquare, Share2, Save, TicketCheck, MessageCircleReply,
   Network, CheckCircle2, FileText, Settings, Search, Building2, Zap,
-  Target, BarChart3,
+  Target, BarChart3, Download, Image,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -82,8 +82,85 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const { toast } = useToast();
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState<"jpg" | "pdf" | null>(null);
 
   const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const expandAllSections = () => setExpandedSections({
+    summary: true, breakdown: true, brand: true, reach: true,
+    sentiment: true, impact: true, social: true, media: true,
+    similar: true, claims: true, entities: true, seo: true,
+  });
+
+  const exportAsJpg = async () => {
+    if (!resultsRef.current) return;
+    setExporting("jpg");
+    expandAllSections();
+    // Wait for DOM to update with all sections expanded
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(resultsRef.current, {
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
+          ? `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--background").trim()})`
+          : "#1a1a2e",
+        scale: 2,
+        useCORS: true,
+        scrollY: -window.scrollY,
+        windowHeight: resultsRef.current.scrollHeight,
+      });
+      const link = document.createElement("a");
+      link.download = `link-scan-${new Date().toISOString().slice(0, 10)}.jpg`;
+      link.href = canvas.toDataURL("image/jpeg", 0.95);
+      link.click();
+      toast({ title: "Exported as JPG" });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportAsPdf = async () => {
+    if (!resultsRef.current) return;
+    setExporting("pdf");
+    expandAllSections();
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(resultsRef.current, {
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
+          ? `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--background").trim()})`
+          : "#1a1a2e",
+        scale: 2,
+        useCORS: true,
+        scrollY: -window.scrollY,
+        windowHeight: resultsRef.current.scrollHeight,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const printWin = window.open("", "_blank");
+      if (printWin) {
+        printWin.document.write(`
+          <html><head><title>Link Scan Report</title>
+          <style>@media print { body { margin: 0; } img { width: 100%; height: auto; } }</style>
+          </head><body>
+          <img src="${imgData}" style="width:100%;height:auto;" />
+          </body></html>
+        `);
+        printWin.document.close();
+        printWin.onload = () => {
+          printWin.print();
+          printWin.close();
+        };
+        toast({ title: "PDF print dialog opened" });
+      }
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const analyze = async () => {
     if (!url.trim()) return;
@@ -263,7 +340,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
 
         {result && (
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <div className="space-y-1">
+            <div ref={resultsRef} className="space-y-1">
               {/* Header Card */}
               <Card className="p-4 bg-muted/20 border-border">
                 <div className="flex items-start justify-between gap-3">
@@ -307,6 +384,15 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                 </Button>
                 <Button size="sm" variant="outline" onClick={trackNarrative} className="gap-1.5 text-xs h-8">
                   <Network className="h-3.5 w-3.5" /> Track Narrative
+                </Button>
+                <div className="w-px h-6 bg-border mx-1" />
+                <Button size="sm" variant="outline" onClick={exportAsJpg} disabled={!!exporting} className="gap-1.5 text-xs h-8">
+                  {exporting === "jpg" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Image className="h-3.5 w-3.5" />}
+                  JPG
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportAsPdf} disabled={!!exporting} className="gap-1.5 text-xs h-8">
+                  {exporting === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  PDF
                 </Button>
               </div>
 
