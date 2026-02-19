@@ -154,22 +154,59 @@ function sanitizeUrl(raw: string): string {
   return u;
 }
 
+// Detect if a title is generic (just the site/domain name, not article-specific)
+function isGenericTitle(title: string, url: string): boolean {
+  if (!title || title.length < 5) return true;
+  const lower = title.toLowerCase().trim();
+  try {
+    const domain = new URL(url).hostname.replace("www.", "").replace(/\..+$/, "");
+    if (lower === domain || lower === `the ${domain}` || lower.replace(/[^a-z]/g, "") === domain.replace(/[^a-z]/g, "")) return true;
+  } catch {}
+  const genericPatterns = [
+    /^(the )?(new york times|nytimes|washington post|wall street journal|wsj|financial times|ft|bloomberg|reuters|cnn|bbc|fox news|guardian|forbes)$/i,
+    /^(home|homepage|breaking news|latest news|news|subscribe|sign in|log in)$/i,
+    /^.{1,4}$/,
+  ];
+  return genericPatterns.some(p => p.test(lower));
+}
+
+// Extract a meaningful title from URL slug when page title is generic
+function titleFromUrlSlug(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    const segments = path.split("/").filter(Boolean);
+    const slug = segments.reverse().find(s => s.length > 5 && !/^\d{4}$/.test(s) && !/^\d+$/.test(s));
+    if (slug) {
+      return slug.replace(/[-_]/g, " ").replace(/\.html?$/i, "").replace(/\b\w/g, c => c.toUpperCase());
+    }
+  } catch {}
+  return "";
+}
+
+// Extract YouTube video ID
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 function extractJson(raw: string): any {
   // Strip markdown code fences
   let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
-  // Find JSON object boundaries
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
   let jsonStr = cleaned.slice(start, end + 1);
-  // Fix trailing commas before } or ]
   jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
-  // Remove control characters
   jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === "\n" || ch === "\r" || ch === "\t" ? ch : "");
   try {
     return JSON.parse(jsonStr);
   } catch {
-    // Try a more aggressive cleanup
     try {
       jsonStr = jsonStr.replace(/[\n\r\t]/g, " ");
       return JSON.parse(jsonStr);
@@ -209,8 +246,51 @@ Deno.serve(async (req) => {
     let pageTitle = "";
     let pageDescription = "";
     let scrapeSuccess = false;
+    let isYouTube = false;
 
-    if (firecrawlKey) {
+    // Step 1a: YouTube special handling via oEmbed + noembed
+    const ytId = extractYouTubeId(formattedUrl);
+    if (ytId) {
+      isYouTube = true;
+      console.log("[ANALYZE-LINK] YouTube video detected, ID:", ytId);
+      try {
+        const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${ytId}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (oembedRes.ok) {
+          const oembed = await oembedRes.json();
+          pageTitle = oembed.title || "";
+          pageDescription = `YouTube video by ${oembed.author_name || "unknown"}: ${pageTitle}`;
+          markdown = `# ${pageTitle}\n\nBy: ${oembed.author_name || "Unknown"}\nChannel: ${oembed.author_url || ""}\n\nThis is a YouTube video. Transcript not available via scraping.`;
+          scrapeSuccess = true;
+        }
+      } catch (e: any) {
+        console.log("[ANALYZE-LINK] YouTube oEmbed failed:", e.message);
+      }
+      // Try Firecrawl for richer content (may get transcript/comments)
+      if (firecrawlKey) {
+        try {
+          const scrapeRes = await fetch("https://api.firecrawl.dev/v1/scrape", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${firecrawlKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ url: formattedUrl, formats: ["markdown"], onlyMainContent: true, waitFor: 5000 }),
+          });
+          const scrapeData = await scrapeRes.json();
+          if ((scrapeData.success || scrapeData.data) && (scrapeData.data?.markdown || scrapeData.markdown || "").length > 100) {
+            const d = scrapeData.data || scrapeData;
+            markdown = d.markdown || markdown;
+            if (d.metadata?.title && !isGenericTitle(d.metadata.title, formattedUrl)) pageTitle = d.metadata.title;
+            if (d.metadata?.description) pageDescription = d.metadata.description;
+            scrapeSuccess = true;
+          }
+        } catch (e: any) {
+          console.log("[ANALYZE-LINK] YouTube Firecrawl scrape failed:", e.message);
+        }
+      }
+    }
+
+    // Step 1b: Standard Firecrawl scrape (non-YouTube)
+    if (!scrapeSuccess && firecrawlKey) {
       try {
         const scrapeRes = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
@@ -260,6 +340,42 @@ Deno.serve(async (req) => {
       } catch (e: any) {
         console.log("[ANALYZE-LINK] Direct fetch failed:", e.message);
         markdown = `Could not access ${formattedUrl}: ${e.message}`;
+      }
+    }
+
+    // Step 1c: Fix generic titles — if title is just the site name, derive from URL slug or content
+    if (isGenericTitle(pageTitle, formattedUrl)) {
+      console.log(`[ANALYZE-LINK] Generic title detected: "${pageTitle}". Attempting to extract article-specific title.`);
+      const slugTitle = titleFromUrlSlug(formattedUrl);
+      if (slugTitle && slugTitle.length > 8) {
+        pageTitle = slugTitle;
+        console.log(`[ANALYZE-LINK] Using URL slug title: "${pageTitle}"`);
+      } else if (markdown.length > 100 && lovableKey) {
+        // Ask AI to extract the real headline from content
+        try {
+          const titleRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-lite",
+              temperature: 0,
+              messages: [
+                { role: "system", content: "Extract the article/page headline from this content. Return ONLY the headline text, nothing else. If no headline is identifiable, return the main topic in 5-10 words." },
+                { role: "user", content: markdown.slice(0, 2000) },
+              ],
+            }),
+          });
+          if (titleRes.ok) {
+            const titleData = await titleRes.json();
+            const extracted = (titleData.choices?.[0]?.message?.content || "").trim().replace(/^["']|["']$/g, "");
+            if (extracted.length > 5 && extracted.length < 200) {
+              pageTitle = extracted;
+              console.log(`[ANALYZE-LINK] AI-extracted title: "${pageTitle}"`);
+            }
+          }
+        } catch (e: any) {
+          console.log("[ANALYZE-LINK] AI title extraction failed:", e.message);
+        }
       }
     }
 
