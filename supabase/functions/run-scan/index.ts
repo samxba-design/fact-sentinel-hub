@@ -127,6 +127,35 @@ function hasSubstantiveContent(text: string): boolean {
   return true;
 }
 
+// Paywall detection indicators
+const PAYWALL_INDICATORS = [
+  "subscribe to read", "subscribers only", "premium content", "paywall",
+  "sign in to continue reading", "this article is for subscribers",
+  "to continue reading", "unlock this article", "membership required",
+  "create a free account to continue", "already a subscriber",
+  "exclusive to subscribers", "premium article", "paid content",
+  "meter has been exhausted", "you've reached your limit",
+  "free articles remaining", "register to continue",
+];
+
+function detectPaywall(content: string): { is_paywalled: boolean; paywall_type: string | null } {
+  const lower = content.toLowerCase();
+  for (const indicator of PAYWALL_INDICATORS) {
+    if (lower.includes(indicator)) {
+      if (lower.includes("subscribe") || lower.includes("subscription")) return { is_paywalled: true, paywall_type: "subscription" };
+      if (lower.includes("register") || lower.includes("sign in") || lower.includes("free account")) return { is_paywalled: true, paywall_type: "registration" };
+      if (lower.includes("meter") || lower.includes("limit") || lower.includes("remaining")) return { is_paywalled: true, paywall_type: "metered" };
+      return { is_paywalled: true, paywall_type: "hard" };
+    }
+  }
+  // Short content from known paywall sites
+  if (content.length < 200) {
+    const paywallDomains = ["vanity fair", "new york times", "wall street journal", "financial times", "washington post", "the athletic"];
+    if (paywallDomains.some(d => lower.includes(d))) return { is_paywalled: true, paywall_type: "likely" };
+  }
+  return { is_paywalled: false, paywall_type: null };
+}
+
 // Blocklist of evergreen/reference domains that are never "news" or "threats"
 const EVERGREEN_DOMAINS = new Set([
   "en.wikipedia.org", "wikipedia.org",
@@ -819,12 +848,16 @@ Return ONLY valid JSON, no markdown.`,
 
     const mentionRows = dedupedResults.map(({ result: r, analysis }) => {
       const cleanSummary = analysis.clean_summary || r.content || "";
-      // Store date verification and matched query info in flags
+      // Detect paywall on content
+      const paywallResult = detectPaywall(r.content || "");
+      // Store date verification, matched query, and paywall info in flags
       const flags = {
         ...(analysis.flags || {}),
         date_verified: r.date_verified ?? true,
         date_source: r.date_source || "unknown",
         matched_query: r.matched_query || "",
+        paywall: paywallResult.is_paywalled,
+        paywall_type: paywallResult.paywall_type,
       };
       return {
         org_id,

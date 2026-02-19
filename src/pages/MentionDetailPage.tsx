@@ -15,7 +15,7 @@ import {
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
   Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye, ChevronDown, Search,
-  Network, Link2,
+  Network, Link2, Lock, Share2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -498,6 +498,21 @@ export default function MentionDetailPage() {
             <Badge variant="outline" className={`text-[10px] ${severityColors[mention.severity || "low"]}`}>
               <span className="text-muted-foreground mr-1">Severity:</span> {mention.severity || "low"}
             </Badge>
+            {flags.paywall && (
+              <Badge variant="outline" className="text-[10px] border-sentinel-amber/30 text-sentinel-amber">
+                <Lock className="h-3 w-3 mr-1" /> Paywalled {flags.paywall_type ? `(${flags.paywall_type})` : ""}
+              </Badge>
+            )}
+            {(flags.social_pickup_count > 0 || flags.media_pickup_count > 0) && (
+              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                <Share2 className="h-3 w-3 mr-1" /> {flags.social_pickup_count || 0} social · {flags.media_pickup_count || 0} media
+              </Badge>
+            )}
+            {flags.from_link_scanner && (
+              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                <Link2 className="h-3 w-3 mr-1" /> From Link Scanner
+              </Badge>
+            )}
           </div>
         </div>
 
