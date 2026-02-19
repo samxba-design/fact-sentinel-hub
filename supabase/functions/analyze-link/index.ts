@@ -21,18 +21,35 @@ function detectPaywall(content: string, html?: string): { is_paywalled: boolean;
   const lower = (content + " " + (html || "")).toLowerCase();
   for (const indicator of PAYWALL_INDICATORS) {
     if (lower.includes(indicator)) {
-      // Determine type
       if (lower.includes("subscribe") || lower.includes("subscription")) return { is_paywalled: true, paywall_type: "subscription" };
       if (lower.includes("register") || lower.includes("sign in") || lower.includes("free account")) return { is_paywalled: true, paywall_type: "registration" };
       if (lower.includes("meter") || lower.includes("limit") || lower.includes("remaining")) return { is_paywalled: true, paywall_type: "metered" };
       return { is_paywalled: true, paywall_type: "hard" };
     }
   }
-  // Check for very short content from known paywall sites
   if (content.length < 200 && (lower.includes("vanity fair") || lower.includes("new york times") || lower.includes("wall street journal") || lower.includes("financial times") || lower.includes("washington post") || lower.includes("the athletic"))) {
     return { is_paywalled: true, paywall_type: "likely" };
   }
   return { is_paywalled: false, paywall_type: null };
+}
+
+// Sanitize URL — prevent doubling, clean whitespace
+function sanitizeUrl(raw: string): string {
+  let u = raw.trim();
+  // Remove URL duplication (e.g. "https://example.comhttps://example.com")
+  const httpsIdx = u.indexOf("https://", 1);
+  const httpIdx = u.indexOf("http://", 1);
+  const dupIdx = Math.min(
+    httpsIdx > 0 ? httpsIdx : Infinity,
+    httpIdx > 0 ? httpIdx : Infinity
+  );
+  if (dupIdx !== Infinity) {
+    u = u.slice(0, dupIdx);
+  }
+  if (!u.startsWith("http://") && !u.startsWith("https://")) {
+    u = `https://${u}`;
+  }
+  return u;
 }
 
 Deno.serve(async (req) => {
@@ -56,19 +73,14 @@ Deno.serve(async (req) => {
     const { url, org_id } = await req.json();
     if (!url) throw new Error("URL is required");
 
-    let formattedUrl = url.trim();
-    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
-
+    const formattedUrl = sanitizeUrl(url);
     console.log("[ANALYZE-LINK] Scraping URL:", formattedUrl);
 
-    // Step 1: Scrape the page with Firecrawl
+    // Step 1: Scrape the page
     let markdown = "";
     let html = "";
     let pageTitle = "";
     let pageDescription = "";
-    let pageLinks: string[] = [];
     let scrapeSuccess = false;
 
     if (firecrawlKey) {
@@ -81,7 +93,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             url: formattedUrl,
-            formats: ["markdown", "html", "links"],
+            formats: ["markdown", "html"],
             onlyMainContent: true,
             waitFor: 3000,
           }),
@@ -93,7 +105,6 @@ Deno.serve(async (req) => {
           html = d.html || "";
           pageTitle = d.metadata?.title || "";
           pageDescription = d.metadata?.description || "";
-          pageLinks = (d.links || []).slice(0, 50);
           scrapeSuccess = true;
         }
       } catch (e: any) {
@@ -109,13 +120,10 @@ Deno.serve(async (req) => {
           redirect: "follow",
         });
         const rawHtml = await res.text();
-        // Extract title
         const titleMatch = rawHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
         pageTitle = titleMatch?.[1] || "";
-        // Extract meta description
         const descMatch = rawHtml.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
         pageDescription = descMatch?.[1] || "";
-        // Strip HTML for basic content
         markdown = rawHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
           .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
           .replace(/<[^>]+>/g, " ")
@@ -132,63 +140,175 @@ Deno.serve(async (req) => {
     // Step 2: Paywall detection
     const paywallResult = detectPaywall(markdown, html);
 
-    // Step 3: Search for social pickup / media coverage
+    // Step 3: Search for related coverage — with AI relevance filtering
     let socialPickup: any[] = [];
     let mediaPickup: any[] = [];
     
     if (firecrawlKey) {
-      // Search for social sharing of this URL
       const domain = new URL(formattedUrl).hostname.replace("www.", "");
       const pathSlug = new URL(formattedUrl).pathname.split("/").filter(Boolean).pop() || "";
-      const searchQuery = `${pageTitle || pathSlug} ${domain}`;
+      // Use the page title for search if available, otherwise path slug
+      const searchQuery = pageTitle || pathSlug;
       
-      try {
-        const searchRes = await fetch("https://api.firecrawl.dev/v1/search", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${firecrawlKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: searchQuery,
-            limit: 15,
-            tbs: "qdr:m", // last month
-          }),
-        });
-        const searchData = await searchRes.json();
-        if (searchData.success && searchData.data) {
-          for (const result of searchData.data) {
-            const resUrl = (result.url || "").toLowerCase();
-            if (resUrl === formattedUrl.toLowerCase()) continue; // skip self
-            
-            if (resUrl.includes("twitter.com") || resUrl.includes("x.com")) {
-              socialPickup.push({ platform: "twitter", url: result.url, title: result.title, snippet: result.description });
-            } else if (resUrl.includes("reddit.com")) {
-              socialPickup.push({ platform: "reddit", url: result.url, title: result.title, snippet: result.description });
-            } else if (resUrl.includes("linkedin.com")) {
-              socialPickup.push({ platform: "linkedin", url: result.url, title: result.title, snippet: result.description });
-            } else if (resUrl.includes("facebook.com")) {
-              socialPickup.push({ platform: "facebook", url: result.url, title: result.title, snippet: result.description });
-            } else if (resUrl.includes("youtube.com") || resUrl.includes("youtu.be")) {
-              socialPickup.push({ platform: "youtube", url: result.url, title: result.title, snippet: result.description });
-            } else {
-              mediaPickup.push({ url: result.url, title: result.title, snippet: result.description, domain: new URL(result.url).hostname.replace("www.", "") });
+      if (searchQuery && searchQuery.length > 3) {
+        try {
+          const searchRes = await fetch("https://api.firecrawl.dev/v1/search", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${firecrawlKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: searchQuery,
+              limit: 15,
+              tbs: "qdr:m",
+            }),
+          });
+          const searchData = await searchRes.json();
+          if (searchData.success && searchData.data) {
+            // Collect raw candidates — exclude self
+            const candidates: any[] = [];
+            for (const result of searchData.data) {
+              const resUrl = (result.url || "").toLowerCase();
+              if (resUrl === formattedUrl.toLowerCase()) continue;
+              // Skip same-domain results (not really "pickup")
+              try {
+                const resDomain = new URL(result.url).hostname.replace("www.", "");
+                if (resDomain === domain) continue;
+              } catch {}
+              candidates.push(result);
+            }
+
+            // AI relevance filter — ask the model to filter only truly related results
+            if (candidates.length > 0) {
+              try {
+                const filterRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${lovableKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    model: "google/gemini-2.5-flash-lite",
+                    temperature: 0,
+                    messages: [
+                      {
+                        role: "system",
+                        content: `You are a relevance judge. Given an article title and a list of search results, return ONLY the indices (0-based) of results that are DIRECTLY about the same topic, event, or story as the article. A result must discuss the same specific subject matter — not just share a vague theme or keyword.
+
+Return a JSON array of integers like [0, 2, 5]. If none are relevant, return [].`,
+                      },
+                      {
+                        role: "user",
+                        content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\nSource domain: ${domain}\n\nSearch results:\n${candidates.map((c, i) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                      },
+                    ],
+                  }),
+                });
+                if (filterRes.ok) {
+                  const filterData = await filterRes.json();
+                  const rawFilter = filterData.choices?.[0]?.message?.content || "[]";
+                  const jsonMatch = rawFilter.match(/\[[\s\S]*?\]/);
+                  const relevantIndices: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+                  
+                  const relevant = relevantIndices
+                    .filter(i => i >= 0 && i < candidates.length)
+                    .map(i => candidates[i]);
+
+                  for (const result of relevant) {
+                    const resUrl = (result.url || "").toLowerCase();
+                    if (resUrl.includes("twitter.com") || resUrl.includes("x.com")) {
+                      socialPickup.push({ platform: "twitter", url: result.url, title: result.title, snippet: result.description });
+                    } else if (resUrl.includes("reddit.com")) {
+                      socialPickup.push({ platform: "reddit", url: result.url, title: result.title, snippet: result.description });
+                    } else if (resUrl.includes("linkedin.com")) {
+                      socialPickup.push({ platform: "linkedin", url: result.url, title: result.title, snippet: result.description });
+                    } else if (resUrl.includes("facebook.com")) {
+                      socialPickup.push({ platform: "facebook", url: result.url, title: result.title, snippet: result.description });
+                    } else if (resUrl.includes("youtube.com") || resUrl.includes("youtu.be")) {
+                      socialPickup.push({ platform: "youtube", url: result.url, title: result.title, snippet: result.description });
+                    } else {
+                      mediaPickup.push({ url: result.url, title: result.title, snippet: result.description, domain: new URL(result.url).hostname.replace("www.", "") });
+                    }
+                  }
+                }
+              } catch (e: any) {
+                console.log("[ANALYZE-LINK] Relevance filter failed, skipping:", e.message);
+                // Don't show unfiltered results — better to show nothing than inaccurate data
+              }
             }
           }
+        } catch (e: any) {
+          console.log("[ANALYZE-LINK] Social search failed:", e.message);
         }
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] Social search failed:", e.message);
       }
     }
 
-    // Step 4: AI Analysis with Gemini
+    // Step 4: Check for Twitter/Reddit API availability
+    const serviceClient = createClient(supabaseUrl, supabaseKey);
+    let twitterConnected = false;
+    let redditConnected = false;
+    if (org_id) {
+      const { data: keys } = await serviceClient
+        .from("org_api_keys")
+        .select("provider")
+        .eq("org_id", org_id)
+        .in("provider", ["twitter", "reddit"]);
+      if (keys) {
+        twitterConnected = keys.some(k => k.provider === "twitter");
+        redditConnected = keys.some(k => k.provider === "reddit");
+      }
+    }
+
+    // Step 5: Find similar content from existing mentions
+    let similarMentions: any[] = [];
+    if (org_id && pageTitle) {
+      // Search mentions that share keywords with this article
+      const keywords = pageTitle.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 3 && !["this", "that", "with", "from", "have", "been", "their", "about", "which", "would", "could", "should", "after", "before", "other", "these", "those", "than", "then", "into", "over", "also", "some", "more", "most", "very", "just", "even", "only"].includes(w));
+
+      if (keywords.length >= 2) {
+        // Use the top 4 most distinctive keywords for a text search
+        const searchTerms = keywords.slice(0, 4).join(" & ");
+        try {
+          const { data: mentions } = await serviceClient
+            .from("mentions")
+            .select("id, content, url, source, sentiment_label, severity, posted_at, author_name")
+            .eq("org_id", org_id)
+            .neq("url", formattedUrl)
+            .textSearch("content", searchTerms, { type: "plain" })
+            .order("posted_at", { ascending: false })
+            .limit(5);
+          
+          if (mentions && mentions.length > 0) {
+            similarMentions = mentions.map(m => ({
+              id: m.id,
+              content: (m.content || "").slice(0, 150),
+              url: m.url,
+              source: m.source,
+              sentiment: m.sentiment_label,
+              severity: m.severity,
+              posted_at: m.posted_at,
+              author: m.author_name,
+            }));
+          }
+        } catch (e: any) {
+          console.log("[ANALYZE-LINK] Similar mentions search failed:", e.message);
+          // Non-critical — continue
+        }
+      }
+    }
+
+    // Step 6: AI Analysis
     const contentForAI = markdown.slice(0, 4000);
     const socialContext = socialPickup.length > 0
-      ? `\n\nSocial pickup found on: ${socialPickup.map(s => `${s.platform} (${s.title})`).join(", ")}`
-      : "\n\nNo social pickup found yet.";
+      ? `\n\nVerified social pickup found on: ${socialPickup.map(s => `${s.platform} (${s.title})`).join(", ")}`
+      : "\n\nNo verified social pickup found.";
     const mediaContext = mediaPickup.length > 0
-      ? `\nMedia coverage: ${mediaPickup.map(m => `${m.domain}: ${m.title}`).join(", ")}`
-      : "\nNo additional media coverage found.";
+      ? `\nVerified media coverage: ${mediaPickup.map(m => `${m.domain}: ${m.title}`).join(", ")}`
+      : "\nNo verified additional media coverage found.";
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -251,14 +371,15 @@ ${contentForAI}`,
       }
     }
 
-    // Determine what we know vs don't know
     const knownUnknown = {
       content_accessible: scrapeSuccess && markdown.length > 100,
       paywall_status: paywallResult.is_paywalled ? `Paywalled (${paywallResult.paywall_type})` : "Accessible",
       social_pickup_found: socialPickup.length > 0,
       media_pickup_found: mediaPickup.length > 0,
-      twitter_data_available: socialPickup.some(s => s.platform === "twitter"),
-      twitter_connection_needed: !socialPickup.some(s => s.platform === "twitter"),
+      twitter_connected: twitterConnected,
+      reddit_connected: redditConnected,
+      twitter_connection_needed: !twitterConnected,
+      reddit_connection_needed: !redditConnected,
       content_length: markdown.length,
     };
 
@@ -271,11 +392,12 @@ ${contentForAI}`,
       analysis,
       social_pickup: socialPickup,
       media_pickup: mediaPickup,
+      similar_mentions: similarMentions,
       data_confidence: knownUnknown,
       scanned_at: new Date().toISOString(),
     };
 
-    console.log("[ANALYZE-LINK] Analysis complete for:", formattedUrl);
+    console.log("[ANALYZE-LINK] Analysis complete for:", formattedUrl, `| Social: ${socialPickup.length} | Media: ${mediaPickup.length} | Similar: ${similarMentions.length}`);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
