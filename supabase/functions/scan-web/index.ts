@@ -39,6 +39,63 @@ function isBlockedDomain(url: string): boolean {
   } catch { return false; }
 }
 
+// Detect JS-blocked or paywall content
+const JS_PAYWALL_INDICATORS = [
+  "enable javascript", "javascript is not available", "javascript needs to be enabled",
+  "please enable javascript", "disable your ad blocker", "ad blocker",
+  "subscribe to read", "subscribers only", "premium content", "paywall",
+  "sign in to continue reading", "unlock this article", "membership required",
+  "checking your browser", "just a moment", "access denied", "403 forbidden",
+  "captcha", "please verify you are a human",
+];
+
+function isContentBlocked(text: string): boolean {
+  const lower = text.toLowerCase();
+  const matches = JS_PAYWALL_INDICATORS.filter(i => lower.includes(i));
+  return matches.length >= 1 && text.length < 1500;
+}
+
+// Try to fetch content from archive services
+async function fetchArchiveContent(url: string): Promise<string | null> {
+  // Try Google Cache
+  try {
+    const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`;
+    const cacheRes = await fetch(cacheUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (cacheRes.ok) {
+      const html = await cacheRes.text();
+      if (html.length > 500 && !html.toLowerCase().includes("did not match any documents")) {
+        const text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (text.length > 300) return text;
+      }
+    }
+  } catch { /* skip */ }
+
+  // Try Archive.org
+  try {
+    const wbAvail = await fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(6000) });
+    const wbData = await wbAvail.json();
+    const snapshot = wbData?.archived_snapshots?.closest;
+    if (snapshot?.available && snapshot.url) {
+      const archiveRes = await fetch(snapshot.url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (archiveRes.ok) {
+        const html = await archiveRes.text();
+        const text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (text.length > 300) return text;
+      }
+    }
+  } catch { /* skip */ }
+
+  return null;
+}
+
 // Clean scraped content
 function cleanContent(raw: string): string {
   let text = raw;
@@ -230,7 +287,18 @@ Deno.serve(async (req) => {
       seenUrls.add(normalizedUrl);
 
       // Clean content
-      const cleaned = cleanContent(rawContent);
+      let cleaned = cleanContent(rawContent);
+      
+      // Check for JS-blocked/paywalled content and try archive fallback
+      if ((cleaned.length < 200 || isContentBlocked(rawContent)) && url) {
+        console.log("Blocked/thin content, trying archive fallback:", url);
+        const archiveContent = await fetchArchiveContent(url);
+        if (archiveContent) {
+          cleaned = cleanContent(archiveContent);
+          console.log("Archive fallback success:", url, "length:", cleaned.length);
+        }
+      }
+      
       if (cleaned.length < 50) {
         console.log("Too short:", url);
         continue;

@@ -81,6 +81,10 @@ function isJunkContent(text: string): boolean {
     "cookie policy", "accept cookies", "we use cookies",
     "page not found", "404 not found", "500 internal server error",
     "view original source",
+    "javascript is not available", "javascript needs to be enabled",
+    "javascript is required", "this site requires javascript",
+    "disable your ad blocker", "adblocker detected", "ad blocker",
+    "please disable adblock", "turn off your ad blocker",
   ];
   const lower = text.toLowerCase();
   // If 2+ blockers match, definitely junk
