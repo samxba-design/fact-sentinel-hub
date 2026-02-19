@@ -76,6 +76,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     summary: true, breakdown: true, brand: true, reach: true,
     sentiment: true, impact: true, social: true, media: false,
     similar: true, claims: false, entities: false, seo: true,
+    discovery: true,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -91,6 +92,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     summary: true, breakdown: true, brand: true, reach: true,
     sentiment: true, impact: true, social: true, media: true,
     similar: true, claims: true, entities: true, seo: true,
+    discovery: true,
   });
 
   const exportAsJpg = async () => {
@@ -296,6 +298,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const a = result?.analysis || {};
   const dc = result?.data_confidence;
   const sv = result?.search_visibility;
+  const sd = (result as any)?.search_discovery;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -759,6 +762,98 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                   </div>
                 )}
               </div>
+
+              {/* Search Discovery — How People Find This */}
+              {sd && sd.verified_keywords?.length > 0 && (
+                <>
+                  <Separator className="my-1" />
+                  <div>
+                    <SectionHeader
+                      title="Search Discovery — How People Find This"
+                      icon={Target}
+                      sectionKey="discovery"
+                      badge={
+                        <Badge variant="outline" className="text-[9px] ml-2">
+                          {sd.surfacing_count}/{sd.total_verified} keywords surface it
+                        </Badge>
+                      }
+                    />
+                    {expandedSections.discovery && (
+                      <div className="px-1 pb-2 space-y-3">
+                        <p className="text-[10px] text-muted-foreground">
+                          These are search terms real people would use to find this content. Verified keywords show whether the article actually appears in Google results for that term.
+                        </p>
+                        
+                        {/* Verified Keywords */}
+                        <div className="space-y-1.5">
+                          {sd.verified_keywords.map((kw: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-md bg-muted/20">
+                              <div className="shrink-0">
+                                {kw.surfaces_article ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald" />
+                                ) : (
+                                  <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-foreground">"{kw.keyword}"</p>
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  {kw.surfaces_article ? (
+                                    <span className="text-[10px] text-sentinel-emerald">
+                                      Rank #{kw.rank} in results
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      Not in top 10 results
+                                    </span>
+                                  )}
+                                  {kw.competing_count > 0 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      · {kw.competing_count} competitors
+                                    </span>
+                                  )}
+                                </div>
+                                {kw.top_competitor && !kw.surfaces_article && (
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                    Top result: {kw.top_competitor}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Unverified / Additional Keywords */}
+                        {sd.unverified_keywords?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Additional Keywords (not verified)</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {sd.unverified_keywords.map((kw: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-[10px]">
+                                  {kw.keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Summary insight */}
+                        <div className="p-2.5 rounded-md bg-primary/5 border border-primary/10">
+                          <p className="text-[10px] text-foreground">
+                            <Zap className="h-3 w-3 inline mr-1 text-primary" />
+                            {sd.surfacing_count === 0
+                              ? "This article doesn't rank for any tested keywords — it may be new, poorly optimized, or competing against established content."
+                              : sd.surfacing_count === sd.total_verified
+                                ? "This article ranks for all tested keywords — it has strong search visibility and is likely being widely discovered."
+                                : `This article ranks for ${sd.surfacing_count} of ${sd.total_verified} tested keywords. People searching the other terms will find competitor content instead.`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <Separator className="my-1" />
 

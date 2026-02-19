@@ -384,11 +384,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Search engine visibility check
+    // Step 4: Search engine visibility + keyword discovery
     let searchVisibility: any = null;
+    let searchDiscovery: any = null;
+    
     if (firecrawlKey && pageTitle && pageTitle.length > 5) {
+      const domain = new URL(formattedUrl).hostname.replace("www.", "");
+      
+      // 4a: Title-based visibility check (existing)
       try {
-        // Search for the exact title to see how the article appears
         const seoRes = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: {
@@ -402,7 +406,6 @@ Deno.serve(async (req) => {
         });
         const seoData = await seoRes.json();
         if (seoData.success && seoData.data) {
-          const domain = new URL(formattedUrl).hostname.replace("www.", "");
           const exactMatches = seoData.data.filter((r: any) => {
             try {
               return new URL(r.url).hostname.replace("www.", "") === domain;
@@ -415,7 +418,6 @@ Deno.serve(async (req) => {
             } catch { return false; }
           });
 
-          // Also search with key entity/topic terms to see how the content appears in related searches
           const competingResults = seoData.data
             .filter((r: any) => {
               try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
@@ -438,6 +440,109 @@ Deno.serve(async (req) => {
         }
       } catch (e: any) {
         console.log("[ANALYZE-LINK] SEO check failed:", e.message);
+      }
+
+      // 4b: Search keyword discovery — extract keywords via AI, then verify in search
+      try {
+        const kwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${lovableKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-lite",
+            temperature: 0,
+            messages: [
+              {
+                role: "system",
+                content: `You extract search keywords that real people would use to find this article on Google. Think about what a person curious about this topic would type into Google. Return ONLY a JSON array of 6-10 keyword phrases (2-5 words each). Mix specific phrases (brand names, events) with general topic queries. Example: ["binance crypto regulation", "SEC crypto crackdown 2025", "crypto exchange compliance"]. Return ONLY the JSON array.`,
+              },
+              {
+                role: "user",
+                content: `Title: ${pageTitle}\nDescription: ${pageDescription}\nContent (first 1500 chars): ${markdown.slice(0, 1500)}`,
+              },
+            ],
+          }),
+        });
+        
+        if (kwRes.ok) {
+          const kwData = await kwRes.json();
+          const rawKw = kwData.choices?.[0]?.message?.content || "[]";
+          const jsonMatch = rawKw.match(/\[[\s\S]*?\]/);
+          const extractedKeywords: string[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          
+          if (extractedKeywords.length > 0) {
+            console.log("[ANALYZE-LINK] Extracted search keywords:", extractedKeywords.join(", "));
+            
+            // Verify top keywords by searching and checking if the article appears
+            const verifiedKeywords: Array<{
+              keyword: string;
+              surfaces_article: boolean;
+              rank: number | null;
+              competing_count: number;
+              top_competitor: string | null;
+            }> = [];
+            
+            // Verify up to 5 keywords in parallel
+            const kwsToVerify = extractedKeywords.slice(0, 5);
+            const verifyPromises = kwsToVerify.map(async (kw) => {
+              try {
+                const verifyRes = await fetch("https://api.firecrawl.dev/v1/search", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${firecrawlKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ query: kw, limit: 10 }),
+                });
+                const verifyData = await verifyRes.json();
+                if (verifyData.success && verifyData.data) {
+                  const rank = verifyData.data.findIndex((r: any) => {
+                    try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
+                  });
+                  const competitors = verifyData.data.filter((r: any) => {
+                    try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
+                  });
+                  return {
+                    keyword: kw,
+                    surfaces_article: rank >= 0,
+                    rank: rank >= 0 ? rank + 1 : null,
+                    competing_count: competitors.length,
+                    top_competitor: competitors[0]?.title || null,
+                  };
+                }
+              } catch (e: any) {
+                console.log("[ANALYZE-LINK] Keyword verify failed for:", kw, e.message);
+              }
+              return { keyword: kw, surfaces_article: false, rank: null, competing_count: 0, top_competitor: null };
+            });
+            
+            const verified = await Promise.all(verifyPromises);
+            verifiedKeywords.push(...verified);
+            
+            // Include remaining unverified keywords
+            const unverified = extractedKeywords.slice(5).map(kw => ({
+              keyword: kw,
+              surfaces_article: null as boolean | null,
+              rank: null,
+              competing_count: 0,
+              top_competitor: null,
+            }));
+            
+            searchDiscovery = {
+              extracted_keywords: extractedKeywords,
+              verified_keywords: verifiedKeywords,
+              unverified_keywords: unverified,
+              surfacing_count: verifiedKeywords.filter(k => k.surfaces_article).length,
+              total_verified: verifiedKeywords.length,
+            };
+            
+            console.log(`[ANALYZE-LINK] Search discovery: ${searchDiscovery.surfacing_count}/${searchDiscovery.total_verified} keywords surface the article`);
+          }
+        }
+      } catch (e: any) {
+        console.log("[ANALYZE-LINK] Search keyword discovery failed:", e.message);
       }
     }
 
@@ -610,6 +715,7 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
       media_pickup: mediaPickup,
       similar_mentions: similarMentions,
       search_visibility: searchVisibility,
+      search_discovery: searchDiscovery,
       data_confidence: knownUnknown,
       scanned_at: new Date().toISOString(),
     };
