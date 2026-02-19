@@ -30,36 +30,46 @@ interface Alert {
   created_at: string | null;
 }
 
-const ALERT_META: Record<string, { icon: any; color: string; label: string; description: string; mentionsLink: string }> = {
+const ALERT_META: Record<string, { icon: any; color: string; label: string; description: string; mentionsFilter: string }> = {
   mention_spike: {
     icon: TrendingUp,
     color: "text-primary",
     label: "Volume Spike",
     description: "Unusual increase in mention volume — indicates growing attention on your brand.",
-    mentionsLink: "/mentions?days=1",
+    mentionsFilter: "",
   },
   negative_spike: {
     icon: AlertTriangle,
     color: "text-sentinel-amber",
     label: "Negative Sentiment Surge",
     description: "Sudden rise in negative mentions — may signal emerging criticism or a PR issue.",
-    mentionsLink: "/mentions?sentiment=negative&days=1",
+    mentionsFilter: "sentiment=negative",
   },
   critical_mention: {
     icon: Siren,
     color: "text-sentinel-red",
     label: "Critical Threat",
     description: "High-severity mentions detected — potential crisis requiring immediate attention.",
-    mentionsLink: "/mentions?severity=critical&days=1",
+    mentionsFilter: "severity=critical",
   },
   viral_risk: {
     icon: Zap,
     color: "text-sentinel-red",
     label: "Viral Risk",
     description: "Content with high engagement velocity — could spread rapidly across platforms.",
-    mentionsLink: "/mentions?severity=critical&days=1",
+    mentionsFilter: "severity=critical",
   },
 };
+
+/** Build a mentions link with a time window around when the alert was triggered */
+function buildAlertMentionsLink(alert: Alert, filter: string): string {
+  // Use 7-day window around the alert trigger time so users always see relevant mentions
+  const triggerDate = alert.triggered_at ? new Date(alert.triggered_at) : new Date();
+  const daysSince = Math.max(1, Math.ceil((Date.now() - triggerDate.getTime()) / (1000 * 60 * 60 * 24)) + 2);
+  const days = Math.min(daysSince, 30); // Cap at 30 days
+  const params = filter ? `${filter}&days=${days}` : `days=${days}`;
+  return `/mentions?${params}`;
+}
 
 const STATUS_STYLES: Record<string, string> = {
   active: "border-sentinel-red/30 text-sentinel-red bg-sentinel-red/5",
@@ -394,7 +404,7 @@ export default function AlertsPage() {
               <Card
                 key={type}
                 className={`bg-card border-border p-4 text-center transition-all cursor-pointer hover:border-primary/30 hover:-translate-y-0.5 ${count > 0 ? "" : "opacity-50"}`}
-                onClick={() => count > 0 ? navigate(meta.mentionsLink) : undefined}
+                onClick={() => count > 0 ? navigate(`/mentions?${meta.mentionsFilter ? meta.mentionsFilter + "&" : ""}days=7`) : undefined}
               >
                 <Icon className={`h-5 w-5 mx-auto ${meta.color}`} />
                 <div className="text-xl font-bold font-mono text-card-foreground mt-2">{count}</div>
@@ -442,7 +452,7 @@ export default function AlertsPage() {
         ) : (
           <div className="space-y-2">
             {filteredAlerts.map(alert => {
-              const meta = ALERT_META[alert.type] || { icon: Bell, color: "text-primary", label: alert.type, description: "", mentionsLink: "/mentions" };
+              const meta = ALERT_META[alert.type] || { icon: Bell, color: "text-primary", label: alert.type, description: "", mentionsFilter: "" };
               const Icon = meta.icon;
               const payload = alert.payload as any || {};
               const isActive = alert.status === "active" || alert.status === "new";
@@ -503,7 +513,7 @@ export default function AlertsPage() {
                       size="sm"
                       variant="ghost"
                       className="h-7 gap-1 text-xs text-primary"
-                      onClick={() => navigate(meta.mentionsLink)}
+                      onClick={() => navigate(buildAlertMentionsLink(alert, meta.mentionsFilter))}
                       title="View the mentions that triggered this alert"
                     >
                       <Eye className="h-3.5 w-3.5" /> View Mentions

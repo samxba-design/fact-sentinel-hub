@@ -635,6 +635,24 @@ Deno.serve(async (req) => {
     }
 
     if (cleanedResults.length === 0) {
+      // Build descriptive reason for zero results
+      const reasons: string[] = [];
+      if (allResults.length === 0) {
+        reasons.push("No content found from any source. This can happen if keywords are too specific or sources are inaccessible.");
+      } else {
+        reasons.push(`${allResults.length} raw results were found but all were filtered out.`);
+        const evergreenCount = allResults.filter(r => isEvergreenDomain(r.url || "")).length;
+        const junkCount = allResults.filter(r => isJunkContent(r.content || "") || isJunkContent(cleanContent(r.content || ""))).length;
+        const shortCount = allResults.filter(r => cleanContent(r.content || "").length < 40).length;
+        const selfCount = orgDomain ? allResults.filter(r => (r.url || "").toLowerCase().includes(orgDomain)).length : 0;
+        const ignoredCount = allResults.filter(r => { try { return ignoredDomains.has(new URL(r.url || "").hostname.replace("www.", "").toLowerCase()); } catch { return false; } }).length;
+        if (evergreenCount > 0) reasons.push(`${evergreenCount} were reference/evergreen pages (Wikipedia, etc.)`);
+        if (junkCount > 0) reasons.push(`${junkCount} were blocked/error pages`);
+        if (shortCount > 0) reasons.push(`${shortCount} had insufficient content`);
+        if (selfCount > 0) reasons.push(`${selfCount} were from your own domain`);
+        if (ignoredCount > 0) reasons.push(`${ignoredCount} were from ignored sources`);
+      }
+
       await supabase
         .from("scan_runs")
         .update({
@@ -650,10 +668,14 @@ Deno.serve(async (req) => {
         JSON.stringify({
           scan_run_id: scanRun.id,
           mentions_created: 0,
+          total_found: allResults.length,
           negative_pct: 0,
           emergencies: 0,
           errors,
-          message: errors.length > 0 ? errors.join("; ") : "No quality results found — sources may have blocked access",
+          scan_log: scanLog,
+          keyword_groups: kwGroups,
+          zero_results_reason: reasons.join(" "),
+          message: reasons.join(" "),
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -828,6 +850,13 @@ Return ONLY valid JSON, no markdown.`,
     });
 
     if (mentionRows.length === 0) {
+      const aiRejections = analyses.filter((a: any) => a?.relevant === false);
+      const reasons: string[] = [];
+      reasons.push(`${cleanedResults.length} results passed quality filters, but all ${aiRejections.length} were rejected by AI as not relevant to "${brandContext}".`);
+      const topReasons = aiRejections.map((a: any) => a?.rejection_reason).filter(Boolean).slice(0, 3);
+      if (topReasons.length > 0) reasons.push(`Top rejection reasons: ${topReasons.join("; ")}`);
+      reasons.push("Try broadening your keywords or date range, or check that your brand keywords match how your brand appears in media.");
+
       await supabase
         .from("scan_runs")
         .update({
@@ -843,10 +872,14 @@ Return ONLY valid JSON, no markdown.`,
         JSON.stringify({
           scan_run_id: scanRun.id,
           mentions_created: 0,
+          total_found: allResults.length,
           negative_pct: 0,
           emergencies: 0,
           errors,
-          message: sentiment_filter ? `No ${sentiment_filter} mentions found in results` : "No quality results found after AI filtering",
+          scan_log: scanLog,
+          keyword_groups: kwGroups,
+          zero_results_reason: reasons.join(" "),
+          message: reasons.join(" "),
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
