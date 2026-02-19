@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
+import MentionDetailedView from "@/components/mentions/MentionDetailedView";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -566,6 +567,9 @@ export default function MentionDetailPage() {
           </div>
         </div>
       </Card>
+
+      {/* Detailed Scan Intelligence (if available) */}
+      <MentionDetailedView flags={flags} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Sentiment */}

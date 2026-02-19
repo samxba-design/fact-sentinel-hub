@@ -188,6 +188,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     setSaving(true);
     try {
       const a = result.analysis || {};
+      const sd = (result as any)?.search_discovery;
+      const sv = result?.search_visibility;
       const { error } = await supabase.from("mentions").insert({
         org_id: currentOrg.id,
         source: a.content_type || "news",
@@ -207,6 +209,24 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
           social_pickup_count: result.social_pickup.length,
           media_pickup_count: result.media_pickup.length,
           reliability_score: a.reliability?.score || null,
+          // Rich scan data
+          content_breakdown: a.content_breakdown || null,
+          brand_impact: a.brand_impact || null,
+          reach_and_impact: a.reach_and_impact || null,
+          claims: a.claims || null,
+          key_entities: a.key_entities || null,
+          regional_scope: a.regional_scope || null,
+          reliability: a.reliability || null,
+          recommended_actions: a.recommended_actions || null,
+          narratives: a.narratives || null,
+          sentiment_reasoning: a.sentiment?.reasoning || null,
+          potential_impact: a.potential_impact || null,
+          search_discovery: sd || null,
+          search_visibility: sv || null,
+          social_pickup: result.social_pickup || [],
+          media_pickup: result.media_pickup || [],
+          data_confidence: result.data_confidence || null,
+          scanned_at: result.scanned_at,
         },
         metrics: {
           social_pickup: result.social_pickup.length,
@@ -215,7 +235,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       });
       if (error) throw error;
       setSaved(true);
-      toast({ title: "Saved as mention", description: "This link has been added to your mentions feed." });
+      toast({ title: "Saved as mention", description: "Full scan intelligence saved — view detailed analysis on the mention page." });
     } catch (err: any) {
       toast({ title: "Error saving", description: err.message, variant: "destructive" });
     } finally {
@@ -389,13 +409,14 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                   <Network className="h-3.5 w-3.5" /> Track Narrative
                 </Button>
                 <div className="w-px h-6 bg-border mx-1" />
-                <Button size="sm" variant="outline" onClick={exportAsJpg} disabled={!!exporting} className="gap-1.5 text-xs h-8">
+                <span className="text-[10px] text-muted-foreground mr-1">Export:</span>
+                <Button size="sm" variant="secondary" onClick={exportAsJpg} disabled={!!exporting} className="gap-1.5 text-xs h-8 font-medium">
                   {exporting === "jpg" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Image className="h-3.5 w-3.5" />}
-                  JPG
+                  Export JPG
                 </Button>
-                <Button size="sm" variant="outline" onClick={exportAsPdf} disabled={!!exporting} className="gap-1.5 text-xs h-8">
+                <Button size="sm" variant="secondary" onClick={exportAsPdf} disabled={!!exporting} className="gap-1.5 text-xs h-8 font-medium">
                   {exporting === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  PDF
+                  Export PDF
                 </Button>
               </div>
 
