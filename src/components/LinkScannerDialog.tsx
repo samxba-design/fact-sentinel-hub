@@ -12,11 +12,22 @@ import {
   ExternalLink, Lock, Twitter, Hash, Eye, MapPin, Users,
   ThumbsUp, ThumbsDown, Minus, Info, ChevronDown, ChevronUp,
   Sparkles, MessageSquare, Share2, Save, TicketCheck, MessageCircleReply,
-  Network, CheckCircle2,
+  Network, CheckCircle2, FileText, Settings,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
+
+interface SimilarMention {
+  id: string;
+  content: string;
+  url: string | null;
+  source: string;
+  sentiment: string | null;
+  severity: string | null;
+  posted_at: string | null;
+  author: string | null;
+}
 
 interface LinkAnalysis {
   success: boolean;
@@ -27,6 +38,7 @@ interface LinkAnalysis {
   analysis: any;
   social_pickup: Array<{ platform: string; url: string; title: string; snippet: string }>;
   media_pickup: Array<{ url: string; title: string; snippet: string; domain: string }>;
+  similar_mentions: SimilarMention[];
   data_confidence: any;
   scanned_at: string;
 }
@@ -59,7 +71,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LinkAnalysis | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    summary: true, sentiment: true, impact: true, social: true, media: false, claims: false, entities: false,
+    summary: true, sentiment: true, impact: true, social: true, media: false, similar: true, claims: false, entities: false,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -192,6 +204,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   );
 
   const a = result?.analysis || {};
+  const dc = result?.data_confidence;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -286,15 +299,37 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
               </div>
 
               {/* Data Confidence Banner */}
-              {result.data_confidence && (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/10 text-xs">
-                  <Info className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="text-muted-foreground">
-                    {result.data_confidence.content_accessible ? "✅ Content scraped" : "⚠️ Limited content"} · 
-                    {result.data_confidence.social_pickup_found ? ` ✅ ${result.social_pickup.length} social shares found` : " ℹ️ No social pickup detected"} · 
-                    {result.data_confidence.media_pickup_found ? ` ✅ ${result.media_pickup.length} media pickups` : " ℹ️ No additional media coverage"} ·
-                    {result.data_confidence.twitter_connection_needed && " ⚠️ Connect Twitter/X for better social tracking"}
-                  </span>
+              {dc && (
+                <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/10 text-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="text-muted-foreground">
+                      {dc.content_accessible ? "✅ Content scraped" : "⚠️ Limited content"} · 
+                      {dc.social_pickup_found ? ` ✅ ${result.social_pickup.length} verified social shares` : " ℹ️ No social pickup detected"} · 
+                      {dc.media_pickup_found ? ` ✅ ${result.media_pickup.length} verified media pickups` : " ℹ️ No additional media coverage"}
+                    </span>
+                  </div>
+                  {(dc.twitter_connection_needed || dc.reddit_connection_needed) && (
+                    <div className="flex items-start gap-2 p-2 rounded bg-sentinel-amber/5 border border-sentinel-amber/20">
+                      <AlertTriangle className="h-3.5 w-3.5 text-sentinel-amber shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[11px] font-medium text-sentinel-amber">Limited social detection</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {dc.twitter_connection_needed && "Twitter/X API not connected — cannot detect tweets or engagement metrics. "}
+                          {dc.reddit_connection_needed && "Reddit API not connected — cannot detect Reddit discussions. "}
+                          Social results rely on web search which may miss content.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] text-primary px-2 mt-1 gap-1"
+                          onClick={() => { setOpen(false); navigate("/settings"); }}
+                        >
+                          <Settings className="h-3 w-3" /> Configure in Settings → Sources
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -401,15 +436,17 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                   title="Social Pickup"
                   icon={Share2}
                   sectionKey="social"
-                  badge={<Badge variant="outline" className="text-[9px] ml-2">{result.social_pickup.length} found</Badge>}
+                  badge={<Badge variant="outline" className="text-[9px] ml-2">{result.social_pickup.length} verified</Badge>}
                 />
                 {expandedSections.social && (
                   <div className="space-y-2">
                     {result.social_pickup.length === 0 ? (
                       <div className="p-3 rounded-lg bg-muted/20 text-center">
-                        <p className="text-xs text-muted-foreground">No social shares detected yet.</p>
+                        <p className="text-xs text-muted-foreground">No verified social shares detected.</p>
                         <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          💡 Connect Twitter/X API in Settings → Sources for real-time social tracking with engagement metrics.
+                          {dc?.twitter_connection_needed
+                            ? "⚠️ Connect Twitter/X and Reddit APIs in Settings → Sources for direct social monitoring with real engagement metrics."
+                            : "Social detection uses web search — some shares may not be indexed yet."}
                         </p>
                       </div>
                     ) : (
@@ -420,7 +457,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                             <PIcon className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-card-foreground line-clamp-1">{s.title}</p>
-                              <p className="text-[10px] text-muted-foreground capitalize">{s.platform}</p>
+                              {s.snippet && <p className="text-[10px] text-muted-foreground line-clamp-1">{s.snippet}</p>}
+                              <p className="text-[10px] text-muted-foreground/60 capitalize">{s.platform}</p>
                             </div>
                             <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
                           </div>
@@ -439,21 +477,63 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                   title="Media Coverage"
                   icon={Globe}
                   sectionKey="media"
-                  badge={<Badge variant="outline" className="text-[9px] ml-2">{result.media_pickup.length} found</Badge>}
+                  badge={<Badge variant="outline" className="text-[9px] ml-2">{result.media_pickup.length} verified</Badge>}
                 />
                 {expandedSections.media && (
                   <div className="space-y-2">
                     {result.media_pickup.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-2">No additional media coverage found.</p>
+                      <p className="text-xs text-muted-foreground py-2">No verified additional media coverage found.</p>
                     ) : (
                       result.media_pickup.map((m, i) => (
                         <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/20 hover:bg-muted/30 cursor-pointer" onClick={() => window.open(m.url, "_blank")}>
                           <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-card-foreground line-clamp-1">{m.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{m.domain}</p>
+                            {m.snippet && <p className="text-[10px] text-muted-foreground line-clamp-1">{m.snippet}</p>}
+                            <p className="text-[10px] text-muted-foreground/60">{m.domain}</p>
                           </div>
                           <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Similar Content from Mentions */}
+              <div>
+                <SectionHeader
+                  title="Similar in Your Mentions"
+                  icon={FileText}
+                  sectionKey="similar"
+                  badge={<Badge variant="outline" className="text-[9px] ml-2">{result.similar_mentions?.length || 0} found</Badge>}
+                />
+                {expandedSections.similar && (
+                  <div className="space-y-2">
+                    {(!result.similar_mentions || result.similar_mentions.length === 0) ? (
+                      <p className="text-xs text-muted-foreground py-2">No similar content found in your existing mentions.</p>
+                    ) : (
+                      result.similar_mentions.map((m, i) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-2 p-2 rounded bg-muted/20 hover:bg-muted/30 cursor-pointer"
+                          onClick={() => { setOpen(false); navigate(`/mentions/${m.id}`); }}
+                        >
+                          <FileText className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-foreground line-clamp-2">{m.content}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-[9px] capitalize">{m.source}</Badge>
+                              {m.sentiment && (
+                                <Badge variant="outline" className={`text-[9px] capitalize ${sentimentColors[m.sentiment] || ""}`}>
+                                  {m.sentiment}
+                                </Badge>
+                              )}
+                              {m.author && <span className="text-[10px] text-muted-foreground">{m.author}</span>}
+                            </div>
+                          </div>
                         </div>
                       ))
                     )}
