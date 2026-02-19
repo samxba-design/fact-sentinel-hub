@@ -229,7 +229,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5 text-primary" /> Link Scanner
@@ -262,7 +262,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
         )}
 
         {result && (
-          <ScrollArea className="flex-1 px-6 pb-6">
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="space-y-1">
               {/* Header Card */}
               <Card className="p-4 bg-muted/20 border-border">
@@ -872,7 +872,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                 </>
               )}
             </div>
-          </ScrollArea>
+          </div>
         )}
       </DialogContent>
     </Dialog>
