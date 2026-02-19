@@ -32,36 +32,67 @@ function isJsBlocked(content: string): boolean {
   return matches.length >= 1 && content.length < 1500;
 }
 
-// Try to fetch content from Google Cache or Archive.org
+// Paywall bypass services — try each in order until one works
+const BYPASS_SERVICES = [
+  {
+    name: "google_cache",
+    buildUrl: (url: string) => `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`,
+    rejectIf: (html: string) => html.toLowerCase().includes("did not match any documents") || html.length < 500,
+  },
+  {
+    name: "12ft_proxy",
+    buildUrl: (url: string) => `https://12ft.io/api/proxy?q=${encodeURIComponent(url)}`,
+  },
+  {
+    name: "archive_is",
+    buildUrl: (url: string) => `https://archive.is/newest/${url}`,
+  },
+  {
+    name: "removepaywall",
+    buildUrl: (url: string) => `https://www.removepaywall.com/search?url=${encodeURIComponent(url)}`,
+  },
+  {
+    name: "1ft_io",
+    buildUrl: (url: string) => `https://1ft.io/proxy?q=${encodeURIComponent(url)}`,
+  },
+];
+
+function extractTextFromHtml(html: string): { text: string; title: string } {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return { text, title: titleMatch?.[1] || "" };
+}
+
 async function fetchArchiveFallback(url: string): Promise<{ content: string; title: string; source: string } | null> {
-  // 1. Try Google Cache
-  try {
-    const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`;
-    const cacheRes = await fetch(cacheUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
-      redirect: "follow",
-    });
-    if (cacheRes.ok) {
-      const html = await cacheRes.text();
-      if (html.length > 500 && !html.toLowerCase().includes("did not match any documents")) {
-        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        const text = html
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
+  // Try each bypass service in order
+  for (const service of BYPASS_SERVICES) {
+    try {
+      const serviceUrl = service.buildUrl(url);
+      const res = await fetch(serviceUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const html = await res.text();
+        if (service.rejectIf && service.rejectIf(html)) continue;
+        const { text, title } = extractTextFromHtml(html);
         if (text.length > 300) {
-          console.log("[ARCHIVE-FALLBACK] Google Cache hit for:", url);
-          return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "google_cache" };
+          console.log(`[ARCHIVE-FALLBACK] ${service.name} hit for:`, url, "length:", text.length);
+          return { content: text.slice(0, 8000), title, source: service.name };
         }
       }
+    } catch (e: any) {
+      console.log(`[ARCHIVE-FALLBACK] ${service.name} failed:`, e.message);
     }
-  } catch (e: any) {
-    console.log("[ARCHIVE-FALLBACK] Google Cache failed:", e.message);
   }
 
-  // 2. Try Archive.org Wayback Machine
+  // Last resort: Archive.org Wayback Machine (needs 2 requests)
   try {
     const wbAvail = await fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}&timestamp=${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14)}`, {
       signal: AbortSignal.timeout(8000),
@@ -76,47 +107,15 @@ async function fetchArchiveFallback(url: string): Promise<{ content: string; tit
       });
       if (archiveRes.ok) {
         const html = await archiveRes.text();
-        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        const text = html
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
+        const { text, title } = extractTextFromHtml(html);
         if (text.length > 300) {
           console.log("[ARCHIVE-FALLBACK] Archive.org hit for:", url, "snapshot:", snapshot.timestamp);
-          return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "archive_org" };
+          return { content: text.slice(0, 8000), title, source: "archive_org" };
         }
       }
     }
   } catch (e: any) {
     console.log("[ARCHIVE-FALLBACK] Archive.org failed:", e.message);
-  }
-
-  // 3. Try 12ft.io proxy
-  try {
-    const proxyUrl = `https://12ft.io/api/proxy?q=${encodeURIComponent(url)}`;
-    const proxyRes = await fetch(proxyUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(10000),
-    });
-    if (proxyRes.ok) {
-      const html = await proxyRes.text();
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const text = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (text.length > 300) {
-        console.log("[ARCHIVE-FALLBACK] 12ft.io hit for:", url);
-        return { content: text.slice(0, 8000), title: titleMatch?.[1] || "", source: "12ft_proxy" };
-      }
-    }
-  } catch (e: any) {
-    console.log("[ARCHIVE-FALLBACK] 12ft.io failed:", e.message);
   }
 
   return null;
@@ -406,16 +405,20 @@ Deno.serve(async (req) => {
         });
         const seoData = await seoRes.json();
         if (seoData.success && seoData.data) {
-          const exactMatches = seoData.data.filter((r: any) => {
-            try {
-              return new URL(r.url).hostname.replace("www.", "") === domain;
-            } catch { return false; }
+           const targetUrl = formattedUrl.toLowerCase().replace(/\/$/, "");
+          const exactUrlMatches = seoData.data.filter((r: any) => {
+            try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
           });
-          const isIndexed = exactMatches.length > 0;
+          const domainMatches = seoData.data.filter((r: any) => {
+            try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
+          });
+          const isIndexed = exactUrlMatches.length > 0 || domainMatches.length > 0;
           const rankPosition = seoData.data.findIndex((r: any) => {
-            try {
-              return new URL(r.url).hostname.replace("www.", "") === domain;
-            } catch { return false; }
+            try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
+          });
+          // Fallback to domain match if exact URL not found
+          const domainRank = rankPosition >= 0 ? rankPosition : seoData.data.findIndex((r: any) => {
+            try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
           });
 
           const competingResults = seoData.data
@@ -429,13 +432,16 @@ Deno.serve(async (req) => {
               domain: (() => { try { return new URL(r.url).hostname.replace("www.", ""); } catch { return r.url; } })(),
             }));
 
+          // Use snippet from exact URL match first, fallback to domain match
+          const snippetSource = exactUrlMatches[0] || domainMatches[0];
+
           searchVisibility = {
             is_indexed: isIndexed,
-            search_rank: rankPosition >= 0 ? rankPosition + 1 : null,
+            search_rank: domainRank >= 0 ? domainRank + 1 : null,
             title_search_query: pageTitle.slice(0, 80),
-            exact_match_count: exactMatches.length,
+            exact_match_count: exactUrlMatches.length,
             competing_results: competingResults,
-            search_snippet: exactMatches[0]?.description || null,
+            search_snippet: snippetSource?.description || null,
           };
         }
       } catch (e: any) {
@@ -456,7 +462,16 @@ Deno.serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: `You extract search keywords that real people would use to find this article on Google. Think about what a person curious about this topic would type into Google. Return ONLY a JSON array of 6-10 keyword phrases (2-5 words each). Mix specific phrases (brand names, events) with general topic queries. Example: ["binance crypto regulation", "SEC crypto crackdown 2025", "crypto exchange compliance"]. Return ONLY the JSON array.`,
+                content: `You extract search keywords that would lead someone to find THIS SPECIFIC ARTICLE on Google — not the website's homepage or other articles on the same site.
+
+CRITICAL RULES:
+- Keywords MUST be about the specific story/topic of THIS article, NOT about the publication (e.g. never "new york times", "nytimes", "breaking news", "homepage")
+- Keywords should reflect what someone curious about THIS STORY would search for
+- Include the specific subject matter, people, companies, or events discussed
+- Do NOT include generic news terms, publication names, or broad category terms
+- Each keyword phrase should be 2-6 words
+
+Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about Binance regulatory issues: ["binance SEC lawsuit", "binance crypto regulation 2025", "CZ binance legal troubles", "crypto exchange compliance crackdown"]. Return ONLY the JSON array.`,
               },
               {
                 role: "user",
@@ -622,6 +637,8 @@ Deno.serve(async (req) => {
           {
             role: "system",
             content: `You are an expert media intelligence analyst. Analyze the article content thoroughly and return a JSON object. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.
+
+IMPORTANT: If the content appears to be from a paywalled or access-restricted article with only partial/limited text available, clearly state this in the summary (e.g., "This is a paywalled article. Based on the available excerpt:..."). For sections where you cannot make accurate assessments due to limited content, use null values or state "Insufficient content — paywalled article" rather than guessing.
 
 Return ONLY valid JSON (no markdown fences, no extra text) with this exact structure:
 {

@@ -455,9 +455,33 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
               {/* Summary */}
               <div>
                 <SectionHeader title="Summary" icon={Eye} sectionKey="summary" />
-                {expandedSections.summary && a.summary && (
+                {expandedSections.summary && (
                   <div className="px-1 pb-2">
-                    <p className="text-sm text-foreground leading-relaxed">{a.summary}</p>
+                    {result.paywall.is_paywalled && (!dc?.content_source || dc.content_source === "direct") ? (
+                      <div className="p-3 rounded-lg bg-sentinel-amber/10 border border-sentinel-amber/20 mb-2">
+                        <div className="flex items-start gap-2">
+                          <Lock className="h-4 w-4 text-sentinel-amber shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-medium text-sentinel-amber">Paywalled Article — Limited Content</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                              This article is behind a {result.paywall.paywall_type} paywall. All bypass services (Google Cache, 12ft.io, Archive.is, RemovePaywall, 1ft.io, Archive.org) were tried but couldn't access the full content. Analysis below is based on available partial content only.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : result.paywall.is_paywalled && (
+                      <div className="p-2.5 rounded-lg bg-sentinel-emerald/10 border border-sentinel-emerald/20 mb-2">
+                        <p className="text-[10px] text-sentinel-emerald flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Paywalled article — content retrieved via {dc?.content_source?.replace(/_/g, " ") || "bypass service"}
+                        </p>
+                      </div>
+                    )}
+                    {a.summary ? (
+                      <p className="text-sm text-foreground leading-relaxed">{a.summary}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Summary unavailable — insufficient content could be extracted from this article.</p>
+                    )}
                   </div>
                 )}
               </div>
