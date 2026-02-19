@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2, Filter } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2, Filter, Link2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LinkScannerDialog from "@/components/LinkScannerDialog";
 import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -370,6 +372,18 @@ export default function ScansPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <UpgradeBanner feature="Unlimited Scans" className="mb-2" />
+
+      <Tabs defaultValue="scans" className="w-full">
+        <TabsList>
+          <TabsTrigger value="scans" className="gap-1.5">
+            <Scan className="h-3.5 w-3.5" /> Source Scans
+          </TabsTrigger>
+          <TabsTrigger value="link-scanner" className="gap-1.5">
+            <Link2 className="h-3.5 w-3.5" /> Scan Link
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="scans" className="space-y-6 mt-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Scans</h1>
@@ -935,6 +949,38 @@ export default function ScansPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="link-scanner" className="mt-4">
+          <div className="max-w-2xl">
+            <LinkScannerDialog
+              trigger={
+                <div className="hidden" />
+              }
+            />
+            {/* Inline version — render the scanner directly */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Link2 className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">Link Scanner</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Paste any URL to get an instant AI-powered intelligence report — sentiment, narrative analysis, social pickup, paywall detection, and impact assessment.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Use the <strong>Scan Link</strong> button in the top bar or sidebar for quick access from anywhere.
+              </p>
+              <LinkScannerDialog
+                trigger={
+                  <Button className="gap-2">
+                    <Link2 className="h-4 w-4" /> Open Link Scanner
+                  </Button>
+                }
+              />
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
