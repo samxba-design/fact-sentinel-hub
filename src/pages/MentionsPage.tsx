@@ -24,6 +24,7 @@ import SavedFilters from "@/components/mentions/SavedFilters";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import { format } from "date-fns";
+import { useMentionClusters } from "@/hooks/useMentionClusters";
 
 interface Mention {
   id: string;
