@@ -111,6 +111,8 @@ export default function MentionsPage() {
   const [sourceIntelDomain, setSourceIntelDomain] = useState<string | null>(null);
   const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
   const [sortBy, setSortBy] = useState<"detected" | "published">("detected");
+  const [clusterView, setClusterView] = useState(false);
+  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
 
   const scanFilter = searchParams.get("scan");
   const daysParam = searchParams.get("days");
