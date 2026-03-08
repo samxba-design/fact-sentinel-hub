@@ -147,7 +147,7 @@ function SourceTierBadge({ tier, label }: { tier: SourceTier; label: string }) {
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
