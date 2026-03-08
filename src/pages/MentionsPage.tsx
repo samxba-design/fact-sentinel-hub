@@ -141,9 +141,19 @@ export default function MentionsPage() {
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
+    // Server-side filters
+    if (sentimentFilter !== "all") query = query.eq("sentiment_label", sentimentFilter);
+    if (severityFilter !== "all") query = query.eq("severity", severityFilter);
+    if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
+    if (statusFilter === "active") {
+      query = query.not("status", "in", '("ignored","snoozed","resolved")');
+    } else if (statusFilter !== "all") {
+      query = query.eq("status", statusFilter);
+    }
+    if (search) query = query.textSearch("content", search, { type: "websearch" });
     if (cursor) query = query.lt("created_at", cursor);
     return query;
-  }, [currentOrg, scanFilter, daysParam]);
+  }, [currentOrg, scanFilter, daysParam, sentimentFilter, severityFilter, sourceFilter, statusFilter, search]);
 
   useEffect(() => {
     const query = buildQuery();
