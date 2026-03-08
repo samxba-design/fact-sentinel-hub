@@ -422,14 +422,46 @@ export default function MentionsPage() {
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(PAGE_SIZE);
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
     if (daysParam) {
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
-    query.then(({ data }) => { setMentions(data || []); setLoading(false); });
+    query.then(({ data }) => {
+      setMentions(data || []);
+      setHasMore((data || []).length === PAGE_SIZE);
+      setLoading(false);
+    });
+  };
+
+  const loadMore = async () => {
+    if (!currentOrg || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const lastMention = mentions[mentions.length - 1];
+    if (!lastMention) { setLoadingMore(false); return; }
+
+    let query = supabase
+      .from("mentions")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .lt("created_at", lastMention.created_at!)
+      .limit(PAGE_SIZE);
+
+    if (scanFilter) query = query.eq("scan_run_id", scanFilter);
+    if (daysParam) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
+      query = query.gte("posted_at", daysAgo.toISOString());
+    }
+
+    const { data } = await query;
+    const newMentions = data || [];
+    setMentions(prev => [...prev, ...newMentions]);
+    setHasMore(newMentions.length === PAGE_SIZE);
+    setLoadingMore(false);
   };
 
   // Detect coordinated patterns with linked mention details
