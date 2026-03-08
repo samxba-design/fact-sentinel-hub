@@ -906,6 +906,17 @@ export default function MentionsPage() {
         </Button>
         <Button
           size="sm"
+          variant={clusterView ? "default" : "outline"}
+          onClick={() => setClusterView(!clusterView)}
+          className="h-9 text-xs gap-1.5"
+        >
+          <Layers className="h-3.5 w-3.5" /> Cluster Similar
+          {clusterView && clusters.length > 0 && (
+            <Badge variant="secondary" className="text-[9px] h-4 px-1">{clusters.length}</Badge>
+          )}
+        </Button>
+        <Button
+          size="sm"
           variant={showSourcePanel ? "default" : "outline"}
           onClick={() => setShowSourcePanel(!showSourcePanel)}
           className="h-9 text-xs gap-1.5"
