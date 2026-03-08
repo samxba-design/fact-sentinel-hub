@@ -165,6 +165,38 @@ function extractDate(metadata: any, url: string, content: string): { date: strin
 // Two-layer approach:
 // Layer 1: Firecrawl SEARCH for real URLs + content (the search engine)
 // Layer 2: Post-processing to clean/filter (done here + AI relevance in run-scan)
+// Fetch with retry for Firecrawl API (handles 429 rate limits)
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfter = parseInt(response.headers.get("retry-after") || "0", 10);
+      const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.log(`Firecrawl 429 rate limit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    if (response.status === 402) {
+      console.error("Firecrawl 402: insufficient credits");
+      return response;
+    }
+    return response;
+  }
+  // Should not reach here, but just in case
+  return fetch(url, options);
+}
+
+// Batch concurrency helper
+async function batchConcurrent<T>(items: T[], concurrency: number, fn: (item: T) => Promise<any>): Promise<any[]> {
+  const results: any[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.allSettled(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
