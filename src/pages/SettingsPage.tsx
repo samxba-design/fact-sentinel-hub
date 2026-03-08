@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import BulkScanSchedulingTab from "@/components/settings/BulkScanSchedulingTab";
 import SourceConnectionsTab from "@/components/settings/SourceConnectionsTab";
 import TeamManagementTab from "@/components/settings/TeamManagementTab";
 import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
