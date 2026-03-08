@@ -399,6 +399,7 @@ export default function DashboardPage() {
       {/* Sentiment Sparklines */}
       {isVisible("sparklines") && <SentimentSparklines />}
 
+      {isVisible("risk-sentiment") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
        <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
           <RiskIndex score={loading ? 0 : riskScore} />
