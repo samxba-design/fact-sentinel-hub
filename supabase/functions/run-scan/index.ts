@@ -772,19 +772,24 @@ Deno.serve(async (req) => {
     const brandContext = isCompetitorScan ? (rawKeywords?.[0] || brandKws[0] || "the brand") : (orgData?.name || brandKws[0] || "the brand");
     const brandAliases = kwGroups.brand.join(", ");
     
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        temperature: 0.1,
-        messages: [
-          {
-            role: "system",
-            content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 60000); // 60s timeout for AI
+    let aiRes: Response;
+    try {
+      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "Content-Type": "application/json",
+        },
+        signal: aiController.signal,
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0.1,
+          messages: [
+            {
+              role: "system",
+              content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
 
 For each mention, you MUST first determine RELEVANCE then analyze sentiment.
 
@@ -813,16 +818,19 @@ For RELEVANT mentions only, also return:
 
 Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
-          },
-          {
-            role: "user",
-            content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
-              cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
-            )}`,
-          },
-        ],
-      }),
-    });
+            },
+            {
+              role: "user",
+              content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
+                cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
+              )}`,
+            },
+          ],
+        }),
+      });
+    } finally {
+      clearTimeout(aiTimeout);
+    }
 
     let analyses: any[] = [];
     if (aiRes.ok) {
