@@ -232,6 +232,8 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
                   <div key={i} className="flex items-center gap-2.5 p-2 rounded-md bg-muted/20">
                     {kw.surfaces_article ? (
                       <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald shrink-0" />
+                    ) : kw.surfaces_domain ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-amber shrink-0" />
                     ) : (
                       <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
@@ -239,7 +241,9 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
                       <p className="text-xs font-medium text-foreground">"{kw.keyword}"</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {kw.surfaces_article ? (
-                          <span className="text-[10px] text-sentinel-emerald">Rank #{kw.rank}</span>
+                          <span className="text-[10px] text-sentinel-emerald">Exact article at rank #{kw.rank}</span>
+                        ) : kw.surfaces_domain ? (
+                          <span className="text-[10px] text-sentinel-amber">Site appears at #{kw.rank} — different page</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground">Not in top 10</span>
                         )}

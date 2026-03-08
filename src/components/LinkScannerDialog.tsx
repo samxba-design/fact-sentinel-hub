@@ -104,9 +104,11 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     try {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
-          ? `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--background").trim()})`
-          : "#1a1a2e",
+        backgroundColor: (() => {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+          if (!raw) return "#1a1a2e";
+          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
+        })(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
@@ -132,9 +134,11 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     try {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
-          ? `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--background").trim()})`
-          : "#1a1a2e",
+        backgroundColor: (() => {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+          if (!raw) return "#1a1a2e";
+          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
+        })(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
@@ -198,7 +202,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
         author_name: a.author || null,
         sentiment_label: a.sentiment?.label || "neutral",
         sentiment_score: a.sentiment?.score || 0,
-        sentiment_confidence: (a.sentiment?.confidence || 50) / 100,
+        sentiment_confidence: Math.min(100, Math.max(0, a.sentiment?.confidence || 50)),
         severity: a.potential_impact?.level === "critical" ? "critical" : a.potential_impact?.level || "low",
         posted_at: a.publication_date || null,
         status: "new",
@@ -837,7 +841,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                                 {kw.surfaces_article ? (
                                   <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald" />
                                 ) : kw.surfaces_domain ? (
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-amber-500" />
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-amber" />
                                 ) : (
                                   <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                                 )}
@@ -850,7 +854,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                                       Exact article at rank #{kw.rank}
                                     </span>
                                   ) : kw.surfaces_domain ? (
-                                    <span className="text-[10px] text-amber-500">
+                                    <span className="text-[10px] text-sentinel-amber">
                                       Site appears at #{kw.rank} — different page
                                     </span>
                                   ) : (

@@ -253,8 +253,16 @@ export default function MentionDetailPage() {
   };
 
   // Generate AI summary
-  const generateSummary = async () => {
+  const generateSummary = async (forceRegenerate = false) => {
     if (!mention?.content || summaryLoading) return;
+    
+    // Check if we already have a cached summary in flags
+    const cachedSummary = mention.flags?.ai_summary;
+    if (cachedSummary && !forceRegenerate) {
+      setAiSummary(cachedSummary);
+      return;
+    }
+    
     setSummaryLoading(true);
     try {
       const cleanContent = cleanContentText(mention.content);
@@ -269,6 +277,12 @@ export default function MentionDetailPage() {
       });
       if (res.error) throw new Error(res.error.message);
       setAiSummary(res.data);
+      
+      // Cache the summary in the mention's flags
+      if (res.data && mention.id) {
+        const updatedFlags = { ...(mention.flags || {}), ai_summary: res.data };
+        await supabase.from("mentions").update({ flags: updatedFlags }).eq("id", mention.id);
+      }
     } catch (err: any) {
       toast({ title: "Summary failed", description: err.message, variant: "destructive" });
     } finally {
@@ -276,7 +290,7 @@ export default function MentionDetailPage() {
     }
   };
 
-  // Auto-generate summary when mention loads
+  // Auto-generate summary when mention loads (uses cache if available)
   useEffect(() => {
     if (mention?.content && !aiSummary && !summaryLoading) {
       generateSummary();
@@ -390,7 +404,7 @@ export default function MentionDetailPage() {
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
           </h3>
           {aiSummary && (
-            <Button size="sm" variant="ghost" onClick={generateSummary} disabled={summaryLoading} className="h-6 text-[10px]">
+            <Button size="sm" variant="ghost" onClick={() => generateSummary(true)} disabled={summaryLoading} className="h-6 text-[10px]">
               Regenerate
             </Button>
           )}
@@ -417,7 +431,7 @@ export default function MentionDetailPage() {
         ) : (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertCircle className="h-4 w-4" /> Could not generate summary.
-            <Button size="sm" variant="ghost" onClick={generateSummary} className="h-6 text-xs">Try again</Button>
+            <Button size="sm" variant="ghost" onClick={() => generateSummary()} disabled={summaryLoading} className="h-6 text-[10px]">Try again</Button>
           </div>
         )}
       </Card>
@@ -582,7 +596,7 @@ export default function MentionDetailPage() {
                 {mention.sentiment_label || "neutral"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${(Number(mention.sentiment_confidence) > 1 ? Number(mention.sentiment_confidence).toFixed(0) : (Number(mention.sentiment_confidence) * 100).toFixed(0))}%` : "—"}
+                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${Math.round(Number(mention.sentiment_confidence) <= 1 ? Number(mention.sentiment_confidence) * 100 : Number(mention.sentiment_confidence))}%` : "—"}
                 <InfoTooltip text="How confident the AI is in this sentiment classification. Higher = more certain the sentiment label is correct." />
               </div>
             </div>
@@ -610,42 +624,48 @@ export default function MentionDetailPage() {
         {/* Flags */}
         <Card className="bg-card border-border p-5 space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Flags & Indicators</h3>
-          {Object.keys(flags).length === 0 ? (
-            <p className="text-xs text-muted-foreground">No flags detected.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {flags.misinformation && (
-                <Badge variant="outline" className="border-sentinel-red/30 text-sentinel-red text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" /> Misinformation
-                </Badge>
-              )}
-              {flags.coordinated && (
-                <Badge variant="outline" className="border-sentinel-purple/30 text-sentinel-purple text-xs">
-                  <Flag className="h-3 w-3 mr-1" /> Coordinated
-                </Badge>
-              )}
-              {flags.bot_likely && (
-                <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
-                  <Bot className="h-3 w-3 mr-1" /> Bot Likely
-                </Badge>
-              )}
-              {flags.viral_potential && (
-                <Badge variant="outline" className="border-sentinel-cyan/30 text-sentinel-cyan text-xs">
-                  <Flame className="h-3 w-3 mr-1" /> Viral Potential
-                </Badge>
-              )}
-              {flags.emergency && (
-                <Badge variant="outline" className="border-sentinel-red/50 text-sentinel-red text-xs">
-                  <Siren className="h-3 w-3 mr-1" /> Emergency
-                </Badge>
-              )}
-              {flags.false_claim && (
-                <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" /> False Claim
-                </Badge>
-              )}
-            </div>
-          )}
+          {(() => {
+            // Only show boolean flags, not internal scanner metadata
+            const booleanFlagKeys = ["misinformation", "coordinated", "bot_likely", "viral_potential", "emergency", "false_claim"];
+            const activeFlagKeys = booleanFlagKeys.filter(k => flags[k]);
+            if (activeFlagKeys.length === 0) {
+              return <p className="text-xs text-muted-foreground">No flags detected.</p>;
+            }
+            return (
+              <div className="flex flex-wrap gap-2">
+                {flags.misinformation && (
+                  <Badge variant="outline" className="border-sentinel-red/30 text-sentinel-red text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" /> Misinformation
+                  </Badge>
+                )}
+                {flags.coordinated && (
+                  <Badge variant="outline" className="border-sentinel-purple/30 text-sentinel-purple text-xs">
+                    <Flag className="h-3 w-3 mr-1" /> Coordinated
+                  </Badge>
+                )}
+                {flags.bot_likely && (
+                  <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
+                    <Bot className="h-3 w-3 mr-1" /> Bot Likely
+                  </Badge>
+                )}
+                {flags.viral_potential && (
+                  <Badge variant="outline" className="border-sentinel-cyan/30 text-sentinel-cyan text-xs">
+                    <Flame className="h-3 w-3 mr-1" /> Viral Potential
+                  </Badge>
+                )}
+                {flags.emergency && (
+                  <Badge variant="outline" className="border-sentinel-red/50 text-sentinel-red text-xs">
+                    <Siren className="h-3 w-3 mr-1" /> Emergency
+                  </Badge>
+                )}
+                {flags.false_claim && (
+                  <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" /> False Claim
+                  </Badge>
+                )}
+              </div>
+            );
+          })()}
         </Card>
 
         {/* Similar Content from Other Sources — coordination warning */}

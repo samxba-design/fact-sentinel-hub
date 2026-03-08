@@ -33,27 +33,46 @@ function isJsBlocked(content: string): boolean {
 }
 
 // Paywall bypass services — try each in order until one works
+const BYPASS_REJECT_PATTERNS = [
+  "captcha", "checking your browser", "just a moment", "access denied",
+  "403 forbidden", "service unavailable", "cloudflare", "verifying you are human",
+  "enable javascript", "please turn javascript on", "ray id",
+  "this site can't be reached", "page not found", "404 not found",
+  "we're sorry", "something went wrong", "error occurred",
+  "subscribe to continue", "sign up to read", "create an account",
+];
+
+function isErrorPage(html: string): boolean {
+  const lower = html.toLowerCase();
+  const matchCount = BYPASS_REJECT_PATTERNS.filter(p => lower.includes(p)).length;
+  return matchCount >= 2 || (html.length < 800 && matchCount >= 1);
+}
+
 const BYPASS_SERVICES = [
   {
     name: "google_cache",
     buildUrl: (url: string) => `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`,
-    rejectIf: (html: string) => html.toLowerCase().includes("did not match any documents") || html.length < 500,
+    rejectIf: (html: string) => html.toLowerCase().includes("did not match any documents") || html.length < 500 || isErrorPage(html),
   },
   {
     name: "12ft_proxy",
     buildUrl: (url: string) => `https://12ft.io/api/proxy?q=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("12ft.io") && html.length < 1000,
   },
   {
     name: "archive_is",
     buildUrl: (url: string) => `https://archive.is/newest/${url}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("no results found") || html.toLowerCase().includes("archive.is"),
   },
   {
     name: "removepaywall",
     buildUrl: (url: string) => `https://www.removepaywall.com/search?url=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("removepaywall") && html.length < 1000,
   },
   {
     name: "1ft_io",
     buildUrl: (url: string) => `https://1ft.io/proxy?q=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("1ft.io") && html.length < 1000,
   },
 ];
 
@@ -154,20 +173,86 @@ function sanitizeUrl(raw: string): string {
   return u;
 }
 
+// Known publication names for generic title detection
+const KNOWN_PUBLICATIONS = [
+  "new york times", "nytimes", "washington post", "wall street journal", "wsj",
+  "financial times", "ft", "bloomberg", "reuters", "cnn", "bbc", "fox news",
+  "guardian", "the guardian", "forbes", "vanity fair", "the atlantic", "the economist",
+  "politico", "axios", "the verge", "techcrunch", "wired", "ars technica",
+  "the hill", "huffpost", "huffington post", "daily mail", "telegraph",
+  "independent", "observer", "times", "sun", "mirror", "express",
+  "usa today", "los angeles times", "la times", "chicago tribune",
+  "associated press", "ap news", "abc news", "nbc news", "cbs news",
+  "msnbc", "cnbc", "business insider", "insider", "buzzfeed",
+];
+
+const GENERIC_TAGLINE_WORDS = [
+  "breaking news", "latest news", "news", "world news", "us news",
+  "opinion", "live", "homepage", "home", "subscribe", "sign in", "log in",
+  "multimedia", "international", "politics", "business", "technology",
+  "entertainment", "sports", "health", "science", "travel", "style",
+  "investigations", "analysis", "video", "photos",
+];
+
 // Detect if a title is generic (just the site/domain name, not article-specific)
 function isGenericTitle(title: string, url: string): boolean {
   if (!title || title.length < 5) return true;
   const lower = title.toLowerCase().trim();
+
+  // Check if title matches domain name
   try {
     const domain = new URL(url).hostname.replace("www.", "").replace(/\..+$/, "");
     if (lower === domain || lower === `the ${domain}` || lower.replace(/[^a-z]/g, "") === domain.replace(/[^a-z]/g, "")) return true;
   } catch {}
-  const genericPatterns = [
-    /^(the )?(new york times|nytimes|washington post|wall street journal|wsj|financial times|ft|bloomberg|reuters|cnn|bbc|fox news|guardian|forbes)$/i,
+
+  // Check exact match or "Site Name - Tagline" format for known publications
+  // Split on common separators: -, |, ·, –, —, :
+  const separatorPattern = /\s*[-|·–—:]\s*/;
+  const parts = lower.split(separatorPattern).map(p => p.trim()).filter(Boolean);
+
+  // If any part is a known publication name, check if remaining parts are generic
+  for (const pub of KNOWN_PUBLICATIONS) {
+    if (parts.some(part => part === pub || part === `the ${pub}`)) {
+      // Title contains a publication name — check if remaining parts are generic taglines
+      const otherParts = parts.filter(part => part !== pub && part !== `the ${pub}`);
+      if (otherParts.length === 0) return true; // Just the publication name
+      // Check if all other parts are generic tagline words
+      const allGeneric = otherParts.every(part => {
+        const words = part.split(/[\s,&]+/).filter(w => w.length > 1);
+        return words.every(w => GENERIC_TAGLINE_WORDS.some(g => g.includes(w) || w.includes(g)));
+      });
+      if (allGeneric) return true;
+    }
+  }
+
+  // Check simple generic patterns
+  const simpleGenericPatterns = [
     /^(home|homepage|breaking news|latest news|news|subscribe|sign in|log in)$/i,
     /^.{1,4}$/,
   ];
-  return genericPatterns.some(p => p.test(lower));
+  return simpleGenericPatterns.some(p => p.test(lower));
+}
+
+// Check if a description is generic site-level boilerplate rather than article-specific
+function isGenericDescription(desc: string, url: string): boolean {
+  if (!desc || desc.length < 20) return true;
+  const lower = desc.toLowerCase();
+  const genericDescPatterns = [
+    "breaking news", "latest news", "live news", "read the latest",
+    "find breaking news", "news and analysis", "trusted source",
+    "the leading source", "delivering the best", "stay informed",
+    "all the news that's fit", "your source for", "comprehensive coverage",
+    "independent journalism", "quality journalism", "subscribe today",
+  ];
+  const matchCount = genericDescPatterns.filter(p => lower.includes(p)).length;
+  if (matchCount >= 2) return true;
+  // If description doesn't mention any specific nouns/names beyond publication
+  try {
+    const domain = new URL(url).hostname.replace("www.", "").replace(/\..+$/, "");
+    // If desc is essentially about the publication itself, not an article
+    if (lower.includes(domain) && desc.length < 80) return true;
+  } catch {}
+  return false;
 }
 
 // Extract a meaningful title from URL slug when page title is generic
@@ -585,8 +670,18 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Search snippet: prefer article's own metadata, not generic search result description
-          const articleSnippet = pageDescription || exactUrlMatches[0]?.description || null;
+          // Search snippet: prefer article-specific metadata, reject generic site descriptions
+          let articleSnippet: string | null = null;
+          if (pageDescription && !isGenericDescription(pageDescription, formattedUrl)) {
+            articleSnippet = pageDescription;
+          } else if (exactUrlMatches[0]?.description) {
+            articleSnippet = exactUrlMatches[0].description;
+          } else if (markdown.length > 100) {
+            // Extract first 1-2 sentences from content as fallback
+            const sentences = markdown.replace(/^#.*\n/gm, "").trim().split(/[.!?]\s+/);
+            const firstSentences = sentences.slice(0, 2).join(". ").slice(0, 200);
+            if (firstSentences.length > 30) articleSnippet = firstSentences + ".";
+          }
 
           searchVisibility = {
             is_indexed: isIndexed,
