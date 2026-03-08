@@ -404,7 +404,7 @@ export default function MentionDetailPage() {
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
           </h3>
           {aiSummary && (
-            <Button size="sm" variant="ghost" onClick={generateSummary} disabled={summaryLoading} className="h-6 text-[10px]">
+            <Button size="sm" variant="ghost" onClick={() => generateSummary(true)} disabled={summaryLoading} className="h-6 text-[10px]">
               Regenerate
             </Button>
           )}
