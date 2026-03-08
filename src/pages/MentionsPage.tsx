@@ -1098,6 +1098,16 @@ export default function MentionsPage() {
           filtered.map(renderMention)
         )}
       </div>
+
+      {/* Load More */}
+      {hasMore && !loading && (
+        <div className="flex justify-center pt-4">
+          <Button variant="outline" onClick={loadMore} disabled={loadingMore} className="gap-2">
+            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {loadingMore ? "Loading..." : `Load more mentions`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
