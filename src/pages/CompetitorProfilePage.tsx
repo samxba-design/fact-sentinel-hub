@@ -46,7 +46,6 @@ export default function CompetitorProfilePage() {
   const loadProfile = async () => {
     if (!currentOrg) return;
     setLoading(true);
-    const term = `%${competitorName}%`;
 
     const [mentionRes, narrativeRes] = await Promise.all([
       supabase
