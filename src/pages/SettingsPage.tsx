@@ -709,6 +709,13 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* SCAN SCHEDULING TAB */}
+        <TabsContent value="scan-scheduling">
+          <Card className="bg-card border-border p-6">
+            <BulkScanSchedulingTab />
+          </Card>
+        </TabsContent>
+
         {/* CUSTOM SOURCES TAB */}
         <TabsContent value="custom-sources">
           <Card className="bg-card border-border p-6">
