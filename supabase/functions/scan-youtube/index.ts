@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
       .eq("key_name", "api_key")
       .maybeSingle();
 
-    if (!apiKeyRow?.key_value) {
+    const ytApiKey = apiKeyRow?.key_value || Deno.env.get("YOUTUBE_API_KEY");
+    if (!ytApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: "YouTube API key not configured. Add it in Settings → Sources." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
