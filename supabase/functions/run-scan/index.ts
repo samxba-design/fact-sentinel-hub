@@ -730,7 +730,8 @@ Deno.serve(async (req) => {
 
     // === TWO-PASS AI ANALYSIS ===
     // Pass 1: Relevance + Sentiment (combined for efficiency)
-    const brandContext = orgData?.name || brandKws[0] || "the brand";
+    // For competitor scans, use the competitor name as brand context (not the org name)
+    const brandContext = isCompetitorScan ? (rawKeywords?.[0] || brandKws[0] || "the brand") : (orgData?.name || brandKws[0] || "the brand");
     const brandAliases = kwGroups.brand.join(", ");
     
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
