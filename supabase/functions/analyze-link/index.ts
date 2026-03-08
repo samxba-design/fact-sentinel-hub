@@ -33,27 +33,46 @@ function isJsBlocked(content: string): boolean {
 }
 
 // Paywall bypass services — try each in order until one works
+const BYPASS_REJECT_PATTERNS = [
+  "captcha", "checking your browser", "just a moment", "access denied",
+  "403 forbidden", "service unavailable", "cloudflare", "verifying you are human",
+  "enable javascript", "please turn javascript on", "ray id",
+  "this site can't be reached", "page not found", "404 not found",
+  "we're sorry", "something went wrong", "error occurred",
+  "subscribe to continue", "sign up to read", "create an account",
+];
+
+function isErrorPage(html: string): boolean {
+  const lower = html.toLowerCase();
+  const matchCount = BYPASS_REJECT_PATTERNS.filter(p => lower.includes(p)).length;
+  return matchCount >= 2 || (html.length < 800 && matchCount >= 1);
+}
+
 const BYPASS_SERVICES = [
   {
     name: "google_cache",
     buildUrl: (url: string) => `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}&strip=1`,
-    rejectIf: (html: string) => html.toLowerCase().includes("did not match any documents") || html.length < 500,
+    rejectIf: (html: string) => html.toLowerCase().includes("did not match any documents") || html.length < 500 || isErrorPage(html),
   },
   {
     name: "12ft_proxy",
     buildUrl: (url: string) => `https://12ft.io/api/proxy?q=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("12ft.io") && html.length < 1000,
   },
   {
     name: "archive_is",
     buildUrl: (url: string) => `https://archive.is/newest/${url}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("no results found") || html.toLowerCase().includes("archive.is"),
   },
   {
     name: "removepaywall",
     buildUrl: (url: string) => `https://www.removepaywall.com/search?url=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("removepaywall") && html.length < 1000,
   },
   {
     name: "1ft_io",
     buildUrl: (url: string) => `https://1ft.io/proxy?q=${encodeURIComponent(url)}`,
+    rejectIf: (html: string) => isErrorPage(html) || html.toLowerCase().includes("1ft.io") && html.length < 1000,
   },
 ];
 
