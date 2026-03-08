@@ -87,7 +87,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
             .update(updates)
             .eq("id", org.id);
           if (updateError) {
-            console.warn("[OrgContext] Could not update org subscription status:", updateError.message);
+            // Non-critical: subscription status sync failed silently
           }
           fetchOrgs();
         }
