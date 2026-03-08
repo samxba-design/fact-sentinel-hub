@@ -841,7 +841,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                                 {kw.surfaces_article ? (
                                   <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald" />
                                 ) : kw.surfaces_domain ? (
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-amber-500" />
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-amber" />
                                 ) : (
                                   <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                                 )}
