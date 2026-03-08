@@ -889,11 +889,7 @@ Return ONLY valid JSON, no markdown.`,
         author_follower_count: r.author_follower_count || 0,
         sentiment_label: analysis.sentiment_label || "neutral",
         sentiment_score: analysis.sentiment_score || 0,
-        sentiment_confidence: Math.min(100, Math.max(0, Math.round(
-          (analysis.sentiment_confidence || 0.5) <= 1 
-            ? (analysis.sentiment_confidence || 0.5) * 100 
-            : (analysis.sentiment_confidence || 50)
-        ))),
+        sentiment_confidence: Math.min(100, Math.max(0, Math.round((analysis.sentiment_confidence || 0.5) * 100))),
         severity: analysis.severity || "low",
         language: "en",
         posted_at: r.posted_at || null,

@@ -185,6 +185,7 @@ export default function CompetitorsPage() {
           org_id: currentOrg.id,
           keywords: [comp.name],
           sources: ["news", "google-news", "reddit", "social"],
+          scan_context: "competitor",
         },
       });
       if (error) throw error;

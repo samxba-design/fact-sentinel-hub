@@ -79,6 +79,7 @@ export default function CompetitorProfilePage() {
           org_id: currentOrg.id,
           keywords: [competitorName],
           sources: ["news", "google-news", "reddit", "social"],
+          scan_context: "competitor",
         },
       });
       if (error) throw error;
