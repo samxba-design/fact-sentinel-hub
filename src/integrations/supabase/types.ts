@@ -1088,8 +1088,14 @@ export type Database = {
           created_at: string | null
           evidence: string | null
           id: string
+          impact_score: number | null
+          last_scored_at: string | null
+          mention_count: number | null
+          negative_ratio: number | null
           org_id: string
           person_id: string
+          reach_multiplier: number | null
+          sentiment_impact: number | null
           status: string | null
           tier: string | null
         }
@@ -1098,8 +1104,14 @@ export type Database = {
           created_at?: string | null
           evidence?: string | null
           id?: string
+          impact_score?: number | null
+          last_scored_at?: string | null
+          mention_count?: number | null
+          negative_ratio?: number | null
           org_id: string
           person_id: string
+          reach_multiplier?: number | null
+          sentiment_impact?: number | null
           status?: string | null
           tier?: string | null
         }
@@ -1108,8 +1120,14 @@ export type Database = {
           created_at?: string | null
           evidence?: string | null
           id?: string
+          impact_score?: number | null
+          last_scored_at?: string | null
+          mention_count?: number | null
+          negative_ratio?: number | null
           org_id?: string
           person_id?: string
+          reach_multiplier?: number | null
+          sentiment_impact?: number | null
           status?: string | null
           tier?: string | null
         }
