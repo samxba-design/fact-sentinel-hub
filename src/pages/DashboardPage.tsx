@@ -227,6 +227,47 @@ export default function DashboardPage() {
     });
   }, [currentOrg, rangeDays]);
 
+  // Debounced full refresh for realtime — updates counts AND charts
+  const realtimeRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRealtimeRefresh = useCallback(() => {
+    if (realtimeRefreshRef.current) clearTimeout(realtimeRefreshRef.current);
+    realtimeRefreshRef.current = setTimeout(() => {
+      if (!currentOrg) return;
+      const now = new Date();
+      const rangeAgo = subDays(now, rangeDays).toISOString();
+      Promise.all([
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+      ]).then(([total, neg, emg, mentionsRaw]) => {
+        setTotalMentions(total.count ?? 0);
+        setNegativeMentions(neg.count ?? 0);
+        setEmergencies(emg.count ?? 0);
+        // Rebuild chart data
+        const mentions = mentionsRaw.data || [];
+        const dayMap: Record<string, number> = {};
+        const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
+        const srcMap: Record<string, number> = {};
+        for (let i = rangeDays - 1; i >= 0; i--) {
+          const d = format(subDays(now, i), "MMM dd");
+          dayMap[d] = 0;
+        }
+        mentions.forEach((m: any) => {
+          const dateStr = m.posted_at || m.created_at;
+          if (dateStr) { const d = format(new Date(dateStr), "MMM dd"); if (d in dayMap) dayMap[d]++; }
+          const label = m.sentiment_label || "neutral";
+          if (label in sentMap) sentMap[label]++;
+          const src = m.source || "unknown";
+          srcMap[src] = (srcMap[src] || 0) + 1;
+        });
+        setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
+        setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
+        setSourceData(Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })));
+      });
+    }, 2000); // Debounce 2s to batch rapid inserts
+  }, [currentOrg, rangeDays]);
+
   // Realtime subscription for live dashboard updates
   useEffect(() => {
     if (!currentOrg) return;
@@ -236,21 +277,7 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'mentions', filter: `org_id=eq.${currentOrg.id}` },
-        () => {
-          // Re-fetch dashboard data when new mentions arrive
-          setLoading(false); // avoid showing skeleton
-          const now = new Date();
-          const rangeAgo = subDays(now, rangeDays).toISOString();
-          Promise.all([
-            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-            supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          ]).then(([total, neg, emg]) => {
-            setTotalMentions(total.count ?? 0);
-            setNegativeMentions(neg.count ?? 0);
-            setEmergencies(emg.count ?? 0);
-          });
-        }
+        () => triggerRealtimeRefresh()
       )
       .on(
         'postgres_changes',
@@ -263,8 +290,9 @@ export default function DashboardPage() {
 
     return () => {
       supabase.removeChannel(channel);
+      if (realtimeRefreshRef.current) clearTimeout(realtimeRefreshRef.current);
     };
-  }, [currentOrg, rangeDays]);
+  }, [currentOrg, rangeDays, triggerRealtimeRefresh]);
 
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;

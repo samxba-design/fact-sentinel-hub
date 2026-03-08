@@ -126,10 +126,8 @@ export default function MentionsPage() {
     if (status) setStatusFilter(status);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!currentOrg) return;
-    setLoading(true);
-    setHasMore(true);
+  const buildQuery = useCallback((cursor?: string) => {
+    if (!currentOrg) return null;
     let query = supabase
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
@@ -143,6 +141,15 @@ export default function MentionsPage() {
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
+    if (cursor) query = query.lt("created_at", cursor);
+    return query;
+  }, [currentOrg, scanFilter, daysParam]);
+
+  useEffect(() => {
+    const query = buildQuery();
+    if (!query) return;
+    setLoading(true);
+    setHasMore(true);
 
     query.then(({ data }) => {
       const mentionData = data || [];
@@ -162,7 +169,7 @@ export default function MentionsPage() {
           });
       }
     });
-  }, [currentOrg, scanFilter, daysParam]);
+  }, [buildQuery]);
 
   // Load ignored sources
   useEffect(() => {
