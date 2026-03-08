@@ -127,7 +127,12 @@ export default function MentionsPage() {
     if (status) setStatusFilter(status);
   }, [searchParams]);
 
-  const buildQuery = useCallback((cursor?: string) => {
+  // Debounce search for server-side text search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
     if (!currentOrg) return null;
     let query = supabase
       .from("mentions")
