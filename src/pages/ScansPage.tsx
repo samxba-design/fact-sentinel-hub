@@ -290,6 +290,7 @@ export default function ScansPage() {
 
   const runScan = async () => {
     if (!currentOrg) return;
+    if (!(await checkQuota())) return;
     setScanning(true);
     setScanProgress("Connecting to sources...");
     setScanResult(null);
