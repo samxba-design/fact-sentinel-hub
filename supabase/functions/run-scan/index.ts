@@ -512,7 +512,7 @@ Deno.serve(async (req) => {
       })());
     }
 
-    // YouTube
+    // YouTube — try API first, fall back to Firecrawl web search for YouTube content
     if (selectedSources.includes("youtube")) {
       scanPromises.push((async () => {
         try {
@@ -524,13 +524,51 @@ Deno.serve(async (req) => {
             date_from,
             date_to,
           });
-          if (ytResult.success && ytResult.results) {
+          if (ytResult.success && ytResult.results?.length > 0) {
             allResults.push(...ytResult.results);
-            scanLog.push({ source: "youtube", query: "", found: ytResult.results.length });
-          } else if (ytResult.error) {
-            errors.push(`YouTube: ${ytResult.error}`);
+            scanLog.push({ source: "youtube-api", query: brandKws.join(" OR "), found: ytResult.results.length });
+          } else {
+            // Fallback: search YouTube via Firecrawl web search
+            console.log("YouTube API unavailable or no results, falling back to web search");
+            const ytWebQueries = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
+            const ytWebResult = await callFunction("scan-web", {
+              keywords: ytWebQueries,
+              limit: 15,
+              date_from,
+              date_to,
+              search_type: "social",
+            });
+            if (ytWebResult.success && ytWebResult.results?.length > 0) {
+              // Tag results as youtube source
+              const ytResults = ytWebResult.results.map((r: any) => ({
+                ...r,
+                source: "youtube",
+              }));
+              allResults.push(...ytResults);
+              scanLog.push({ source: "youtube-web", query: ytWebQueries.join(" | "), found: ytResults.length });
+            } else {
+              scanLog.push({ source: "youtube", query: brandKws.join(" OR "), found: 0 });
+              if (ytResult.error && !ytResult.error.includes("API key")) {
+                errors.push(`YouTube: ${ytResult.error}`);
+              }
+            }
           }
         } catch (e: any) {
+          // Final fallback on error
+          try {
+            const ytWebQueries2 = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
+            const ytWebResult = await callFunction("scan-web", {
+              keywords: ytWebQueries2,
+              limit: 15,
+              date_from,
+              search_type: "social",
+            });
+            if (ytWebResult.success && ytWebResult.results?.length > 0) {
+              const ytResults = ytWebResult.results.map((r: any) => ({ ...r, source: "youtube" }));
+              allResults.push(...ytResults);
+              scanLog.push({ source: "youtube-web", query: ytWebQueries2.join(" | "), found: ytResults.length });
+            }
+          } catch { /* skip */ }
           errors.push(`YouTube: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
       })());
@@ -734,19 +772,24 @@ Deno.serve(async (req) => {
     const brandContext = isCompetitorScan ? (rawKeywords?.[0] || brandKws[0] || "the brand") : (orgData?.name || brandKws[0] || "the brand");
     const brandAliases = kwGroups.brand.join(", ");
     
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        temperature: 0.1,
-        messages: [
-          {
-            role: "system",
-            content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 60000); // 60s timeout for AI
+    let aiRes: Response;
+    try {
+      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "Content-Type": "application/json",
+        },
+        signal: aiController.signal,
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0.1,
+          messages: [
+            {
+              role: "system",
+              content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
 
 For each mention, you MUST first determine RELEVANCE then analyze sentiment.
 
@@ -775,16 +818,19 @@ For RELEVANT mentions only, also return:
 
 Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
-          },
-          {
-            role: "user",
-            content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
-              cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
-            )}`,
-          },
-        ],
-      }),
-    });
+            },
+            {
+              role: "user",
+              content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
+                cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
+              )}`,
+            },
+          ],
+        }),
+      });
+    } finally {
+      clearTimeout(aiTimeout);
+    }
 
     let analyses: any[] = [];
     if (aiRes.ok) {
@@ -989,12 +1035,12 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
           for (const cluster of narrativeClusters) {
             if (!cluster.name || !cluster.mention_indices?.length) continue;
 
-            // Check if a similar narrative already exists
+            // Check if an exact narrative already exists (avoid false matches from partial ilike)
             const { data: existing } = await supabase
               .from("narratives")
               .select("id")
               .eq("org_id", org_id)
-              .ilike("name", `%${cluster.name.slice(0, 20)}%`)
+              .eq("name", cluster.name)
               .limit(1);
 
             let narrativeId: string;
