@@ -185,6 +185,25 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     setLoading(true);
     setResult(null);
     setSaved(false);
+    setLoadingStep("Scraping page content...");
+    
+    // Simulate progressive steps (the edge function does all work, but we show progress)
+    const steps = [
+      { text: "Scraping page content...", delay: 2000 },
+      { text: "Checking for paywalls...", delay: 3000 },
+      { text: "Running AI analysis...", delay: 5000 },
+      { text: "Searching for social pickup...", delay: 4000 },
+      { text: "Verifying search keywords...", delay: 4000 },
+      { text: "Compiling intelligence report...", delay: 3000 },
+    ];
+    let stepIndex = 0;
+    const stepInterval = setInterval(() => {
+      stepIndex++;
+      if (stepIndex < steps.length) {
+        setLoadingStep(steps[stepIndex].text);
+      }
+    }, steps[stepIndex]?.delay || 3000);
+
     try {
       const { data, error } = await supabase.functions.invoke("analyze-link", {
         body: { url: url.trim(), org_id: currentOrg?.id },
@@ -195,6 +214,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     } catch (err: any) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
+      clearInterval(stepInterval);
+      setLoadingStep("");
       setLoading(false);
     }
   };
