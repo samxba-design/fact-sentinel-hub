@@ -397,7 +397,7 @@ export default function DashboardPage() {
       )}
 
       {/* Sentiment Sparklines */}
-      <SentimentSparklines />
+      {isVisible("sparklines") && <SentimentSparklines />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
        <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
