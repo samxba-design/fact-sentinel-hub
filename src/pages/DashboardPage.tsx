@@ -380,6 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {isVisible("metrics") && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
@@ -393,6 +394,7 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      )}
 
       {/* Sentiment Sparklines */}
       <SentimentSparklines />
