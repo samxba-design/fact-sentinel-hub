@@ -96,7 +96,7 @@ export default function NarrativeDetailPage() {
 
   const timeAgo = (d: string | null) => d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : "—";
 
-  const confidencePct = narrative?.confidence != null ? Math.round(Number(narrative.confidence) * 100) : null;
+  const confidencePct = narrative?.confidence != null ? Math.round(Number(narrative.confidence)) : null;
   const confidenceColor = confidencePct != null
     ? confidencePct >= 70 ? "text-sentinel-red" : confidencePct >= 40 ? "text-sentinel-amber" : "text-sentinel-emerald"
     : "text-muted-foreground";

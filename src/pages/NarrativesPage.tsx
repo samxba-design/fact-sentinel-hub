@@ -120,7 +120,7 @@ export default function NarrativesPage() {
                 <div className="flex items-center gap-6">
                   {n.confidence != null && (
                     <div className="text-right">
-                      <div className="text-sm font-mono text-card-foreground">{Number(n.confidence) > 1 ? Number(n.confidence).toFixed(0) : (Number(n.confidence) * 100).toFixed(0)}%</div>
+                      <div className="text-sm font-mono text-card-foreground">{Math.round(Number(n.confidence))}%</div>
                       <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                         confidence
                         <InfoTooltip text="How certain the AI is that this is a real, coherent narrative. 70%+ = strong pattern across multiple sources. 40-69% = emerging pattern. Below 40% = weak signal." />

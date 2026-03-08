@@ -82,6 +82,8 @@ function cleanPreview(raw: string | null): string {
   return text;
 }
 
+const PAGE_SIZE = 100;
+
 export default function MentionsPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
@@ -90,6 +92,8 @@ export default function MentionsPage() {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [narrativeLinks, setNarrativeLinks] = useState<NarrativeInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
