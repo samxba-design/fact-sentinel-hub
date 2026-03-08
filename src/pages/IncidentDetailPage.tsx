@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
+import CrisisPlaybook from "@/components/incidents/CrisisPlaybook";
 
 interface Incident {
   id: string;
@@ -452,6 +453,14 @@ export default function IncidentDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* AI Crisis Playbook */}
+      <CrisisPlaybook
+        incidentName={incident.name}
+        incidentDescription={incident.description}
+        mentionCount={mentions.length}
+        narrativeCount={narratives.length}
+      />
 
       <IncidentFormDialog
         open={editOpen}

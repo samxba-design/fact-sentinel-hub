@@ -34,6 +34,7 @@ import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
 import DashboardCustomizer from "@/components/dashboard/DashboardCustomizer";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
+import SentimentForecastWidget from "@/components/dashboard/SentimentForecastWidget";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);
@@ -398,6 +399,9 @@ export default function DashboardPage() {
 
       {/* Sentiment Sparklines */}
       {isVisible("sparklines") && <SentimentSparklines />}
+
+      {/* Sentiment Forecast */}
+      {isVisible("forecast") && <SentimentForecastWidget />}
 
       {isVisible("risk-sentiment") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

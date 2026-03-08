@@ -10,10 +10,11 @@ export interface DashboardWidget {
 const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "metrics", label: "Key Metrics", visible: true, order: 0 },
   { id: "sparklines", label: "Sentiment Sparklines", visible: true, order: 1 },
-  { id: "risk-sentiment", label: "Risk Index & Sentiment", visible: true, order: 2 },
-  { id: "timeline-volume", label: "Activity & Volume", visible: true, order: 3 },
-  { id: "narrative-monitoring-feed", label: "Narratives, Monitoring & Feed", visible: true, order: 4 },
-  { id: "sources", label: "Source Breakdown", visible: true, order: 5 },
+  { id: "forecast", label: "Sentiment Forecast", visible: true, order: 2 },
+  { id: "risk-sentiment", label: "Risk Index & Sentiment", visible: true, order: 3 },
+  { id: "timeline-volume", label: "Activity & Volume", visible: true, order: 4 },
+  { id: "narrative-monitoring-feed", label: "Narratives, Monitoring & Feed", visible: true, order: 5 },
+  { id: "sources", label: "Source Breakdown", visible: true, order: 6 },
 ];
 
 const STORAGE_KEY = "sentiwatch_dashboard_layout";

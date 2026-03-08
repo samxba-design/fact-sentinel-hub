@@ -6,7 +6,7 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2, Radio
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import {
@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
   { to: "/risk-console", icon: AlertTriangle, label: "Risk Console" },
   { to: "/alerts", icon: Bell, label: "Alerts & Monitoring" },
   { to: "/incidents", icon: Siren, label: "Incidents" },
+  { to: "/war-room", icon: Radio, label: "War Room" },
   { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
   { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
   { to: "/approved-templates", icon: FileText, label: "Templates" },
