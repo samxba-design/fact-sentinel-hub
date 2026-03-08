@@ -854,7 +854,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                                       Exact article at rank #{kw.rank}
                                     </span>
                                   ) : kw.surfaces_domain ? (
-                                    <span className="text-[10px] text-amber-500">
+                                    <span className="text-[10px] text-sentinel-amber">
                                       Site appears at #{kw.rank} — different page
                                     </span>
                                   ) : (
