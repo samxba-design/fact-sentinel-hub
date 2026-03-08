@@ -447,7 +447,9 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+      )}
 
+      {isVisible("timeline-volume") && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Activity Timeline */}
         <ActivityTimeline />
