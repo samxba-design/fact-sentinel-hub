@@ -154,6 +154,7 @@ function AppRoutes() {
         </Route>
         {/* Allow onboarding for creating additional orgs */}
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/shared/:token/*" element={<SharedViewPage />} />
         <Route path="/auth" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

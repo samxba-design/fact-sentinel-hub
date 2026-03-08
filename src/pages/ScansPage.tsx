@@ -279,8 +279,8 @@ export default function ScansPage() {
           org_id: currentOrg.id,
           keywords,
           sources: selectedSources,
-          date_from: dateFrom,
-          date_to: dateTo,
+          date_from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+          date_to: dateTo ? new Date(dateTo).toISOString() : undefined,
           sentiment_filter: customSentimentFilter,
         },
       });

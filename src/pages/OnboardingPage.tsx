@@ -234,6 +234,25 @@ export default function OnboardingPage() {
             profile.sources.map(s => ({ org_id: org.id, type: s.type, enabled: true }))
           );
         }
+        // Save AI-suggested people
+        if (approvedSections.people && profile.people.length > 0) {
+          for (const person of profile.people) {
+            const { data: personRow, error: personErr } = await supabase
+              .from("people")
+              .insert({ name: person.name, titles: person.title ? [person.title] : [] })
+              .select("id")
+              .single();
+            if (!personErr && personRow) {
+              await supabase.from("org_people").insert({
+                org_id: org.id,
+                person_id: personRow.id,
+                tier: person.tier || "other",
+                confidence: person.confidence,
+                status: "suggested",
+              });
+            }
+          }
+        }
       }
 
       await refetchOrgs();

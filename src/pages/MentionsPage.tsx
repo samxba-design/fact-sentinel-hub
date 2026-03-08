@@ -298,33 +298,21 @@ export default function MentionsPage() {
   };
 
   const filtered = mentions.filter(m => {
-    const mStatus = m.status || "new";
-    // Filter out ignored source domains
+    // Filter out ignored source domains (client-side only)
     const domain = getDomain(m.url);
     if (ignoredDomains.has(domain)) return false;
     // Domain-level filter from source panel
     if (domainFilter && domain !== domainFilter) return false;
-    if (statusFilter === "active" && (mStatus === "ignored" || mStatus === "snoozed" || mStatus === "resolved")) return false;
-    if (statusFilter !== "active" && statusFilter !== "all" && mStatus !== statusFilter) return false;
-    if (severityFilter !== "all" && m.severity !== severityFilter) return false;
-    if (sentimentFilter !== "all" && m.sentiment_label !== sentimentFilter) return false;
-    if (sourceFilter !== "all" && m.source !== sourceFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return m.content?.toLowerCase().includes(q) || m.author_name?.toLowerCase().includes(q);
-    }
     return true;
   }).sort((a, b) => {
     if (sortBy === "published") {
       const aDate = a.posted_at ? new Date(a.posted_at).getTime() : 0;
       const bDate = b.posted_at ? new Date(b.posted_at).getTime() : 0;
-      // Mentions with no published date go to the end
       if (aDate === 0 && bDate === 0) return 0;
       if (aDate === 0) return 1;
       if (bDate === 0) return -1;
       return bDate - aDate;
     }
-    // Default: sort by detected (created_at)
     const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bDate - aDate;
