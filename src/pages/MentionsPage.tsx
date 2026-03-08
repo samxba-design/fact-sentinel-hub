@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2
+  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2, Loader2
 } from "lucide-react";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
