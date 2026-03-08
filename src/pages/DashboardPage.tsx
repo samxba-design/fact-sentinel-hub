@@ -300,6 +300,8 @@ export default function DashboardPage() {
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
   const totalChangeType = totalMentions > prevTotal ? "up" as const : totalMentions < prevTotal ? "down" as const : "neutral" as const;
 
+  const isVisible = (id: string) => widgets.find(w => w.id === id)?.visible !== false;
+
   return (
     <div className="space-y-6 animate-fade-up">
       <OnboardingTour />
