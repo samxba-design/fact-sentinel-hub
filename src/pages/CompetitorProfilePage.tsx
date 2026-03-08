@@ -53,14 +53,14 @@ export default function CompetitorProfilePage() {
         .from("mentions")
         .select("id, content, source, url, sentiment_label, severity, posted_at, created_at, author_name")
         .eq("org_id", currentOrg.id)
-        .ilike("content", term)
+        .textSearch("content", competitorName, { type: "plain" })
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(100),
       supabase
         .from("narratives")
         .select("id, name, description, status, confidence, first_seen, last_seen")
         .eq("org_id", currentOrg.id)
-        .ilike("name", term)
+        .or(`name.ilike.%${competitorName}%,description.ilike.%${competitorName}%`)
         .order("last_seen", { ascending: false, nullsFirst: false })
         .limit(20),
     ]);
