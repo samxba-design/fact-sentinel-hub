@@ -10,11 +10,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import AddPersonDialog from "@/components/people/AddPersonDialog";
 import EmptyState from "@/components/EmptyState";
 import PageGuide from "@/components/PageGuide";
+import InfluencerLeaderboard from "@/components/people/InfluencerLeaderboard";
 
 interface PersonRow {
   person_id: string;
   tier: string | null;
   status: string | null;
+  impact_score: number | null;
+  reach_multiplier: number | null;
+  sentiment_impact: number | null;
+  mention_count: number | null;
+  negative_ratio: number | null;
   people: {
     id: string;
     name: string;
@@ -35,7 +41,7 @@ export default function PeoplePage() {
     setLoading(true);
     supabase
       .from("org_people")
-      .select("person_id, tier, status, people(id, name, titles, follower_count)")
+      .select("person_id, tier, status, impact_score, reach_multiplier, sentiment_impact, mention_count, negative_ratio, people(id, name, titles, follower_count)")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
       .limit(50)
@@ -46,6 +52,21 @@ export default function PeoplePage() {
   };
 
   useEffect(() => { fetchPeople(); }, [currentOrg]);
+
+  // Build leaderboard data
+  const leaderboardPeople = people
+    .filter(p => p.people)
+    .map(p => ({
+      person_id: p.person_id,
+      name: p.people.name,
+      tier: p.tier,
+      follower_count: p.people.follower_count,
+      impact_score: p.impact_score || calculateImpactScore(p),
+      reach_multiplier: p.reach_multiplier || calculateReachMultiplier(p.people.follower_count),
+      sentiment_impact: p.sentiment_impact,
+      mention_count: p.mention_count,
+      negative_ratio: p.negative_ratio,
+    }));
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -87,6 +108,11 @@ export default function PeoplePage() {
         tip="People with higher tiers (Executive, Spokesperson) are given priority in risk scoring. Add social handles to improve cross-platform matching accuracy."
       />
 
+      {/* Influencer Leaderboard */}
+      {!loading && leaderboardPeople.length > 0 && (
+        <InfluencerLeaderboard people={leaderboardPeople} />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)
@@ -113,8 +139,13 @@ export default function PeoplePage() {
                     <div className="text-xs text-muted-foreground">{p.people?.titles?.[0] || "—"}</div>
                   </div>
                 </div>
+                {(p.impact_score || 0) > 0 && (
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-mono">
+                    Impact: {Math.round(p.impact_score || 0)}
+                  </Badge>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <div className="text-xs text-muted-foreground">Followers</div>
                   <div className="text-sm font-mono text-card-foreground">{p.people?.follower_count ? p.people.follower_count.toLocaleString() : "N/A"}</div>
@@ -122,6 +153,10 @@ export default function PeoplePage() {
                 <div>
                   <div className="text-xs text-muted-foreground">Tier</div>
                   <Badge variant="secondary" className="text-[10px] capitalize">{p.tier || "other"}</Badge>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Mentions</div>
+                  <div className="text-sm font-mono text-card-foreground">{p.mention_count || 0}</div>
                 </div>
               </div>
             </Card>
@@ -132,4 +167,23 @@ export default function PeoplePage() {
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onSaved={fetchPeople} />
     </div>
   );
+}
+
+// Client-side impact score calculation (used as fallback when not yet scored by backend)
+function calculateImpactScore(p: PersonRow): number {
+  const followers = p.people?.follower_count || 0;
+  const mentions = p.mention_count || 0;
+  const reachScore = Math.min(40, Math.log10(Math.max(followers, 1)) * 10);
+  const mentionScore = Math.min(30, mentions * 3);
+  const tierBonus = p.tier === "executive" ? 20 : p.tier === "influencer" ? 15 : p.tier === "journalist" ? 10 : p.tier === "critic" ? 12 : 5;
+  return Math.round(reachScore + mentionScore + tierBonus);
+}
+
+function calculateReachMultiplier(followerCount: number | null): number {
+  const f = followerCount || 0;
+  if (f >= 1000000) return 5.0;
+  if (f >= 100000) return 3.0;
+  if (f >= 10000) return 2.0;
+  if (f >= 1000) return 1.5;
+  return 1.0;
 }

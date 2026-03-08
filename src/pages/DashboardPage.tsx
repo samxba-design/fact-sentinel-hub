@@ -32,7 +32,8 @@ import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget"
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
-
+import DashboardCustomizer from "@/components/dashboard/DashboardCustomizer";
+import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);
@@ -156,6 +157,7 @@ const DATE_RANGES = [
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
+  const { widgets, toggleWidget, moveWidget, resetLayout } = useDashboardLayout();
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);
@@ -298,6 +300,8 @@ export default function DashboardPage() {
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
   const totalChangeType = totalMentions > prevTotal ? "up" as const : totalMentions < prevTotal ? "down" as const : "neutral" as const;
 
+  const isVisible = (id: string) => widgets.find(w => w.id === id)?.visible !== false;
+
   return (
     <div className="space-y-6 animate-fade-up">
       <OnboardingTour />
@@ -321,6 +325,7 @@ export default function DashboardPage() {
             <Plus className="h-3.5 w-3.5" /> Add Mention
           </Button>
           <ReportGeneratorDialog />
+          <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onMove={moveWidget} onReset={resetLayout} />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
             {DATE_RANGES.map(r => (
@@ -375,6 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {isVisible("metrics") && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
@@ -388,10 +394,12 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      )}
 
       {/* Sentiment Sparklines */}
-      <SentimentSparklines />
+      {isVisible("sparklines") && <SentimentSparklines />}
 
+      {isVisible("risk-sentiment") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
        <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
           <RiskIndex score={loading ? 0 : riskScore} />
@@ -439,7 +447,9 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+      )}
 
+      {isVisible("timeline-volume") && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Activity Timeline */}
         <ActivityTimeline />
@@ -473,15 +483,17 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+      )}
 
-      {/* Source Breakdown + Monitoring + Live Feed */}
+      {isVisible("narrative-monitoring-feed") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <NarrativeHealthWidget />
         <MonitoringWidget />
         <LiveThreatFeed />
       </div>
+      )}
 
-      {/* Source Breakdown */}
+      {isVisible("sources") && (
       <Card className="bg-card border-border p-5 space-y-3">
         <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
           Source Breakdown
@@ -503,6 +515,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         )}
       </Card>
+      )}
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>
   );
