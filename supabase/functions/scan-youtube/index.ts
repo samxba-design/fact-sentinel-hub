@@ -41,7 +41,6 @@ Deno.serve(async (req) => {
     }
 
     const query = keywords.join(" | ");
-    const query = keywords.join(" | ");
     const maxResults = Math.min(limit || 15, 50);
 
     console.log("YouTube search:", query, "date_from:", date_from);
