@@ -129,12 +129,13 @@ export default function MentionsPage() {
   useEffect(() => {
     if (!currentOrg) return;
     setLoading(true);
+    setHasMore(true);
     let query = supabase
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(PAGE_SIZE);
 
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
     if (daysParam) {
@@ -146,6 +147,7 @@ export default function MentionsPage() {
     query.then(({ data }) => {
       const mentionData = data || [];
       setMentions(mentionData);
+      setHasMore(mentionData.length === PAGE_SIZE);
       setLoading(false);
 
       // Load narrative links for grouping
