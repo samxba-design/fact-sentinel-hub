@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     const searchPromises = searchQueries.map(async (query) => {
       const fullQuery = `${query}${siteFilter}`;
       try {
-        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+        const response = await fetchWithRetry("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${firecrawlKey}`,
