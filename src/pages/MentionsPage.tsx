@@ -157,10 +157,10 @@ export default function MentionsPage() {
     } else if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
     }
-    if (search) query = query.textSearch("content", search, { type: "websearch" });
+    if (debouncedSearch) query = query.ilike("content", `%${debouncedSearch}%`);
     if (cursor) query = query.lt("created_at", cursor);
     return query;
-  }, [currentOrg, scanFilter, daysParam, sentimentFilter, severityFilter, sourceFilter, statusFilter, search]);
+  }, [currentOrg, scanFilter, daysParam, sentimentFilter, severityFilter, sourceFilter, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     const query = buildQuery();
