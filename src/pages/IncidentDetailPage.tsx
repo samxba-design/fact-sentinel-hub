@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
+import CrisisPlaybook from "@/components/incidents/CrisisPlaybook";
 
 interface Incident {
   id: string;
