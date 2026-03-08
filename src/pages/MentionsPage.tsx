@@ -171,7 +171,7 @@ export default function MentionsPage() {
     setLoading(true);
     setHasMore(true);
 
-    query.then(({ data }) => {
+    query.then(async ({ data }) => {
       const mentionData = data || [];
       setMentions(mentionData);
       setHasMore(mentionData.length === PAGE_SIZE);
