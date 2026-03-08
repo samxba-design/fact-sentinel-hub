@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ytApiKey = apiKeyRow.key_value;
+    const query = keywords.join(" | ");
     const query = keywords.join(" | ");
     const maxResults = Math.min(limit || 15, 50);
 
