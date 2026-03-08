@@ -596,7 +596,7 @@ export default function MentionDetailPage() {
                 {mention.sentiment_label || "neutral"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${Math.round(Number(mention.sentiment_confidence) <= 1 ? Number(mention.sentiment_confidence) * 100 : Number(mention.sentiment_confidence))}%` : "—"}
+                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${Math.round(Number(mention.sentiment_confidence))}%` : "—"}
                 <InfoTooltip text="How confident the AI is in this sentiment classification. Higher = more certain the sentiment label is correct." />
               </div>
             </div>
