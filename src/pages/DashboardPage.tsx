@@ -157,6 +157,7 @@ const DATE_RANGES = [
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
+  const { widgets, toggleWidget, moveWidget, resetLayout } = useDashboardLayout();
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);
