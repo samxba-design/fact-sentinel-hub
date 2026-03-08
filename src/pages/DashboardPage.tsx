@@ -32,7 +32,8 @@ import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget"
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
-
+import DashboardCustomizer from "@/components/dashboard/DashboardCustomizer";
+import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);
