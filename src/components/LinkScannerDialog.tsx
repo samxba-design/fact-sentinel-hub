@@ -103,12 +103,18 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     await new Promise(r => setTimeout(r, 300));
     try {
       const html2canvas = (await import("html2canvas")).default;
+      const getBackgroundColor = () => {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+        if (!raw) return "#1a1a2e";
+        if (raw.startsWith("#") || raw.startsWith("rgb")) return raw;
+        if (raw.startsWith("hsl")) return raw;
+        // Raw HSL values like "222.2 84% 4.9%" — convert to proper hsl()
+        const parts = raw.split(/\s+/);
+        if (parts.length >= 3) return `hsl(${parts[0]}, ${parts[1]}, ${parts[2]})`;
+        return `hsl(${raw})`;
+      };
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: (() => {
-          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-          if (!raw) return "#1a1a2e";
-          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
-        })(),
+        backgroundColor: getBackgroundColor(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
