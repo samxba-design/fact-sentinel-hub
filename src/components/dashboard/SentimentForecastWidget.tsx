@@ -188,7 +188,7 @@ export default function SentimentForecastWidget() {
           {historical.length > 0 && (
             <ReferenceLine x={historical[historical.length - 1]?.date} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" strokeOpacity={0.5} />
           )}
-          <Area type="monotone" dataKey="negative" stroke="hsl(0, 84%, 60%)" fill="url(#negGrad)" strokeWidth={2} name="Negative" strokeDasharray={(d: any) => d?.predicted ? "5 5" : "0"} />
+          <Area type="monotone" dataKey="negative" stroke="hsl(0, 84%, 60%)" fill="url(#negGrad)" strokeWidth={2} name="Negative" />
           <Area type="monotone" dataKey="positive" stroke="hsl(142, 71%, 45%)" fill="url(#posGrad)" strokeWidth={1.5} name="Positive" />
         </AreaChart>
       </ResponsiveContainer>
