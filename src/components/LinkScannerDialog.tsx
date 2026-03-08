@@ -134,9 +134,11 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     try {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--background").trim()
-          ? `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--background").trim()})`
-          : "#1a1a2e",
+        backgroundColor: (() => {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+          if (!raw) return "#1a1a2e";
+          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
+        })(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
