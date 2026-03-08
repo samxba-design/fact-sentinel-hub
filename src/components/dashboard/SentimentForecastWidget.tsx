@@ -126,6 +126,10 @@ export default function SentimentForecastWidget() {
 
   if (loading) return <Skeleton className="h-64 rounded-lg" />;
 
+  // Show insufficient data message when not enough history
+  const hasInsufficientData = !forecast && historical.length > 0 && historical.length < 7;
+
+
   const ForecastIcon = forecast?.direction === "up" ? TrendingUp : forecast?.direction === "down" ? TrendingDown : Minus;
   const dirColor = forecast?.direction === "up" ? "text-sentinel-red" : forecast?.direction === "down" ? "text-sentinel-emerald" : "text-muted-foreground";
 
