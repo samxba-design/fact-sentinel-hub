@@ -400,6 +400,9 @@ export default function DashboardPage() {
       {/* Sentiment Sparklines */}
       {isVisible("sparklines") && <SentimentSparklines />}
 
+      {/* Sentiment Forecast */}
+      {isVisible("forecast") && <SentimentForecastWidget />}
+
       {isVisible("risk-sentiment") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
        <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
