@@ -1067,6 +1067,45 @@ export default function MentionsPage() {
               </Button>
             )}
           </div>
+        ) : clusterView && clusters.length > 0 ? (
+          <>
+            {/* Clustered mentions */}
+            {clusters.map(cluster => {
+              const isExpanded = expandedClusters.has(cluster.id);
+              const clusterMentions = filtered.filter(m => cluster.mentionIds.includes(m.id));
+              const rep = clusterMentions[0];
+              return (
+                <div key={cluster.id} className="space-y-1">
+                  <button
+                    onClick={() => toggleCluster(cluster.id)}
+                    className="flex items-center gap-2 w-full text-left p-3 rounded-lg bg-muted/30 border border-border hover:border-primary/30 transition-colors"
+                  >
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    <Layers className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-sm text-card-foreground truncate flex-1">{cleanPreview(cluster.representativeContent).slice(0, 100)}</span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{cluster.count} similar</Badge>
+                    <div className="flex gap-1 shrink-0">
+                      {cluster.sources.slice(0, 3).map(s => (
+                        <SourceBadge key={s} source={s} className="text-[8px] py-0 px-1.5" />
+                      ))}
+                      {cluster.sources.length > 3 && <span className="text-[10px] text-muted-foreground">+{cluster.sources.length - 3}</span>}
+                    </div>
+                  </button>
+                  {isExpanded && clusterMentions.map(renderMention)}
+                </div>
+              );
+            })}
+            {/* Unclustered */}
+            {clusterUngrouped.size > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2">
+                  <span className="text-sm font-medium text-muted-foreground">Unique Mentions</span>
+                  <Badge variant="secondary" className="text-[10px]">{clusterUngrouped.size}</Badge>
+                </div>
+                {filtered.filter(m => clusterUngrouped.has(m.id)).map(renderMention)}
+              </div>
+            )}
+          </>
         ) : groupByNarrative && narrativeGroups ? (
           <>
             {/* Grouped by narrative */}
