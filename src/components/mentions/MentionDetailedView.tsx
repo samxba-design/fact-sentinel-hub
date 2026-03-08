@@ -233,7 +233,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
                     {kw.surfaces_article ? (
                       <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald shrink-0" />
                     ) : kw.surfaces_domain ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-amber shrink-0" />
                     ) : (
                       <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
