@@ -45,6 +45,7 @@ const FeaturesPage = React.lazy(() => import("@/pages/FeaturesPage"));
 const AlertsPage = React.lazy(() => import("@/pages/AlertsPage"));
 const SharedViewPage = React.lazy(() => import("@/pages/SharedViewPage"));
 const PrivacyPolicyPage = React.lazy(() => import("@/pages/PrivacyPolicyPage"));
+const WarRoomPage = React.lazy(() => import("@/pages/WarRoomPage"));
 
 const queryClient = new QueryClient();
 
