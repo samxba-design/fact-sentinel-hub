@@ -162,13 +162,15 @@ export default function MentionDetailPage() {
     if (!flags.coordinated && !flags.misinformation && !flags.bot_likely) return;
 
     setSimilarLoading(true);
-    const searchSnippet = content.slice(0, 60);
+    // Use full-text search instead of slow ilike for better performance
+    const searchWords = content.split(/\s+/).filter(w => w.length > 3).slice(0, 6).join(" & ");
+    if (!searchWords) { setSimilarLoading(false); return; }
     supabase
       .from("mentions")
       .select("id, source, content, url, posted_at, sentiment_label, severity, author_name, flags, created_at, author_handle, author_verified, author_follower_count, sentiment_score, sentiment_confidence, language, metrics, scan_run_id, status")
       .eq("org_id", currentOrg.id)
       .neq("id", mention.id)
-      .ilike("content", `%${searchSnippet}%`)
+      .textSearch("content", searchWords, { type: "plain" })
       .limit(20)
       .then(({ data }) => {
         setSimilarMentions((data as MentionDetail[]) || []);
@@ -596,7 +598,7 @@ export default function MentionDetailPage() {
                 {mention.sentiment_label || "neutral"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${Math.round(Number(mention.sentiment_confidence) <= 1 ? Number(mention.sentiment_confidence) * 100 : Number(mention.sentiment_confidence))}%` : "—"}
+                Score: {mention.sentiment_score?.toFixed(2) ?? "—"} · Confidence: {mention.sentiment_confidence ? `${Math.round(Number(mention.sentiment_confidence))}%` : "—"}
                 <InfoTooltip text="How confident the AI is in this sentiment classification. Higher = more certain the sentiment label is correct." />
               </div>
             </div>

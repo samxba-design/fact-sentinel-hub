@@ -69,6 +69,7 @@ const platformIcons: Record<string, any> = {
 
 export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string>("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LinkAnalysis | null>(null);
@@ -103,12 +104,18 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     await new Promise(r => setTimeout(r, 300));
     try {
       const html2canvas = (await import("html2canvas")).default;
+      const getBackgroundColor = () => {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+        if (!raw) return "#1a1a2e";
+        if (raw.startsWith("#") || raw.startsWith("rgb")) return raw;
+        if (raw.startsWith("hsl")) return raw;
+        // Raw HSL values like "222.2 84% 4.9%" — convert to proper hsl()
+        const parts = raw.split(/\s+/);
+        if (parts.length >= 3) return `hsl(${parts[0]}, ${parts[1]}, ${parts[2]})`;
+        return `hsl(${raw})`;
+      };
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: (() => {
-          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-          if (!raw) return "#1a1a2e";
-          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
-        })(),
+        backgroundColor: getBackgroundColor(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
@@ -133,12 +140,17 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     await new Promise(r => setTimeout(r, 300));
     try {
       const html2canvas = (await import("html2canvas")).default;
+      const getBackgroundColor2 = () => {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+        if (!raw) return "#1a1a2e";
+        if (raw.startsWith("#") || raw.startsWith("rgb")) return raw;
+        if (raw.startsWith("hsl")) return raw;
+        const parts = raw.split(/\s+/);
+        if (parts.length >= 3) return `hsl(${parts[0]}, ${parts[1]}, ${parts[2]})`;
+        return `hsl(${raw})`;
+      };
       const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: (() => {
-          const raw = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-          if (!raw) return "#1a1a2e";
-          return raw.startsWith("hsl") ? raw : `hsl(${raw})`;
-        })(),
+        backgroundColor: getBackgroundColor2(),
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
@@ -173,6 +185,25 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     setLoading(true);
     setResult(null);
     setSaved(false);
+    setLoadingStep("Scraping page content...");
+    
+    // Simulate progressive steps (the edge function does all work, but we show progress)
+    const steps = [
+      { text: "Scraping page content...", delay: 2000 },
+      { text: "Checking for paywalls...", delay: 3000 },
+      { text: "Running AI analysis...", delay: 5000 },
+      { text: "Searching for social pickup...", delay: 4000 },
+      { text: "Verifying search keywords...", delay: 4000 },
+      { text: "Compiling intelligence report...", delay: 3000 },
+    ];
+    let stepIndex = 0;
+    const stepInterval = setInterval(() => {
+      stepIndex++;
+      if (stepIndex < steps.length) {
+        setLoadingStep(steps[stepIndex].text);
+      }
+    }, steps[stepIndex]?.delay || 3000);
+
     try {
       const { data, error } = await supabase.functions.invoke("analyze-link", {
         body: { url: url.trim(), org_id: currentOrg?.id },
@@ -183,6 +214,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     } catch (err: any) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
+      clearInterval(stepInterval);
+      setLoadingStep("");
       setLoading(false);
     }
   };
@@ -360,7 +393,21 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
         {loading && (
           <div className="flex flex-col items-center py-10 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Scraping, analyzing content, checking search visibility...</p>
+            <p className="text-sm text-foreground font-medium">{loadingStep || "Starting analysis..."}</p>
+            <div className="flex items-center gap-2 flex-wrap justify-center max-w-sm">
+              {["Scrape", "Paywall", "AI Analysis", "Social", "Keywords", "Report"].map((step, i) => {
+                const stepTexts = ["Scraping", "paywall", "AI analysis", "social", "keyword", "Compiling"];
+                const isActive = stepTexts[i] && loadingStep.toLowerCase().includes(stepTexts[i].toLowerCase());
+                const isPast = stepTexts.findIndex(s => loadingStep.toLowerCase().includes(s.toLowerCase())) > i;
+                return (
+                  <span key={step} className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                    isActive ? "bg-primary/10 text-primary border-primary/30 font-medium" : 
+                    isPast ? "bg-muted text-muted-foreground border-border line-through" :
+                    "bg-muted/30 text-muted-foreground/50 border-transparent"
+                  }`}>{step}</span>
+                );
+              })}
+            </div>
             <p className="text-xs text-muted-foreground/60">This usually takes 15-30 seconds</p>
           </div>
         )}
