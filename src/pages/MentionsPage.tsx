@@ -126,10 +126,8 @@ export default function MentionsPage() {
     if (status) setStatusFilter(status);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!currentOrg) return;
-    setLoading(true);
-    setHasMore(true);
+  const buildQuery = useCallback((cursor?: string) => {
+    if (!currentOrg) return null;
     let query = supabase
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
@@ -143,6 +141,15 @@ export default function MentionsPage() {
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
+    if (cursor) query = query.lt("created_at", cursor);
+    return query;
+  }, [currentOrg, scanFilter, daysParam]);
+
+  useEffect(() => {
+    const query = buildQuery();
+    if (!query) return;
+    setLoading(true);
+    setHasMore(true);
 
     query.then(({ data }) => {
       const mentionData = data || [];
@@ -162,7 +169,7 @@ export default function MentionsPage() {
           });
       }
     });
-  }, [currentOrg, scanFilter, daysParam]);
+  }, [buildQuery]);
 
   // Load ignored sources
   useEffect(() => {
@@ -415,20 +422,9 @@ export default function MentionsPage() {
   };
 
   const refetchMentions = () => {
-    if (!currentOrg) return;
+    const query = buildQuery();
+    if (!query) return;
     setLoading(true);
-    let query = supabase
-      .from("mentions")
-      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
-      .eq("org_id", currentOrg.id)
-      .order("created_at", { ascending: false })
-      .limit(PAGE_SIZE);
-    if (scanFilter) query = query.eq("scan_run_id", scanFilter);
-    if (daysParam) {
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
-      query = query.gte("posted_at", daysAgo.toISOString());
-    }
     query.then(({ data }) => {
       setMentions(data || []);
       setHasMore((data || []).length === PAGE_SIZE);
@@ -440,22 +436,10 @@ export default function MentionsPage() {
     if (!currentOrg || loadingMore || !hasMore) return;
     setLoadingMore(true);
     const lastMention = mentions[mentions.length - 1];
-    if (!lastMention) { setLoadingMore(false); return; }
+    if (!lastMention?.created_at) { setLoadingMore(false); return; }
 
-    let query = supabase
-      .from("mentions")
-      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
-      .eq("org_id", currentOrg.id)
-      .order("created_at", { ascending: false })
-      .lt("created_at", lastMention.created_at!)
-      .limit(PAGE_SIZE);
-
-    if (scanFilter) query = query.eq("scan_run_id", scanFilter);
-    if (daysParam) {
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
-      query = query.gte("posted_at", daysAgo.toISOString());
-    }
+    const query = buildQuery(lastMention.created_at);
+    if (!query) { setLoadingMore(false); return; }
 
     const { data } = await query;
     const newMentions = data || [];

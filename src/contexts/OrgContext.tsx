@@ -102,7 +102,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!currentOrg) return;
     refreshSubscription();
-    intervalRef.current = setInterval(refreshSubscription, 60_000);
+    intervalRef.current = setInterval(refreshSubscription, 300_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [currentOrg?.id, refreshSubscription]);
 
