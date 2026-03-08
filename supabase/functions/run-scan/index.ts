@@ -241,8 +241,10 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) throw new Error("Unauthorized");
 
-    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter } = await req.json();
+    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter, scan_context } = await req.json();
     // rawKeywords can be string[] (legacy) or we load structured keywords from DB
+    // scan_context: "competitor" means use rawKeywords as the brand context for AI filtering
+    const isCompetitorScan = scan_context === "competitor" || false;
     if (!org_id) throw new Error("org_id required");
 
     // Get org domain to filter out self-published content
