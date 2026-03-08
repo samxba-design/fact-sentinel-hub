@@ -89,6 +89,9 @@ function AppRoutes() {
     );
   }
 
+  // Shared view route available for authenticated users too
+  // (checked before org-gating so it's always accessible)
+
   // Super admins can bypass onboarding to access admin panel
   if (orgs.length === 0 && !isSuperAdmin) {
     return (
