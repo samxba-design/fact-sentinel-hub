@@ -165,6 +165,38 @@ function extractDate(metadata: any, url: string, content: string): { date: strin
 // Two-layer approach:
 // Layer 1: Firecrawl SEARCH for real URLs + content (the search engine)
 // Layer 2: Post-processing to clean/filter (done here + AI relevance in run-scan)
+// Fetch with retry for Firecrawl API (handles 429 rate limits)
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfter = parseInt(response.headers.get("retry-after") || "0", 10);
+      const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.log(`Firecrawl 429 rate limit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    if (response.status === 402) {
+      console.error("Firecrawl 402: insufficient credits");
+      return response;
+    }
+    return response;
+  }
+  // Should not reach here, but just in case
+  return fetch(url, options);
+}
+
+// Batch concurrency helper
+async function batchConcurrent<T>(items: T[], concurrency: number, fn: (item: T) => Promise<any>): Promise<any[]> {
+  const results: any[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.allSettled(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -229,7 +261,7 @@ Deno.serve(async (req) => {
     const searchPromises = searchQueries.map(async (query) => {
       const fullQuery = `${query}${siteFilter}`;
       try {
-        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+        const response = await fetchWithRetry("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${firecrawlKey}`,
@@ -267,37 +299,43 @@ Deno.serve(async (req) => {
       allResults.push(...batch);
     }
 
-    // Process and filter results
+    // Process and filter results - first pass: dedup and identify blocked content
     const seenUrls = new Set<string>();
-    const results: any[] = [];
+    const candidates: { item: any; url: string; rawContent: string; cleaned: string; needsArchive: boolean }[] = [];
 
     for (const item of allResults) {
       const url = item.url || "";
       const rawContent = item.markdown || item.description || "";
 
-      // Skip blocked domains
       if (isBlockedDomain(url)) {
         console.log("Blocked domain:", url);
         continue;
       }
 
-      // Deduplicate
       const normalizedUrl = url.toLowerCase().replace(/\/$/, "");
       if (seenUrls.has(normalizedUrl)) continue;
       seenUrls.add(normalizedUrl);
 
-      // Clean content
-      let cleaned = cleanContent(rawContent);
-      
-      // Check for JS-blocked/paywalled content and try archive fallback
-      if ((cleaned.length < 200 || isContentBlocked(rawContent)) && url) {
-        console.log("Blocked/thin content, trying archive fallback:", url);
-        const archiveContent = await fetchArchiveContent(url);
+      const cleaned = cleanContent(rawContent);
+      const needsArchive = (cleaned.length < 200 || isContentBlocked(rawContent)) && !!url;
+      candidates.push({ item, url, rawContent, cleaned, needsArchive });
+    }
+
+    // Batch archive fallbacks with concurrency limit of 3
+    const needArchive = candidates.filter(c => c.needsArchive);
+    if (needArchive.length > 0) {
+      console.log(`Attempting archive fallback for ${needArchive.length} blocked/thin results (batched, concurrency=3)`);
+      await batchConcurrent(needArchive, 3, async (candidate) => {
+        const archiveContent = await fetchArchiveContent(candidate.url);
         if (archiveContent) {
-          cleaned = cleanContent(archiveContent);
-          console.log("Archive fallback success:", url, "length:", cleaned.length);
+          candidate.cleaned = cleanContent(archiveContent);
+          console.log("Archive fallback success:", candidate.url, "length:", candidate.cleaned.length);
         }
-      }
+      });
+    }
+
+    const results: any[] = [];
+    for (const { item, url, rawContent, cleaned } of candidates) {
       
       if (cleaned.length < 50) {
         console.log("Too short:", url);

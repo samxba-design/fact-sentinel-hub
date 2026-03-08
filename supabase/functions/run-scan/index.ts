@@ -241,8 +241,10 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) throw new Error("Unauthorized");
 
-    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter } = await req.json();
+    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter, scan_context } = await req.json();
     // rawKeywords can be string[] (legacy) or we load structured keywords from DB
+    // scan_context: "competitor" means use rawKeywords as the brand context for AI filtering
+    const isCompetitorScan = scan_context === "competitor" || false;
     if (!org_id) throw new Error("org_id required");
 
     // Get org domain to filter out self-published content
@@ -279,8 +281,20 @@ Deno.serve(async (req) => {
       .eq("status", "active");
     
     const structuredKws = keywordRows || [];
-    const keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
-    const kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
+    
+    // For competitor scans: use the passed keywords directly as brand context
+    // For normal scans: use structured DB keywords or fall back to passed keywords
+    let keywords: string[];
+    let kwGroups: { brand: string[]; risk: string[]; product: string[] };
+    
+    if (isCompetitorScan && rawKeywords?.length > 0) {
+      // Competitor scan: treat passed keywords AS the brand for search + AI filtering
+      keywords = rawKeywords;
+      kwGroups = { brand: rawKeywords, risk: [], product: [] };
+    } else {
+      keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
+      kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
+    }
     
     // Create scan_run with keyword groups for transparency
     const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter, keyword_groups: kwGroups };
@@ -716,7 +730,8 @@ Deno.serve(async (req) => {
 
     // === TWO-PASS AI ANALYSIS ===
     // Pass 1: Relevance + Sentiment (combined for efficiency)
-    const brandContext = orgData?.name || brandKws[0] || "the brand";
+    // For competitor scans, use the competitor name as brand context (not the org name)
+    const brandContext = isCompetitorScan ? (rawKeywords?.[0] || brandKws[0] || "the brand") : (orgData?.name || brandKws[0] || "the brand");
     const brandAliases = kwGroups.brand.join(", ");
     
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -874,11 +889,7 @@ Return ONLY valid JSON, no markdown.`,
         author_follower_count: r.author_follower_count || 0,
         sentiment_label: analysis.sentiment_label || "neutral",
         sentiment_score: analysis.sentiment_score || 0,
-        sentiment_confidence: Math.min(100, Math.max(0, Math.round(
-          (analysis.sentiment_confidence || 0.5) <= 1 
-            ? (analysis.sentiment_confidence || 0.5) * 100 
-            : (analysis.sentiment_confidence || 50)
-        ))),
+        sentiment_confidence: Math.min(100, Math.max(0, Math.round((analysis.sentiment_confidence || 0.5) * 100))),
         severity: analysis.severity || "low",
         language: "en",
         posted_at: r.posted_at || null,

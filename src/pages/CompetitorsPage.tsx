@@ -84,10 +84,9 @@ export default function CompetitorsPage() {
 
     const comps: Competitor[] = await Promise.all(
       keywords.map(async (kw) => {
-        const term = `%${kw.value}%`;
         const [mentionRes, narrativeRes] = await Promise.all([
-          supabase.from("mentions").select("id, sentiment_label", { count: "exact" }).eq("org_id", currentOrg.id).ilike("content", term),
-          supabase.from("narratives").select("id", { count: "exact" }).eq("org_id", currentOrg.id).ilike("name", term),
+          supabase.from("mentions").select("id, sentiment_label", { count: "exact" }).eq("org_id", currentOrg.id).textSearch("content", kw.value, { type: "plain" }),
+          supabase.from("narratives").select("id", { count: "exact" }).eq("org_id", currentOrg.id).or(`name.ilike.%${kw.value}%,description.ilike.%${kw.value}%`),
         ]);
 
         const mentions = mentionRes.data || [];
@@ -186,6 +185,7 @@ export default function CompetitorsPage() {
           org_id: currentOrg.id,
           keywords: [comp.name],
           sources: ["news", "google-news", "reddit", "social"],
+          scan_context: "competitor",
         },
       });
       if (error) throw error;
