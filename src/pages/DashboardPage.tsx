@@ -257,28 +257,12 @@ export default function DashboardPage() {
         setTotalMentions(total.count ?? 0);
         setNegativeMentions(neg.count ?? 0);
         setEmergencies(emg.count ?? 0);
-        // Rebuild chart data
-        const mentions = mentionsRaw.data || [];
-        const dayMap: Record<string, number> = {};
-        const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
-        const srcMap: Record<string, number> = {};
-        for (let i = rangeDays - 1; i >= 0; i--) {
-          const d = format(subDays(now, i), "MMM dd");
-          dayMap[d] = 0;
-        }
-        mentions.forEach((m: any) => {
-          const dateStr = m.posted_at || m.created_at;
-          if (dateStr) { const d = format(new Date(dateStr), "MMM dd"); if (d in dayMap) dayMap[d]++; }
-          const label = m.sentiment_label || "neutral";
-          if (label in sentMap) sentMap[label]++;
-          const src = m.source || "unknown";
-          srcMap[src] = (srcMap[src] || 0) + 1;
-        });
-        setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
-        setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
-        setSourceData(Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })));
+        const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
+        setVolumeData(vd);
+        setSentimentData(sd);
+        setSourceData(srd);
       });
-    }, 2000); // Debounce 2s to batch rapid inserts
+    }, 2000);
   }, [currentOrg, rangeDays]);
 
   // Realtime subscription for live dashboard updates
