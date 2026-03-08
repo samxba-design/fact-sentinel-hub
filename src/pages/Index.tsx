@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Shield, BarChart3, AlertTriangle, Zap, Users, FileText } from "lucide-react";
+import { Shield, BarChart3, AlertTriangle, Zap, Users, FileText, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
@@ -37,6 +38,8 @@ const features = [
 ];
 
 export default function Index() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -48,7 +51,8 @@ export default function Index() {
             </div>
             <span className="text-lg font-bold tracking-tight">SentiWatch</span>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-3">
             <ThemeSwitcher />
             <Link to="/features">
               <Button variant="ghost" size="sm">Features</Button>
@@ -63,7 +67,31 @@ export default function Index() {
               <Button size="sm">Request demo</Button>
             </Link>
           </div>
+          {/* Mobile hamburger */}
+          <div className="flex md:hidden items-center gap-2">
+            <ThemeSwitcher />
+            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-card px-6 py-4 space-y-2 animate-fade-up">
+            <Link to="/features" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" size="sm" className="w-full justify-start">Features</Button>
+            </Link>
+            <Link to="/pricing" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" size="sm" className="w-full justify-start">Pricing</Button>
+            </Link>
+            <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" size="sm" className="w-full justify-start">Sign in</Button>
+            </Link>
+            <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>
+              <Button size="sm" className="w-full">Request demo</Button>
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* Hero */}
@@ -84,14 +112,14 @@ export default function Index() {
               SentiWatch combines AI-powered sentiment analysis with crisis management tools
               to protect your organization's reputation across every channel.
             </p>
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <Link to="/contact">
-                <Button size="lg" className="text-base px-8">
+                <Button size="lg" className="text-base px-8 w-full sm:w-auto">
                   Request a demo
                 </Button>
               </Link>
               <Link to="/features">
-                <Button variant="outline" size="lg" className="text-base px-8">
+                <Button variant="outline" size="lg" className="text-base px-8 w-full sm:w-auto">
                   Explore features
                 </Button>
               </Link>
