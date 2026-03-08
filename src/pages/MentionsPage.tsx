@@ -95,6 +95,7 @@ export default function MentionsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
