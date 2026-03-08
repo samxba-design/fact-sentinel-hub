@@ -328,7 +328,18 @@ export default function MentionsPage() {
     return bDate - aDate;
   });
 
-  // Source breakdown stats (from unfiltered, non-ignored mentions)
+  // Mention clustering
+  const { clusters, ungroupedIds: clusterUngrouped } = useMentionClusters(filtered, clusterView);
+
+  const toggleCluster = (id: string) => {
+    setExpandedClusters(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+
   const sourceBreakdown = useMemo(() => {
     const domainMap = new Map<string, { count: number; negCount: number; source: string; latestUrl: string | null }>();
     for (const m of mentions) {
