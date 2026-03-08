@@ -133,6 +133,7 @@ export default function MentionsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const buildQuery = useCallback((cursor?: string) => {
     if (!currentOrg) return null;
     let query = supabase
       .from("mentions")
