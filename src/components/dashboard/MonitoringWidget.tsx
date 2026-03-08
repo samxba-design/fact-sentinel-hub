@@ -116,7 +116,8 @@ export default function MonitoringWidget() {
   const togglePause = async () => {
     if (!currentOrg) return;
     setToggling(true);
-    const newSchedule = isPaused ? "daily" : "paused";
+    // When resuming from paused, go to manual (not daily) — user must explicitly enable auto-scan
+    const newSchedule = isPaused ? "manual" : "paused";
     const { data: existing } = await supabase.from("tracking_profiles").select("id").eq("org_id", currentOrg.id).maybeSingle();
     const payload = { scan_schedule: newSchedule, updated_at: new Date().toISOString() };
     if (existing) {
@@ -125,7 +126,7 @@ export default function MonitoringWidget() {
       await supabase.from("tracking_profiles").insert({ ...payload, org_id: currentOrg.id });
     }
     setSchedule(prev => prev ? { ...prev, scan_schedule: newSchedule } : { scan_schedule: newSchedule, quiet_hours_start: null, quiet_hours_end: null });
-    toast({ title: newSchedule === "paused" ? "All monitoring paused" : "Monitoring resumed" });
+    toast({ title: newSchedule === "paused" ? "All monitoring paused" : "Monitoring set to manual" });
     setToggling(false);
   };
 
