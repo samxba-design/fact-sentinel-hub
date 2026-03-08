@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { buildDigestEmail } = await import("../send-email/index.ts");
+
     let totalSent = 0;
 
     for (const org of orgs) {
@@ -93,7 +95,6 @@ Deno.serve(async (req) => {
       const prefsMap = new Map((prefs || []).map((p: any) => [p.user_id, p]));
       const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-      const { buildDigestEmail } = await import("../send-email/index.ts");
       const preferencesUrl = `${APP_URL}/settings?tab=notifications`;
       const dashboardUrl = `${APP_URL}/`;
 
@@ -107,7 +108,8 @@ Deno.serve(async (req) => {
 
         if (!emailEnabled || !digestEnabled) continue;
 
-        const { subject, html } = buildDigestEmail(org.name, stats, dashboardUrl, preferencesUrl);
+        // Send both dark and light? No — default to dark, users can change via future preference
+        const { subject, html } = buildDigestEmail(org.name, stats, dashboardUrl, preferencesUrl, "dark");
 
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -132,7 +134,7 @@ Deno.serve(async (req) => {
           subject,
           resend_id: result.id || null,
           status: res.ok ? "sent" : "failed",
-          metadata: { stats },
+          metadata: { stats, theme: "dark" },
         });
 
         if (res.ok) totalSent++;
