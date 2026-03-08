@@ -431,7 +431,7 @@ export default function MentionDetailPage() {
         ) : (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertCircle className="h-4 w-4" /> Could not generate summary.
-            <Button size="sm" variant="ghost" onClick={generateSummary} disabled={summaryLoading} className="h-6 text-[10px]">Try again</Button>
+            <Button size="sm" variant="ghost" onClick={() => generateSummary()} disabled={summaryLoading} className="h-6 text-[10px]">Try again</Button>
           </div>
         )}
       </Card>
