@@ -299,37 +299,43 @@ Deno.serve(async (req) => {
       allResults.push(...batch);
     }
 
-    // Process and filter results
+    // Process and filter results - first pass: dedup and identify blocked content
     const seenUrls = new Set<string>();
-    const results: any[] = [];
+    const candidates: { item: any; url: string; rawContent: string; cleaned: string; needsArchive: boolean }[] = [];
 
     for (const item of allResults) {
       const url = item.url || "";
       const rawContent = item.markdown || item.description || "";
 
-      // Skip blocked domains
       if (isBlockedDomain(url)) {
         console.log("Blocked domain:", url);
         continue;
       }
 
-      // Deduplicate
       const normalizedUrl = url.toLowerCase().replace(/\/$/, "");
       if (seenUrls.has(normalizedUrl)) continue;
       seenUrls.add(normalizedUrl);
 
-      // Clean content
-      let cleaned = cleanContent(rawContent);
-      
-      // Check for JS-blocked/paywalled content and try archive fallback
-      if ((cleaned.length < 200 || isContentBlocked(rawContent)) && url) {
-        console.log("Blocked/thin content, trying archive fallback:", url);
-        const archiveContent = await fetchArchiveContent(url);
+      const cleaned = cleanContent(rawContent);
+      const needsArchive = (cleaned.length < 200 || isContentBlocked(rawContent)) && !!url;
+      candidates.push({ item, url, rawContent, cleaned, needsArchive });
+    }
+
+    // Batch archive fallbacks with concurrency limit of 3
+    const needArchive = candidates.filter(c => c.needsArchive);
+    if (needArchive.length > 0) {
+      console.log(`Attempting archive fallback for ${needArchive.length} blocked/thin results (batched, concurrency=3)`);
+      await batchConcurrent(needArchive, 3, async (candidate) => {
+        const archiveContent = await fetchArchiveContent(candidate.url);
         if (archiveContent) {
-          cleaned = cleanContent(archiveContent);
-          console.log("Archive fallback success:", url, "length:", cleaned.length);
+          candidate.cleaned = cleanContent(archiveContent);
+          console.log("Archive fallback success:", candidate.url, "length:", candidate.cleaned.length);
         }
-      }
+      });
+    }
+
+    const results: any[] = [];
+    for (const { item, url, rawContent, cleaned } of candidates) {
       
       if (cleaned.length < 50) {
         console.log("Too short:", url);
