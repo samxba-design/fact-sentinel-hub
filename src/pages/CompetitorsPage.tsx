@@ -82,38 +82,45 @@ export default function CompetitorsPage() {
       return;
     }
 
-    const comps: Competitor[] = await Promise.all(
-      keywords.map(async (kw) => {
-        const [mentionRes, narrativeRes] = await Promise.all([
-          supabase.from("mentions").select("id, sentiment_label", { count: "exact" }).eq("org_id", currentOrg.id).textSearch("content", kw.value, { type: "plain" }),
-          supabase.from("narratives").select("id", { count: "exact" }).eq("org_id", currentOrg.id).or(`name.ilike.%${kw.value}%,description.ilike.%${kw.value}%`),
-        ]);
+    // Batch load all mentions and narratives for this org once
+    const [mentionRes, narrativeRes] = await Promise.all([
+      supabase.from("mentions").select("id, content, sentiment_label").eq("org_id", currentOrg.id).limit(1000),
+      supabase.from("narratives").select("id, name, description").eq("org_id", currentOrg.id).limit(500),
+    ]);
 
-        const mentions = mentionRes.data || [];
-        const total = mentions.length || 1;
-        const sentiments = mentions.map(m => m.sentiment_label).filter(Boolean);
-        const negCount = sentiments.filter(s => s === "negative").length;
-        const posCount = sentiments.filter(s => s === "positive").length;
-        const neuCount = total - negCount - posCount;
-        let sentiment: Competitor["sentiment"] = "neutral";
-        if (negCount > posCount) sentiment = "negative";
-        else if (posCount > negCount) sentiment = "positive";
-        else if (negCount > 0 && posCount > 0) sentiment = "mixed";
+    const allMentions = mentionRes.data || [];
+    const allNarratives = narrativeRes.data || [];
 
-        return {
-          id: kw.id,
-          name: kw.value,
-          domain: null,
-          notes: null,
-          mentionCount: mentionRes.count || 0,
-          narrativeCount: narrativeRes.count || 0,
-          sentiment,
-          negPct: Math.round((negCount / total) * 100),
-          posPct: Math.round((posCount / total) * 100),
-          neuPct: Math.round((neuCount / total) * 100),
-        };
-      })
-    );
+    const comps: Competitor[] = keywords.map((kw) => {
+      const kwLower = kw.value.toLowerCase();
+      const matched = allMentions.filter(m => m.content?.toLowerCase().includes(kwLower));
+      const total = matched.length || 1;
+      const negCount = matched.filter(m => m.sentiment_label === "negative").length;
+      const posCount = matched.filter(m => m.sentiment_label === "positive").length;
+      const neuCount = total - negCount - posCount;
+
+      let sentiment: Competitor["sentiment"] = "neutral";
+      if (negCount > posCount) sentiment = "negative";
+      else if (posCount > negCount) sentiment = "positive";
+      else if (negCount > 0 && posCount > 0) sentiment = "mixed";
+
+      const narrativeCount = allNarratives.filter(n =>
+        n.name?.toLowerCase().includes(kwLower) || n.description?.toLowerCase().includes(kwLower)
+      ).length;
+
+      return {
+        id: kw.id,
+        name: kw.value,
+        domain: null,
+        notes: null,
+        mentionCount: matched.length,
+        narrativeCount,
+        sentiment,
+        negPct: Math.round((negCount / total) * 100),
+        posPct: Math.round((posCount / total) * 100),
+        neuPct: Math.round((neuCount / total) * 100),
+      };
+    });
 
     setCompetitors(comps);
     setLoading(false);
