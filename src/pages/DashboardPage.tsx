@@ -483,7 +483,6 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
-      </div>
       )}
 
       {isVisible("narrative-monitoring-feed") && (
@@ -491,7 +490,6 @@ export default function DashboardPage() {
         <NarrativeHealthWidget />
         <MonitoringWidget />
         <LiveThreatFeed />
-      </div>
       </div>
       )}
 
@@ -517,6 +515,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         )}
       </Card>
+      )}
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>
   );
