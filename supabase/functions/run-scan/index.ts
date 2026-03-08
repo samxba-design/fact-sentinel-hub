@@ -512,7 +512,7 @@ Deno.serve(async (req) => {
       })());
     }
 
-    // YouTube
+    // YouTube — try API first, fall back to Firecrawl web search for YouTube content
     if (selectedSources.includes("youtube")) {
       scanPromises.push((async () => {
         try {
@@ -524,13 +524,51 @@ Deno.serve(async (req) => {
             date_from,
             date_to,
           });
-          if (ytResult.success && ytResult.results) {
+          if (ytResult.success && ytResult.results?.length > 0) {
             allResults.push(...ytResult.results);
-            scanLog.push({ source: "youtube", query: "", found: ytResult.results.length });
-          } else if (ytResult.error) {
-            errors.push(`YouTube: ${ytResult.error}`);
+            scanLog.push({ source: "youtube-api", query: brandKws.join(" OR "), found: ytResult.results.length });
+          } else {
+            // Fallback: search YouTube via Firecrawl web search
+            console.log("YouTube API unavailable or no results, falling back to web search");
+            const ytWebQueries = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
+            const ytWebResult = await callFunction("scan-web", {
+              keywords: ytWebQueries,
+              limit: 15,
+              date_from,
+              date_to,
+              search_type: "social",
+            });
+            if (ytWebResult.success && ytWebResult.results?.length > 0) {
+              // Tag results as youtube source
+              const ytResults = ytWebResult.results.map((r: any) => ({
+                ...r,
+                source: "youtube",
+              }));
+              allResults.push(...ytResults);
+              scanLog.push({ source: "youtube-web", query: ytWebQueries.join(" | "), found: ytResults.length });
+            } else {
+              scanLog.push({ source: "youtube", query: brandKws.join(" OR "), found: 0 });
+              if (ytResult.error && !ytResult.error.includes("API key")) {
+                errors.push(`YouTube: ${ytResult.error}`);
+              }
+            }
           }
         } catch (e: any) {
+          // Final fallback on error
+          try {
+            const ytWebQueries2 = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
+            const ytWebResult = await callFunction("scan-web", {
+              keywords: ytWebQueries2,
+              limit: 15,
+              date_from,
+              search_type: "social",
+            });
+            if (ytWebResult.success && ytWebResult.results?.length > 0) {
+              const ytResults = ytWebResult.results.map((r: any) => ({ ...r, source: "youtube" }));
+              allResults.push(...ytResults);
+              scanLog.push({ source: "youtube-web", query: ytWebQueries2.join(" | "), found: ytResults.length });
+            }
+          } catch { /* skip */ }
           errors.push(`YouTube: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
       })());
