@@ -7,10 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
-  MessageCircleReply, AlertTriangle, CheckCircle2, Ban, Loader2,
+  ArrowLeft, MessageCircleReply, AlertTriangle, CheckCircle2, Ban, Loader2,
   ExternalLink, BookCheck, FileText, Copy, Link2, Search, X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
