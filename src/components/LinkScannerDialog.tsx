@@ -69,6 +69,7 @@ const platformIcons: Record<string, any> = {
 
 export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string>("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LinkAnalysis | null>(null);
