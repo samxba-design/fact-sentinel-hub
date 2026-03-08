@@ -454,6 +454,14 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
+      {/* AI Crisis Playbook */}
+      <CrisisPlaybook
+        incidentName={incident.name}
+        incidentDescription={incident.description}
+        mentionCount={mentions.length}
+        narrativeCount={narratives.length}
+      />
+
       <IncidentFormDialog
         open={editOpen}
         onOpenChange={setEditOpen}
