@@ -140,6 +140,7 @@ function AppRoutes() {
           <Route path="/alerts" element={<ErrorBoundary><AlertsPage /></ErrorBoundary>} />
           <Route path="/incidents" element={<ErrorBoundary><IncidentsPage /></ErrorBoundary>} />
           <Route path="/incidents/:id" element={<ErrorBoundary><IncidentDetailPage /></ErrorBoundary>} />
+          <Route path="/war-room" element={<ErrorBoundary><WarRoomPage /></ErrorBoundary>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
           <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
