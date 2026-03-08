@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
     // Optionally fetch top comments
     if (include_comments !== false && videoIds.length > 0) {
       const commentVideoIds = videoIds.slice(0, 5);
-      for (const videoId of commentVideoIds) {
+      const commentPromises = commentVideoIds.map(async (videoId: string) => {
         try {
           const commentsUrl = new URL("https://www.googleapis.com/youtube/v3/commentThreads");
           commentsUrl.searchParams.set("part", "snippet");
@@ -160,19 +160,18 @@ Deno.serve(async (req) => {
           const commRes = await fetch(commentsUrl.toString());
           if (commRes.ok) {
             const commData = await commRes.json();
+            const commentResults: any[] = [];
             for (const thread of (commData.items || [])) {
               const comment = thread.snippet?.topLevelComment?.snippet;
               if (!comment) continue;
 
               const commentDate = comment.publishedAt || new Date().toISOString();
-              // Skip comments outside date range
               if (dateFromMs > 0 && new Date(commentDate).getTime() < dateFromMs) continue;
 
-              // Strip HTML from comment text
               const commentText = (comment.textDisplay || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
               if (commentText.length < 10) continue;
 
-              results.push({
+              commentResults.push({
                 source: "youtube_comment",
                 content: commentText,
                 url: `https://www.youtube.com/watch?v=${videoId}&lc=${thread.id}`,
@@ -186,9 +185,18 @@ Deno.serve(async (req) => {
                 },
               });
             }
+            return commentResults;
           }
         } catch (e) {
           console.error(`Comment fetch failed for ${videoId}:`, e);
+        }
+        return [];
+      });
+
+      const commentBatches = await Promise.allSettled(commentPromises);
+      for (const batch of commentBatches) {
+        if (batch.status === "fulfilled" && batch.value) {
+          results.push(...batch.value);
         }
       }
     }

@@ -123,10 +123,9 @@ export default function ScansPage() {
       const connectedProviders = [...new Set((provRes.data || []).map(k => k.provider))];
       const customTypes = (customSourcesRes.data || []).map(s => s.type);
 
-      const autoSources = ["news", "blogs", "forums", "reviews", "google-news"];
+      const autoSources = ["news", "blogs", "forums", "reviews", "google-news", "youtube"];
       if (connectedProviders.includes("twitter")) autoSources.push("twitter");
       if (connectedProviders.includes("reddit")) autoSources.push("reddit");
-      if (connectedProviders.includes("youtube")) autoSources.push("youtube");
       customTypes.forEach(t => { if (!autoSources.includes(t)) autoSources.push(t); });
 
       const now = new Date();
