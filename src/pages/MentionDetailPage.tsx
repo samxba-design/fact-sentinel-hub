@@ -253,8 +253,16 @@ export default function MentionDetailPage() {
   };
 
   // Generate AI summary
-  const generateSummary = async () => {
+  const generateSummary = async (forceRegenerate = false) => {
     if (!mention?.content || summaryLoading) return;
+    
+    // Check if we already have a cached summary in flags
+    const cachedSummary = mention.flags?.ai_summary;
+    if (cachedSummary && !forceRegenerate) {
+      setAiSummary(cachedSummary);
+      return;
+    }
+    
     setSummaryLoading(true);
     try {
       const cleanContent = cleanContentText(mention.content);
@@ -269,6 +277,12 @@ export default function MentionDetailPage() {
       });
       if (res.error) throw new Error(res.error.message);
       setAiSummary(res.data);
+      
+      // Cache the summary in the mention's flags
+      if (res.data && mention.id) {
+        const updatedFlags = { ...(mention.flags || {}), ai_summary: res.data };
+        await supabase.from("mentions").update({ flags: updatedFlags }).eq("id", mention.id);
+      }
     } catch (err: any) {
       toast({ title: "Summary failed", description: err.message, variant: "destructive" });
     } finally {
@@ -276,7 +290,7 @@ export default function MentionDetailPage() {
     }
   };
 
-  // Auto-generate summary when mention loads
+  // Auto-generate summary when mention loads (uses cache if available)
   useEffect(() => {
     if (mention?.content && !aiSummary && !summaryLoading) {
       generateSummary();
