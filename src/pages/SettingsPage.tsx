@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Key, Layers, Globe, Bell, Link2, Plus, Database, Loader2, X, Trash2, Save,
   CreditCard, Plug, Users, Settings2, Shield, Mail, Info, HelpCircle, Send,
-  CheckCircle2, MessageSquare, Building2, Zap, Upload, ExternalLink, ChevronDown, ChevronUp
+  CheckCircle2, MessageSquare, Building2, Zap, Upload, ExternalLink, ChevronDown, ChevronUp, Clock
 } from "lucide-react";
 import NotificationPreferencesTab from "@/components/settings/NotificationPreferencesTab";
 import { supabase } from "@/integrations/supabase/client";
