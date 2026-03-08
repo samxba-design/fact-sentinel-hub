@@ -341,6 +341,7 @@ export default function SettingsPage() {
             <TabsTrigger value="keywords"><Key className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Keywords</span></TabsTrigger>
             <TabsTrigger value="topics"><Layers className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Topics</span></TabsTrigger>
             <TabsTrigger value="sources"><Globe className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Sources</span></TabsTrigger>
+            <TabsTrigger value="scan-scheduling"><Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Scan Scheduling</span></TabsTrigger>
             <TabsTrigger value="custom-sources"><Settings2 className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Custom Sources</span></TabsTrigger>
             <TabsTrigger value="alerts"><Bell className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Alerts</span></TabsTrigger>
             <TabsTrigger value="notifications"><Mail className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="whitespace-nowrap">Notifications</span></TabsTrigger>
