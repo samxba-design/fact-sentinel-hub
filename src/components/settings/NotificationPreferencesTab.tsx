@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2 } from "lucide-react";
+import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2, Sun, Moon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,6 +73,7 @@ export default function NotificationPreferencesTab() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [prefs, setPrefs] = useState<Preferences>(defaultPrefs);
+  const [emailTheme, setEmailTheme] = useState<"dark" | "light">("dark");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
@@ -153,6 +155,32 @@ export default function NotificationPreferencesTab() {
           </div>
           <Switch checked={prefs.email_enabled} onCheckedChange={() => toggle("email_enabled")} />
         </div>
+        {prefs.email_enabled && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+            <div>
+              <Label className="text-sm text-card-foreground">Email Theme</Label>
+              <p className="text-xs text-muted-foreground">Choose how your email notifications look</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setEmailTheme("dark")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  emailTheme === "dark" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Moon className="h-3 w-3" /> Dark
+              </button>
+              <button
+                onClick={() => setEmailTheme("light")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  emailTheme === "light" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Sun className="h-3 w-3" /> Light
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Notification groups */}

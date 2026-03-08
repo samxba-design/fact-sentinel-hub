@@ -8,86 +8,6 @@ const corsHeaders = {
 };
 
 const APP_URL = "https://senti.watch";
-const BRAND = {
-  name: "SentiWatch",
-  domain: "senti.watch",
-  fromEmail: "alerts@senti.watch",
-  primaryColor: "#6366f1",
-  bgColor: "#0f0d1a",
-  cardBg: "#1a1730",
-  textColor: "#e2e0ea",
-  mutedColor: "#9b97b0",
-};
-
-function emailLayout(title: string, content: string, preferencesUrl: string): string {
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title></head>
-<body style="margin:0;padding:0;background:${BRAND.bgColor};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bgColor};padding:32px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-  <tr><td style="padding:24px 32px;text-align:center;">
-    <span style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px;">🛡️ ${BRAND.name}</span>
-  </td></tr>
-  <tr><td style="background:${BRAND.cardBg};border-radius:12px;padding:32px;border:1px solid rgba(255,255,255,0.06);">
-    <h1 style="margin:0 0 16px;font-size:20px;font-weight:600;color:#fff;">${title}</h1>
-    ${content}
-  </td></tr>
-  <tr><td style="padding:24px 32px;text-align:center;">
-    <p style="margin:0 0 8px;font-size:12px;color:${BRAND.mutedColor};">You're receiving this because you're a member of a SentiWatch organization.</p>
-    <a href="${preferencesUrl}" style="font-size:12px;color:${BRAND.primaryColor};text-decoration:underline;">Manage notification preferences</a>
-    <p style="margin:8px 0 0;font-size:11px;color:${BRAND.mutedColor};">${BRAND.name} · Reputation Intelligence</p>
-  </td></tr>
-</table>
-</td></tr></table>
-</body></html>`;
-}
-
-function buildAlertEmail(alertType: string, message: string, orgName: string, dashboardUrl: string, preferencesUrl: string) {
-  const typeLabels: Record<string, string> = {
-    mention_spike: "📈 Mention Spike Detected",
-    negative_spike: "⚠️ Negative Sentiment Surge",
-    critical_mention: "🚨 Critical Mention Detected",
-    viral_risk: "🔥 Viral Risk Alert",
-  };
-  const subject = `[${orgName}] ${typeLabels[alertType] || "Alert"}: ${message.slice(0, 80)}`;
-  const content = `
-    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:16px;margin-bottom:20px;">
-      <p style="margin:0;font-size:14px;color:#fca5a5;font-weight:500;">${typeLabels[alertType] || alertType}</p>
-    </div>
-    <p style="margin:0 0 16px;font-size:14px;color:${BRAND.textColor};line-height:1.6;">${message}</p>
-    <p style="margin:0 0 8px;font-size:12px;color:${BRAND.mutedColor};">Organization: <strong style="color:#fff;">${orgName}</strong></p>
-    <a href="${dashboardUrl}" style="display:inline-block;margin-top:16px;padding:10px 20px;background:${BRAND.primaryColor};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">View in Dashboard →</a>`;
-  return { subject, html: emailLayout(subject, content, preferencesUrl) };
-}
-
-function buildEscalationEmail(title: string, priority: string, assigneeName: string, orgName: string, preferencesUrl: string) {
-  const colors: Record<string, string> = { critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e" };
-  const subject = `[${orgName}] Escalation Assigned: ${title}`;
-  const content = `
-    <p style="margin:0 0 16px;font-size:14px;color:${BRAND.textColor};line-height:1.6;">You've been assigned an escalation that requires your attention.</p>
-    <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.06);">
-      <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#fff;">${title}</p>
-      <p style="margin:0;font-size:12px;color:${BRAND.mutedColor};">Priority: <span style="color:${colors[priority] || colors.medium};font-weight:600;text-transform:uppercase;">${priority}</span> · Assigned to: <strong style="color:#fff;">${assigneeName}</strong></p>
-    </div>
-    <a href="${APP_URL}/escalations" style="display:inline-block;padding:10px 20px;background:${BRAND.primaryColor};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">View Escalation →</a>`;
-  return { subject, html: emailLayout(subject, content, preferencesUrl) };
-}
-
-function buildContactNotificationEmail(name: string, email: string, company: string, message: string) {
-  const subject = `New Contact Inquiry from ${name}`;
-  const content = `
-    <p style="margin:0 0 16px;font-size:14px;color:${BRAND.textColor};line-height:1.6;">A new inquiry was submitted via the contact form.</p>
-    <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.06);">
-      <p style="margin:0 0 6px;font-size:13px;color:${BRAND.mutedColor};">Name: <strong style="color:#fff;">${name}</strong></p>
-      <p style="margin:0 0 6px;font-size:13px;color:${BRAND.mutedColor};">Email: <strong style="color:#fff;">${email}</strong></p>
-      ${company ? `<p style="margin:0 0 6px;font-size:13px;color:${BRAND.mutedColor};">Company: <strong style="color:#fff;">${company}</strong></p>` : ""}
-      <p style="margin:12px 0 0;font-size:14px;color:${BRAND.textColor};line-height:1.6;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;">${message}</p>
-    </div>
-    <a href="mailto:${email}" style="display:inline-block;padding:10px 20px;background:${BRAND.primaryColor};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:500;">Reply to ${name} →</a>`;
-  return { subject, html: emailLayout(subject, content, `${APP_URL}/settings?tab=notifications`) };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -107,9 +27,9 @@ Deno.serve(async (req) => {
     // --- Contact inquiry (no auth needed) ---
     if (type === "contact_inquiry") {
       const { name, email, company, message } = body;
-      const { subject, html } = buildContactNotificationEmail(name, email, company || "", message);
+      const { buildContactNotificationEmail } = await import("../send-email/index.ts");
+      const { subject, html } = buildContactNotificationEmail(name, email, company || "", message, "dark");
 
-      // Send to admin
       const adminEmail = Deno.env.get("ADMIN_NOTIFICATION_EMAIL") || "admin@senti.watch";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -173,6 +93,11 @@ Deno.serve(async (req) => {
     const preferencesUrl = `${APP_URL}/settings?tab=notifications`;
     const dashboardUrl = `${APP_URL}/`;
 
+    const { buildCriticalAlertEmail, buildEscalationEmail } = await import("../send-email/index.ts");
+
+    // Determine theme from payload or default to dark
+    const emailTheme = payload?.theme === "light" ? "light" : "dark";
+
     let sentCount = 0;
 
     for (const userId of userIds) {
@@ -193,17 +118,20 @@ Deno.serve(async (req) => {
           payload.priority || "medium",
           profile.full_name || profile.email,
           orgName,
-          preferencesUrl
+          `${APP_URL}/escalations`,
+          preferencesUrl,
+          emailTheme
         );
         subject = result.subject;
         html = result.html;
       } else {
-        const result = buildAlertEmail(
+        const result = buildCriticalAlertEmail(
           type,
           payload.message || `A ${type.replace(/_/g, " ")} has been detected.`,
           orgName,
           dashboardUrl,
-          preferencesUrl
+          preferencesUrl,
+          emailTheme
         );
         subject = result.subject;
         html = result.html;
@@ -230,7 +158,7 @@ Deno.serve(async (req) => {
         subject,
         resend_id: result.id || null,
         status: res.ok ? "sent" : "failed",
-        metadata: { payload, error: res.ok ? null : result },
+        metadata: { payload, theme: emailTheme, error: res.ok ? null : result },
       });
 
       if (res.ok) sentCount++;
