@@ -1027,12 +1027,12 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
           for (const cluster of narrativeClusters) {
             if (!cluster.name || !cluster.mention_indices?.length) continue;
 
-            // Check if a similar narrative already exists
+            // Check if an exact narrative already exists (avoid false matches from partial ilike)
             const { data: existing } = await supabase
               .from("narratives")
               .select("id")
               .eq("org_id", org_id)
-              .ilike("name", `%${cluster.name.slice(0, 20)}%`)
+              .eq("name", cluster.name)
               .limit(1);
 
             let narrativeId: string;
