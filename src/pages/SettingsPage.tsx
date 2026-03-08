@@ -147,7 +147,7 @@ function SourceTierBadge({ tier, label }: { tier: SourceTier; label: string }) {
 export default function SettingsPage() {
   const { currentOrg, refetchOrgs } = useOrg();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -326,10 +326,12 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-foreground">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">Tracking profile and organization settings</p>
         </div>
-        <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
-          {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-          {seeding ? "Seeding..." : "Seed Demo Data"}
-        </Button>
+        {isSuperAdmin && (
+          <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
+            {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+            {seeding ? "Seeding..." : "Seed Demo Data"}
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue={searchParams.get("tab") || "keywords"} className="space-y-4">

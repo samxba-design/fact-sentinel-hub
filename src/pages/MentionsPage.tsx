@@ -95,6 +95,7 @@ export default function MentionsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
@@ -126,6 +127,12 @@ export default function MentionsPage() {
     if (status) setStatusFilter(status);
   }, [searchParams]);
 
+  // Debounce search for server-side text search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const buildQuery = useCallback((cursor?: string) => {
     if (!currentOrg) return null;
     let query = supabase
@@ -141,9 +148,19 @@ export default function MentionsPage() {
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
+    // Server-side filters
+    if (sentimentFilter !== "all") query = query.eq("sentiment_label", sentimentFilter);
+    if (severityFilter !== "all") query = query.eq("severity", severityFilter);
+    if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
+    if (statusFilter === "active") {
+      query = query.not("status", "in", '("ignored","snoozed","resolved")');
+    } else if (statusFilter !== "all") {
+      query = query.eq("status", statusFilter);
+    }
+    if (debouncedSearch) query = query.ilike("content", `%${debouncedSearch}%`);
     if (cursor) query = query.lt("created_at", cursor);
     return query;
-  }, [currentOrg, scanFilter, daysParam]);
+  }, [currentOrg, scanFilter, daysParam, sentimentFilter, severityFilter, sourceFilter, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     const query = buildQuery();
@@ -288,33 +305,21 @@ export default function MentionsPage() {
   };
 
   const filtered = mentions.filter(m => {
-    const mStatus = m.status || "new";
-    // Filter out ignored source domains
+    // Filter out ignored source domains (client-side only)
     const domain = getDomain(m.url);
     if (ignoredDomains.has(domain)) return false;
     // Domain-level filter from source panel
     if (domainFilter && domain !== domainFilter) return false;
-    if (statusFilter === "active" && (mStatus === "ignored" || mStatus === "snoozed" || mStatus === "resolved")) return false;
-    if (statusFilter !== "active" && statusFilter !== "all" && mStatus !== statusFilter) return false;
-    if (severityFilter !== "all" && m.severity !== severityFilter) return false;
-    if (sentimentFilter !== "all" && m.sentiment_label !== sentimentFilter) return false;
-    if (sourceFilter !== "all" && m.source !== sourceFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return m.content?.toLowerCase().includes(q) || m.author_name?.toLowerCase().includes(q);
-    }
     return true;
   }).sort((a, b) => {
     if (sortBy === "published") {
       const aDate = a.posted_at ? new Date(a.posted_at).getTime() : 0;
       const bDate = b.posted_at ? new Date(b.posted_at).getTime() : 0;
-      // Mentions with no published date go to the end
       if (aDate === 0 && bDate === 0) return 0;
       if (aDate === 0) return 1;
       if (bDate === 0) return -1;
       return bDate - aDate;
     }
-    // Default: sort by detected (created_at)
     const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bDate - aDate;

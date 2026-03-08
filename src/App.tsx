@@ -89,6 +89,9 @@ function AppRoutes() {
     );
   }
 
+  // Shared view route available for authenticated users too
+  // (checked before org-gating so it's always accessible)
+
   // Super admins can bypass onboarding to access admin panel
   if (orgs.length === 0 && !isSuperAdmin) {
     return (
@@ -151,6 +154,7 @@ function AppRoutes() {
         </Route>
         {/* Allow onboarding for creating additional orgs */}
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/shared/:token/*" element={<SharedViewPage />} />
         <Route path="/auth" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
