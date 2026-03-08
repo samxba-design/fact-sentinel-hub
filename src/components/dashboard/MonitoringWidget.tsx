@@ -111,7 +111,6 @@ export default function MonitoringWidget() {
   // Default to OFF: only show as active if explicitly set to a non-manual, non-paused schedule
   const isMonitoring = schedule?.scan_schedule && schedule.scan_schedule !== "manual" && schedule.scan_schedule !== "paused";
   const scheduleLabel = isPaused ? "Paused" : (schedule?.scan_schedule && schedule.scan_schedule !== "manual" ? SCHEDULE_LABELS[schedule.scan_schedule] || schedule.scan_schedule : "Off (Manual Only)");
-  const scheduleLabel = isPaused ? "Paused" : (schedule?.scan_schedule ? SCHEDULE_LABELS[schedule.scan_schedule] || schedule.scan_schedule : "Not configured");
 
   const togglePause = async () => {
     if (!currentOrg) return;
