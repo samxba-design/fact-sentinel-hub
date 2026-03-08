@@ -71,6 +71,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const refreshSubscription = useCallback(async () => {
     const org = currentOrgRef.current;
     if (!user || !org) return;
+    // Skip subscription check for free orgs — no Stripe subscription to validate
+    if (org.subscription_status === "free") return;
     try {
       const { data, error } = await supabase.functions.invoke("check-subscription");
       if (error || data?.error) return;
@@ -81,7 +83,6 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         if (data.subscription_end) updates.subscription_expires_at = data.subscription_end;
 
         if (org.subscription_status !== newStatus) {
-          // Use service-safe approach: update via edge function if RLS blocks, else try direct
           const { error: updateError } = await supabase
             .from("organizations")
             .update(updates)

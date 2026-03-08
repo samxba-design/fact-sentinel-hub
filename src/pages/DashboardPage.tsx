@@ -68,6 +68,10 @@ const MetricCard = React.forwardRef<HTMLDivElement, {
     <Card
       className={`bg-card border-border p-5 space-y-3 transition-all duration-200 hover:shadow-md ${onClick ? "cursor-pointer hover:border-primary/30 hover:-translate-y-0.5" : ""}`}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      aria-label={onClick ? `View ${label}` : undefined}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -155,6 +159,37 @@ const DATE_RANGES = [
   { label: "30d", days: 30 },
 ];
 
+// Extract chart-building logic to avoid duplication
+function buildChartData(mentions: any[], rangeDays: number) {
+  const now = new Date();
+  const dayMap: Record<string, number> = {};
+  const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
+  const srcMap: Record<string, number> = {};
+
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const d = format(subDays(now, i), "MMM dd");
+    dayMap[d] = 0;
+  }
+
+  mentions.forEach((m: any) => {
+    const dateStr = m.posted_at || m.created_at;
+    if (dateStr) {
+      const d = format(new Date(dateStr), "MMM dd");
+      if (d in dayMap) dayMap[d]++;
+    }
+    const label = m.sentiment_label || "neutral";
+    if (label in sentMap) sentMap[label]++;
+    const src = m.source || "unknown";
+    srcMap[src] = (srcMap[src] || 0) + 1;
+  });
+
+  return {
+    volumeData: Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })),
+    sentimentData: Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })),
+    sourceData: Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })),
+  };
+}
+
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
@@ -201,31 +236,10 @@ export default function DashboardPage() {
       setPendingEscalations(escalations.count ?? 0);
       setLastScanAt(lastScan.data?.[0]?.finished_at || null);
 
-      const mentions = mentionsRaw.data || [];
-      const dayMap: Record<string, number> = {};
-      const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
-      const srcMap: Record<string, number> = {};
-
-      for (let i = rangeDays - 1; i >= 0; i--) {
-        const d = format(subDays(now, i), "MMM dd");
-        dayMap[d] = 0;
-      }
-
-      mentions.forEach((m: any) => {
-        const dateStr = m.posted_at || m.created_at;
-        if (dateStr) {
-          const d = format(new Date(dateStr), "MMM dd");
-          if (d in dayMap) dayMap[d]++;
-        }
-        const label = m.sentiment_label || "neutral";
-        if (label in sentMap) sentMap[label]++;
-        const src = m.source || "unknown";
-        srcMap[src] = (srcMap[src] || 0) + 1;
-      });
-
-      setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
-      setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
-      setSourceData(Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })));
+      const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
+      setVolumeData(vd);
+      setSentimentData(sd);
+      setSourceData(srd);
       setLoading(false);
     });
   }, [currentOrg, rangeDays]);
@@ -247,28 +261,12 @@ export default function DashboardPage() {
         setTotalMentions(total.count ?? 0);
         setNegativeMentions(neg.count ?? 0);
         setEmergencies(emg.count ?? 0);
-        // Rebuild chart data
-        const mentions = mentionsRaw.data || [];
-        const dayMap: Record<string, number> = {};
-        const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
-        const srcMap: Record<string, number> = {};
-        for (let i = rangeDays - 1; i >= 0; i--) {
-          const d = format(subDays(now, i), "MMM dd");
-          dayMap[d] = 0;
-        }
-        mentions.forEach((m: any) => {
-          const dateStr = m.posted_at || m.created_at;
-          if (dateStr) { const d = format(new Date(dateStr), "MMM dd"); if (d in dayMap) dayMap[d]++; }
-          const label = m.sentiment_label || "neutral";
-          if (label in sentMap) sentMap[label]++;
-          const src = m.source || "unknown";
-          srcMap[src] = (srcMap[src] || 0) + 1;
-        });
-        setVolumeData(Object.entries(dayMap).map(([date, mentions]) => ({ date, mentions })));
-        setSentimentData(Object.entries(sentMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })));
-        setSourceData(Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value })));
+        const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
+        setVolumeData(vd);
+        setSentimentData(sd);
+        setSourceData(srd);
       });
-    }, 2000); // Debounce 2s to batch rapid inserts
+    }, 2000);
   }, [currentOrg, rangeDays]);
 
   // Realtime subscription for live dashboard updates

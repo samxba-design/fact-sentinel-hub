@@ -171,22 +171,30 @@ export default function MentionsPage() {
     setLoading(true);
     setHasMore(true);
 
-    query.then(({ data }) => {
+    query.then(async ({ data }) => {
       const mentionData = data || [];
       setMentions(mentionData);
       setHasMore(mentionData.length === PAGE_SIZE);
       setLoading(false);
 
-      // Load narrative links for grouping
+      // Load narrative links for grouping (batch in chunks of 50 to avoid URL length limits)
       if (mentionData.length > 0) {
         const ids = mentionData.map(m => m.id);
-        supabase
-          .from("mention_narratives")
-          .select("mention_id, narrative_id, narratives(name)")
-          .in("mention_id", ids)
-          .then(({ data: links }) => {
-            setNarrativeLinks((links as any) || []);
-          });
+        const CHUNK_SIZE = 50;
+        const chunks: string[][] = [];
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+          chunks.push(ids.slice(i, i + CHUNK_SIZE));
+        }
+        const results = await Promise.all(
+          chunks.map(chunk =>
+            supabase
+              .from("mention_narratives")
+              .select("mention_id, narrative_id, narratives(name)")
+              .in("mention_id", chunk)
+          )
+        );
+        const allLinks = results.flatMap(r => (r.data as any) || []);
+        setNarrativeLinks(allLinks);
       }
     });
   }, [buildQuery]);

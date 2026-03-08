@@ -79,7 +79,8 @@ export default function SentimentForecastWidget() {
   }, [currentOrg]);
 
   const { chartData, forecast, alert } = useMemo(() => {
-    if (historical.length < 3) return { chartData: historical, forecast: null, alert: null };
+    // Need at least 7 data points for meaningful predictions
+    if (historical.length < 7) return { chartData: historical, forecast: null, alert: null };
 
     const negValues = historical.map(h => h.negative);
     const totalValues = historical.map(h => h.total);
@@ -125,6 +126,10 @@ export default function SentimentForecastWidget() {
 
   if (loading) return <Skeleton className="h-64 rounded-lg" />;
 
+  // Show insufficient data message when not enough history
+  const hasInsufficientData = !forecast && historical.length > 0 && historical.length < 7;
+
+
   const ForecastIcon = forecast?.direction === "up" ? TrendingUp : forecast?.direction === "down" ? TrendingDown : Minus;
   const dirColor = forecast?.direction === "up" ? "text-sentinel-red" : forecast?.direction === "down" ? "text-sentinel-emerald" : "text-muted-foreground";
 
@@ -146,6 +151,13 @@ export default function SentimentForecastWidget() {
           )}
         </div>
       </div>
+
+      {hasInsufficientData && (
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs bg-muted/50 text-muted-foreground border border-border">
+          <Brain className="h-3.5 w-3.5 shrink-0" />
+          Insufficient data for predictions. Need at least 7 days of mention history.
+        </div>
+      )}
 
       {alert && (
         <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${

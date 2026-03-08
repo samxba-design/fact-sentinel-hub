@@ -100,9 +100,34 @@ export default function ScansPage() {
 
   useEffect(() => { fetchRuns(); }, [fetchRuns]);
 
+  // Check scan quota before running
+  const checkQuota = async (): Promise<boolean> => {
+    if (!currentOrg) return false;
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("scan_quota")
+      .eq("id", currentOrg.id)
+      .maybeSingle();
+    const quota = (org as any)?.scan_quota ?? 100;
+    const { count } = await supabase
+      .from("scan_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", currentOrg.id);
+    if ((count ?? 0) >= quota) {
+      toast({
+        title: "Scan quota reached",
+        description: `You've used ${count} of ${quota} scans. Upgrade your plan for more.`,
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Auto scan with date range
   const runAutoScan = async (dateRange?: string) => {
     if (!currentOrg) return;
+    if (!(await checkQuota())) return;
     setAutoScanning(true);
     setScanProgress("Preparing intelligent auto-scan...");
     try {
@@ -265,6 +290,7 @@ export default function ScansPage() {
 
   const runScan = async () => {
     if (!currentOrg) return;
+    if (!(await checkQuota())) return;
     setScanning(true);
     setScanProgress("Connecting to sources...");
     setScanResult(null);

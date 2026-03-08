@@ -25,15 +25,15 @@ interface Preferences {
 }
 
 const defaultPrefs: Preferences = {
-  critical_alerts: true,
-  mention_spikes: true,
-  negative_spikes: true,
-  viral_risk: true,
-  escalation_assigned: true,
-  escalation_updated: true,
-  weekly_digest: true,
+  critical_alerts: false,
+  mention_spikes: false,
+  negative_spikes: false,
+  viral_risk: false,
+  escalation_assigned: false,
+  escalation_updated: false,
+  weekly_digest: false,
   new_scan_complete: false,
-  email_enabled: true,
+  email_enabled: false,
 };
 
 const NOTIFICATION_GROUPS = [
@@ -100,6 +100,8 @@ export default function NotificationPreferencesTab() {
           new_scan_complete: data.new_scan_complete,
           email_enabled: data.email_enabled,
         });
+        // Load persisted email theme
+        setEmailTheme((data as any).email_theme === "light" ? "light" : "dark");
         setHasExisting(true);
       }
       setLoading(false);
@@ -115,17 +117,18 @@ export default function NotificationPreferencesTab() {
     if (!currentOrg || !user) return;
     setSaving(true);
     try {
+      const payload = { ...prefs, email_theme: emailTheme };
       if (hasExisting) {
         const { error } = await supabase
           .from("notification_preferences")
-          .update(prefs)
+          .update(payload)
           .eq("org_id", currentOrg.id)
           .eq("user_id", user.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("notification_preferences")
-          .insert({ ...prefs, org_id: currentOrg.id, user_id: user.id });
+          .insert({ ...payload, org_id: currentOrg.id, user_id: user.id });
         if (error) throw error;
         setHasExisting(true);
       }
@@ -150,7 +153,7 @@ export default function NotificationPreferencesTab() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-card-foreground">Email Notifications</h3>
-              <p className="text-xs text-muted-foreground">Master toggle — disable to pause all email notifications</p>
+              <p className="text-xs text-muted-foreground">Master toggle — all notifications are OFF by default. Enable to receive alerts.</p>
             </div>
           </div>
           <Switch checked={prefs.email_enabled} onCheckedChange={() => toggle("email_enabled")} />
@@ -213,8 +216,8 @@ export default function NotificationPreferencesTab() {
       {!prefs.email_enabled && (
         <Card className="bg-card border-border p-6 text-center">
           <Bell className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-          <p className="text-sm text-muted-foreground">All email notifications are paused</p>
-          <p className="text-xs text-muted-foreground mt-1">Enable the master toggle above to configure individual notifications</p>
+          <p className="text-sm text-muted-foreground">All email notifications are off</p>
+          <p className="text-xs text-muted-foreground mt-1">Enable the master toggle above to configure and receive notifications</p>
         </Card>
       )}
 

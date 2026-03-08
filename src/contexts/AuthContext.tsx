@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -19,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const initializedRef = useRef(false);
 
   // Check super admin status when user changes
   useEffect(() => {
@@ -36,13 +37,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Get initial session first
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      initializedRef.current = true;
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Then listen for changes (only updates after initial load)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!initializedRef.current) return; // Skip during initialization
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
