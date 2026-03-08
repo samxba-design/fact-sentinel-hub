@@ -248,15 +248,7 @@ export default function CompetitorsPage() {
                 <div>
                   <Label>Competitor Name *</Label>
                   <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Acme Corp" />
-                  <p className="text-xs text-muted-foreground mt-1">This name will be tracked across all scans and mentions</p>
-                </div>
-                <div>
-                  <Label>Domain (optional)</Label>
-                  <Input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="acmecorp.com" />
-                </div>
-                <div>
-                  <Label>Notes (optional)</Label>
-                  <Textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Key things to watch for..." rows={3} />
+                  <p className="text-xs text-muted-foreground mt-1">This name will be used as a keyword to search across all sources during scans</p>
                 </div>
                 <Button onClick={addCompetitor} disabled={!newName.trim()} className="w-full">
                   Start Tracking

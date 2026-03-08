@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2
+  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2, Loader2
 } from "lucide-react";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,6 +82,8 @@ function cleanPreview(raw: string | null): string {
   return text;
 }
 
+const PAGE_SIZE = 100;
+
 export default function MentionsPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
@@ -90,6 +92,8 @@ export default function MentionsPage() {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [narrativeLinks, setNarrativeLinks] = useState<NarrativeInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -125,12 +129,13 @@ export default function MentionsPage() {
   useEffect(() => {
     if (!currentOrg) return;
     setLoading(true);
+    setHasMore(true);
     let query = supabase
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(PAGE_SIZE);
 
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
     if (daysParam) {
@@ -142,6 +147,7 @@ export default function MentionsPage() {
     query.then(({ data }) => {
       const mentionData = data || [];
       setMentions(mentionData);
+      setHasMore(mentionData.length === PAGE_SIZE);
       setLoading(false);
 
       // Load narrative links for grouping
@@ -416,14 +422,46 @@ export default function MentionsPage() {
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(PAGE_SIZE);
     if (scanFilter) query = query.eq("scan_run_id", scanFilter);
     if (daysParam) {
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
       query = query.gte("posted_at", daysAgo.toISOString());
     }
-    query.then(({ data }) => { setMentions(data || []); setLoading(false); });
+    query.then(({ data }) => {
+      setMentions(data || []);
+      setHasMore((data || []).length === PAGE_SIZE);
+      setLoading(false);
+    });
+  };
+
+  const loadMore = async () => {
+    if (!currentOrg || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const lastMention = mentions[mentions.length - 1];
+    if (!lastMention) { setLoadingMore(false); return; }
+
+    let query = supabase
+      .from("mentions")
+      .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .lt("created_at", lastMention.created_at!)
+      .limit(PAGE_SIZE);
+
+    if (scanFilter) query = query.eq("scan_run_id", scanFilter);
+    if (daysParam) {
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - parseInt(daysParam, 10));
+      query = query.gte("posted_at", daysAgo.toISOString());
+    }
+
+    const { data } = await query;
+    const newMentions = data || [];
+    setMentions(prev => [...prev, ...newMentions]);
+    setHasMore(newMentions.length === PAGE_SIZE);
+    setLoadingMore(false);
   };
 
   // Detect coordinated patterns with linked mention details
@@ -1060,6 +1098,16 @@ export default function MentionsPage() {
           filtered.map(renderMention)
         )}
       </div>
+
+      {/* Load More */}
+      {hasMore && !loading && (
+        <div className="flex justify-center pt-4">
+          <Button variant="outline" onClick={loadMore} disabled={loadingMore} className="gap-2">
+            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {loadingMore ? "Loading..." : `Load more mentions`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

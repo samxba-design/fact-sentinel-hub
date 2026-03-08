@@ -1,0 +1,1 @@
+CREATE POLICY "Delete escalations" ON public.escalations FOR DELETE TO authenticated USING (is_org_member(auth.uid(), org_id));
