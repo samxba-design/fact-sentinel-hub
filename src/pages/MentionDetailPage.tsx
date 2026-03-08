@@ -624,42 +624,48 @@ export default function MentionDetailPage() {
         {/* Flags */}
         <Card className="bg-card border-border p-5 space-y-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Flags & Indicators</h3>
-          {Object.keys(flags).length === 0 ? (
-            <p className="text-xs text-muted-foreground">No flags detected.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {flags.misinformation && (
-                <Badge variant="outline" className="border-sentinel-red/30 text-sentinel-red text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" /> Misinformation
-                </Badge>
-              )}
-              {flags.coordinated && (
-                <Badge variant="outline" className="border-sentinel-purple/30 text-sentinel-purple text-xs">
-                  <Flag className="h-3 w-3 mr-1" /> Coordinated
-                </Badge>
-              )}
-              {flags.bot_likely && (
-                <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
-                  <Bot className="h-3 w-3 mr-1" /> Bot Likely
-                </Badge>
-              )}
-              {flags.viral_potential && (
-                <Badge variant="outline" className="border-sentinel-cyan/30 text-sentinel-cyan text-xs">
-                  <Flame className="h-3 w-3 mr-1" /> Viral Potential
-                </Badge>
-              )}
-              {flags.emergency && (
-                <Badge variant="outline" className="border-sentinel-red/50 text-sentinel-red text-xs">
-                  <Siren className="h-3 w-3 mr-1" /> Emergency
-                </Badge>
-              )}
-              {flags.false_claim && (
-                <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" /> False Claim
-                </Badge>
-              )}
-            </div>
-          )}
+          {(() => {
+            // Only show boolean flags, not internal scanner metadata
+            const booleanFlagKeys = ["misinformation", "coordinated", "bot_likely", "viral_potential", "emergency", "false_claim"];
+            const activeFlagKeys = booleanFlagKeys.filter(k => flags[k]);
+            if (activeFlagKeys.length === 0) {
+              return <p className="text-xs text-muted-foreground">No flags detected.</p>;
+            }
+            return (
+              <div className="flex flex-wrap gap-2">
+                {flags.misinformation && (
+                  <Badge variant="outline" className="border-sentinel-red/30 text-sentinel-red text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" /> Misinformation
+                  </Badge>
+                )}
+                {flags.coordinated && (
+                  <Badge variant="outline" className="border-sentinel-purple/30 text-sentinel-purple text-xs">
+                    <Flag className="h-3 w-3 mr-1" /> Coordinated
+                  </Badge>
+                )}
+                {flags.bot_likely && (
+                  <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
+                    <Bot className="h-3 w-3 mr-1" /> Bot Likely
+                  </Badge>
+                )}
+                {flags.viral_potential && (
+                  <Badge variant="outline" className="border-sentinel-cyan/30 text-sentinel-cyan text-xs">
+                    <Flame className="h-3 w-3 mr-1" /> Viral Potential
+                  </Badge>
+                )}
+                {flags.emergency && (
+                  <Badge variant="outline" className="border-sentinel-red/50 text-sentinel-red text-xs">
+                    <Siren className="h-3 w-3 mr-1" /> Emergency
+                  </Badge>
+                )}
+                {flags.false_claim && (
+                  <Badge variant="outline" className="border-sentinel-amber/30 text-sentinel-amber text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" /> False Claim
+                  </Badge>
+                )}
+              </div>
+            );
+          })()}
         </Card>
 
         {/* Similar Content from Other Sources — coordination warning */}
