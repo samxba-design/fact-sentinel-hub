@@ -952,6 +952,7 @@ export type Database = {
           created_at: string
           critical_alerts: boolean
           email_enabled: boolean
+          email_theme: string
           escalation_assigned: boolean
           escalation_updated: boolean
           id: string
@@ -968,6 +969,7 @@ export type Database = {
           created_at?: string
           critical_alerts?: boolean
           email_enabled?: boolean
+          email_theme?: string
           escalation_assigned?: boolean
           escalation_updated?: boolean
           id?: string
@@ -984,6 +986,7 @@ export type Database = {
           created_at?: string
           critical_alerts?: boolean
           email_enabled?: boolean
+          email_theme?: string
           escalation_assigned?: boolean
           escalation_updated?: boolean
           id?: string
