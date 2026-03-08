@@ -243,7 +243,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
                         {kw.surfaces_article ? (
                           <span className="text-[10px] text-sentinel-emerald">Exact article at rank #{kw.rank}</span>
                         ) : kw.surfaces_domain ? (
-                          <span className="text-[10px] text-amber-500">Site appears at #{kw.rank} — different page</span>
+                          <span className="text-[10px] text-sentinel-amber">Site appears at #{kw.rank} — different page</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground">Not in top 10</span>
                         )}

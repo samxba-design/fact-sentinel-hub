@@ -202,7 +202,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
         author_name: a.author || null,
         sentiment_label: a.sentiment?.label || "neutral",
         sentiment_score: a.sentiment?.score || 0,
-        sentiment_confidence: (a.sentiment?.confidence || 50) / 100,
+        sentiment_confidence: Math.min(100, Math.max(0, a.sentiment?.confidence || 50)),
         severity: a.potential_impact?.level === "critical" ? "critical" : a.potential_impact?.level || "low",
         posted_at: a.publication_date || null,
         status: "new",
