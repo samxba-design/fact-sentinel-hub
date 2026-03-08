@@ -492,8 +492,10 @@ export default function DashboardPage() {
         <MonitoringWidget />
         <LiveThreatFeed />
       </div>
+      </div>
+      )}
 
-      {/* Source Breakdown */}
+      {isVisible("sources") && (
       <Card className="bg-card border-border p-5 space-y-3">
         <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
           Source Breakdown
