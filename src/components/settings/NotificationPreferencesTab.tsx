@@ -73,6 +73,7 @@ export default function NotificationPreferencesTab() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [prefs, setPrefs] = useState<Preferences>(defaultPrefs);
+  const [emailTheme, setEmailTheme] = useState<"dark" | "light">("dark");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
