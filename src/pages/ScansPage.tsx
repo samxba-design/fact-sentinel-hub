@@ -76,7 +76,7 @@ export default function ScansPage() {
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [customSentimentFilter, setCustomSentimentFilter] = useState<string>("all");
   // Builder state
-  const [selectedSources, setSelectedSources] = useState<string[]>(["news", "google-news", "reddit", "social"]);
+  const [selectedSources, setSelectedSources] = useState<string[]>(["news", "google-news", "reddit", "social", "youtube"]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
