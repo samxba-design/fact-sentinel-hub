@@ -79,7 +79,8 @@ export default function SentimentForecastWidget() {
   }, [currentOrg]);
 
   const { chartData, forecast, alert } = useMemo(() => {
-    if (historical.length < 3) return { chartData: historical, forecast: null, alert: null };
+    // Need at least 7 data points for meaningful predictions
+    if (historical.length < 7) return { chartData: historical, forecast: null, alert: null };
 
     const negValues = historical.map(h => h.negative);
     const totalValues = historical.map(h => h.total);
