@@ -281,8 +281,20 @@ Deno.serve(async (req) => {
       .eq("status", "active");
     
     const structuredKws = keywordRows || [];
-    const keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
-    const kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
+    
+    // For competitor scans: use the passed keywords directly as brand context
+    // For normal scans: use structured DB keywords or fall back to passed keywords
+    let keywords: string[];
+    let kwGroups: { brand: string[]; risk: string[]; product: string[] };
+    
+    if (isCompetitorScan && rawKeywords?.length > 0) {
+      // Competitor scan: treat passed keywords AS the brand for search + AI filtering
+      keywords = rawKeywords;
+      kwGroups = { brand: rawKeywords, risk: [], product: [] };
+    } else {
+      keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
+      kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
+    }
     
     // Create scan_run with keyword groups for transparency
     const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter, keyword_groups: kwGroups };
