@@ -670,8 +670,18 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Search snippet: prefer article's own metadata, not generic search result description
-          const articleSnippet = pageDescription || exactUrlMatches[0]?.description || null;
+          // Search snippet: prefer article-specific metadata, reject generic site descriptions
+          let articleSnippet: string | null = null;
+          if (pageDescription && !isGenericDescription(pageDescription, formattedUrl)) {
+            articleSnippet = pageDescription;
+          } else if (exactUrlMatches[0]?.description) {
+            articleSnippet = exactUrlMatches[0].description;
+          } else if (markdown.length > 100) {
+            // Extract first 1-2 sentences from content as fallback
+            const sentences = markdown.replace(/^#.*\n/gm, "").trim().split(/[.!?]\s+/);
+            const firstSentences = sentences.slice(0, 2).join(". ").slice(0, 200);
+            if (firstSentences.length > 30) articleSnippet = firstSentences + ".";
+          }
 
           searchVisibility = {
             is_indexed: isIndexed,

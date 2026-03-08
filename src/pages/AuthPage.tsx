@@ -24,14 +24,14 @@ export default function AuthPage() {
   const { toast } = useToast();
 
   // Pre-fill invite code from URL params (e.g. /auth?code=BETA2026)
-  useState(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code) {
       setInviteCode(code);
       setIsSignUp(true);
     }
-  });
+  }, []);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
