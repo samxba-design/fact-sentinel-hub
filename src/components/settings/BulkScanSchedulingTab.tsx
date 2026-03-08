@@ -61,7 +61,7 @@ export default function BulkScanSchedulingTab() {
       setSchedules(
         sources.map(s => ({
           type: s.type,
-          enabled: s.enabled ?? true,
+          enabled: scanSchedules[s.type] !== undefined ? (s.enabled ?? false) : false, // Default OFF
           frequency: scanSchedules[s.type] || "0 9 * * *",
         }))
       );

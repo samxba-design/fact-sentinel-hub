@@ -68,6 +68,10 @@ const MetricCard = React.forwardRef<HTMLDivElement, {
     <Card
       className={`bg-card border-border p-5 space-y-3 transition-all duration-200 hover:shadow-md ${onClick ? "cursor-pointer hover:border-primary/30 hover:-translate-y-0.5" : ""}`}
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      aria-label={onClick ? `View ${label}` : undefined}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
