@@ -148,6 +148,7 @@ function AppRoutes() {
           <Route path="/escalations" element={<RoleGate require="write"><ErrorBoundary><EscalationsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/competitors" element={<RoleGate require="edit"><ErrorBoundary><CompetitorsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/competitors/:name" element={<RoleGate require="edit"><ErrorBoundary><CompetitorProfilePage /></ErrorBoundary></RoleGate>} />
+          <Route path="/competitors/benchmark" element={<RoleGate require="edit"><ErrorBoundary><CompetitorBenchmarkPage /></ErrorBoundary></RoleGate>} />
           <Route path="/contacts" element={<RoleGate require="manage"><ErrorBoundary><ContactsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/exports" element={<RoleGate require="write"><ErrorBoundary><ExportsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/settings" element={<RoleGate require="manage"><ErrorBoundary><SettingsPage /></ErrorBoundary></RoleGate>} />
