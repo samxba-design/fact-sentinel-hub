@@ -25,7 +25,6 @@ function loadLayout(): DashboardWidget[] {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as DashboardWidget[];
-      // Merge with defaults to handle new widgets added in code
       const savedMap = new Map(parsed.map(w => [w.id, w]));
       return DEFAULT_WIDGETS.map(dw => ({
         ...dw,
@@ -52,15 +51,15 @@ export function useDashboardLayout() {
     });
   }, [persist]);
 
-  const moveWidget = useCallback((id: string, direction: "up" | "down") => {
+  const reorderWidgets = useCallback((orderedIds: string[]) => {
     setWidgets(prev => {
-      const idx = prev.findIndex(w => w.id === id);
-      if (idx < 0) return prev;
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
-      const updated = [...prev];
-      [updated[idx], updated[swapIdx]] = [updated[swapIdx], updated[idx]];
-      const reordered = updated.map((w, i) => ({ ...w, order: i }));
+      const map = new Map(prev.map(w => [w.id, w]));
+      const reordered = orderedIds
+        .map((id, i) => {
+          const w = map.get(id);
+          return w ? { ...w, order: i } : null;
+        })
+        .filter(Boolean) as DashboardWidget[];
       persist(reordered);
       return reordered;
     });
@@ -71,5 +70,5 @@ export function useDashboardLayout() {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  return { widgets, toggleWidget, moveWidget, resetLayout };
+  return { widgets, toggleWidget, reorderWidgets, resetLayout };
 }
