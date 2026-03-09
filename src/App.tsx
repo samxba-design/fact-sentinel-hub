@@ -36,6 +36,7 @@ const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
 const GuidePage = React.lazy(() => import("@/pages/GuidePage"));
 const CompetitorsPage = React.lazy(() => import("@/pages/CompetitorsPage"));
 const CompetitorProfilePage = React.lazy(() => import("@/pages/CompetitorProfilePage"));
+const CompetitorBenchmarkPage = React.lazy(() => import("@/pages/CompetitorBenchmarkPage"));
 const ContactsPage = React.lazy(() => import("@/pages/ContactsPage"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
 const IndexPage = React.lazy(() => import("@/pages/Index"));
