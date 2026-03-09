@@ -35,6 +35,7 @@ import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
 import DashboardCustomizer from "@/components/dashboard/DashboardCustomizer";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 import SentimentForecastWidget from "@/components/dashboard/SentimentForecastWidget";
+import WatchlistThreatsWidget from "@/components/dashboard/WatchlistThreatsWidget";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);
