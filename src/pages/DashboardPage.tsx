@@ -325,7 +325,7 @@ export default function DashboardPage() {
             <Plus className="h-3.5 w-3.5" /> Add Mention
           </Button>
           <ReportGeneratorDialog />
-          <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onMove={moveWidget} onReset={resetLayout} />
+          <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onReorder={reorderWidgets} onReset={resetLayout} />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
             {DATE_RANGES.map(r => (
