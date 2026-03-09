@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import { useOrgRole } from "@/hooks/useOrgRole";
@@ -7,7 +7,8 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut, Menu, X,
-  ShieldCheck, CreditCard, BookOpen, Target, Contact, Link2
+  ShieldCheck, CreditCard, BookOpen, Target, Contact, Link2,
+  Bell, Radio
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
@@ -30,7 +31,9 @@ const navItems: NavItem[] = [
   { to: "/narratives", icon: Network, label: "Narratives" },
   { to: "/people", icon: Users, label: "People" },
   { to: "/risk-console", icon: AlertTriangle, label: "Risk Console" },
+  { to: "/alerts", icon: Bell, label: "Alerts" },
   { to: "/incidents", icon: Siren, label: "Incidents" },
+  { to: "/war-room", icon: Radio, label: "War Room" },
   { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
   { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
   { to: "/approved-templates", icon: FileText, label: "Templates" },
@@ -43,11 +46,20 @@ const navItems: NavItem[] = [
   { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
 ];
 
+// Bottom nav items for quick mobile access
+const bottomNavItems = [
+  { to: "/", icon: LayoutDashboard, label: "Home" },
+  { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
+  { to: "/alerts", icon: Bell, label: "Alerts" },
+  { to: "/people", icon: Users, label: "People" },
+];
+
 export default function MobileHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { signOut, isSuperAdmin } = useAuth();
   const { isManager, canEdit, canWrite } = useOrgRole();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const hasAccess = (access?: RequiredAccess) => {
     if (!access || access === "all") return true;
@@ -57,25 +69,58 @@ export default function MobileHeader() {
     return true;
   };
 
+  const isActive = (path: string) => {
+    if (path === "/") return location.pathname === "/";
+    return location.pathname.startsWith(path);
+  };
+
   return (
     <>
       {/* Top bar - mobile only */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b border-border flex items-center justify-between px-4 z-50">
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card border-b border-border flex items-center justify-between px-3 z-50">
         <div className="flex items-center gap-2">
-          <button onClick={() => setMenuOpen(true)} className="p-1.5">
+          <button onClick={() => setMenuOpen(true)} className="p-2 -ml-1 active:bg-muted/50 rounded-lg transition-colors">
             <Menu className="h-5 w-5 text-foreground" />
           </button>
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <span className="font-bold text-foreground">SentiWatch</span>
+          <div className="flex items-center gap-1.5">
+            <Shield className="h-4 w-4 text-primary" />
+            <span className="font-bold text-foreground text-sm">SentiWatch</span>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <GlobalSearch />
           <ThemeSwitcher />
           <NotificationBell />
         </div>
       </header>
+
+      {/* Bottom navigation bar - mobile only */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around z-50 px-2 safe-area-bottom">
+        {bottomNavItems.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === "/"}
+            className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-lg min-w-[60px] transition-colors"
+          >
+            {({ isActive: active }) => (
+              <>
+                <item.icon className={`h-5 w-5 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                <span className={`text-[10px] font-medium ${active ? "text-primary" : "text-muted-foreground"}`}>
+                  {item.label}
+                </span>
+              </>
+            )}
+          </NavLink>
+        ))}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-lg min-w-[60px]"
+        >
+          <Menu className="h-5 w-5 text-muted-foreground" />
+          <span className="text-[10px] font-medium text-muted-foreground">More</span>
+        </button>
+      </nav>
 
       {/* Overlay */}
       {menuOpen && (
@@ -89,7 +134,7 @@ export default function MobileHeader() {
                 <Shield className="h-5 w-5 text-primary" />
                 <span className="font-bold">SentiWatch</span>
               </div>
-              <button onClick={() => setMenuOpen(false)} className="p-1">
+              <button onClick={() => setMenuOpen(false)} className="p-2 active:bg-muted/50 rounded-lg">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -101,7 +146,7 @@ export default function MobileHeader() {
                   end={item.to === "/"}
                   onClick={() => setMenuOpen(false)}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors active:bg-primary/20 ${
                       isActive
                         ? "bg-primary/10 text-primary font-medium"
                         : "text-foreground hover:bg-accent/50"
@@ -130,7 +175,7 @@ export default function MobileHeader() {
             <div className="px-3 py-2 border-t border-border">
               <LinkScannerDialog
                 trigger={
-                  <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/50 w-full transition-colors">
+                  <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/50 w-full transition-colors active:bg-primary/20">
                     <Link2 className="h-4 w-4" />
                     Scan Link
                   </button>
@@ -140,7 +185,7 @@ export default function MobileHeader() {
             <div className="p-3 border-t border-border">
               <button
                 onClick={() => { signOut(); setMenuOpen(false); }}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/50 w-full transition-colors"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/50 w-full transition-colors active:bg-primary/20"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

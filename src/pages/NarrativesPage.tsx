@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Network, Scan, Brain, Layers, BarChart3 } from "lucide-react";
+import { Network, Scan, Brain, Layers, BarChart3, Loader2, Sparkles } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageGuide from "@/components/PageGuide";
+import { useToast } from "@/hooks/use-toast";
 
 interface Narrative {
   id: string;
@@ -23,10 +24,12 @@ interface Narrative {
 export default function NarrativesPage() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
+  const { toast } = useToast();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detecting, setDetecting] = useState(false);
 
-  useEffect(() => {
+  const loadNarratives = () => {
     if (!currentOrg) return;
     setLoading(true);
     supabase
@@ -39,7 +42,29 @@ export default function NarrativesPage() {
         setNarratives(data || []);
         setLoading(false);
       });
-  }, [currentOrg]);
+  };
+
+  useEffect(() => { loadNarratives(); }, [currentOrg]);
+
+  const detectNarratives = async () => {
+    if (!currentOrg) return;
+    setDetecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("detect-narratives", {
+        body: { org_id: currentOrg.id },
+      });
+      if (error) throw error;
+      toast({
+        title: "Narrative detection complete",
+        description: `Detected ${data?.narratives_created || 0} new narratives, linked ${data?.mentions_linked || 0} mentions.`,
+      });
+      loadNarratives();
+    } catch (err: any) {
+      toast({ title: "Detection failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDetecting(false);
+    }
+  };
 
   const timeAgo = (d: string | null) => {
     if (!d) return "—";
@@ -52,9 +77,15 @@ export default function NarrativesPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Narratives</h1>
-        <p className="text-sm text-muted-foreground mt-1">Narrative intelligence and propagation tracking</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Narratives</h1>
+          <p className="text-sm text-muted-foreground mt-1">Narrative intelligence and propagation tracking</p>
+        </div>
+        <Button onClick={detectNarratives} disabled={detecting} className="gap-2">
+          {detecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {detecting ? "Detecting..." : "AI Detect Narratives"}
+        </Button>
       </div>
 
       <PageGuide

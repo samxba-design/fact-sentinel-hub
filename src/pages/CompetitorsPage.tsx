@@ -236,11 +236,16 @@ export default function CompetitorsPage() {
           <h1 className="text-2xl font-bold text-foreground">Competitor Analysis</h1>
           <p className="text-sm text-muted-foreground mt-1">Track competitors across your monitored landscape</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {competitors.length >= 2 && (
-            <Button variant={compareMode ? "default" : "outline"} onClick={() => setCompareMode(!compareMode)}>
-              <BarChart3 className="h-4 w-4 mr-2" />{compareMode ? "Exit Compare" : "Compare"}
-            </Button>
+            <>
+              <Button variant={compareMode ? "default" : "outline"} onClick={() => setCompareMode(!compareMode)}>
+                <BarChart3 className="h-4 w-4 mr-2" />{compareMode ? "Exit Compare" : "Compare"}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/competitors/benchmark")}>
+                <TrendingUp className="h-4 w-4 mr-2" /> Benchmark
+              </Button>
+            </>
           )}
           <SuggestCompetitorsDialog onAdded={loadCompetitors} />
           <Dialog open={addOpen} onOpenChange={setAddOpen}>

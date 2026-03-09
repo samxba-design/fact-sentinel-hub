@@ -29,8 +29,8 @@ export default function AppLayout() {
         <NotificationBell />
       </div>
 
-      <main className="lg:ml-64 min-h-screen pt-14">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px]">
+      <main className="lg:ml-64 min-h-screen pt-14 pb-20 lg:pb-0">
+        <div className="p-3 sm:p-5 lg:p-8 max-w-[1600px]">
           <Outlet />
         </div>
       </main>

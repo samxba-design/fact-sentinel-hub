@@ -36,6 +36,7 @@ const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
 const GuidePage = React.lazy(() => import("@/pages/GuidePage"));
 const CompetitorsPage = React.lazy(() => import("@/pages/CompetitorsPage"));
 const CompetitorProfilePage = React.lazy(() => import("@/pages/CompetitorProfilePage"));
+const CompetitorBenchmarkPage = React.lazy(() => import("@/pages/CompetitorBenchmarkPage"));
 const ContactsPage = React.lazy(() => import("@/pages/ContactsPage"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
 const IndexPage = React.lazy(() => import("@/pages/Index"));
@@ -146,6 +147,7 @@ function AppRoutes() {
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
           <Route path="/escalations" element={<RoleGate require="write"><ErrorBoundary><EscalationsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/competitors" element={<RoleGate require="edit"><ErrorBoundary><CompetitorsPage /></ErrorBoundary></RoleGate>} />
+          <Route path="/competitors/benchmark" element={<RoleGate require="edit"><ErrorBoundary><CompetitorBenchmarkPage /></ErrorBoundary></RoleGate>} />
           <Route path="/competitors/:name" element={<RoleGate require="edit"><ErrorBoundary><CompetitorProfilePage /></ErrorBoundary></RoleGate>} />
           <Route path="/contacts" element={<RoleGate require="manage"><ErrorBoundary><ContactsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/exports" element={<RoleGate require="write"><ErrorBoundary><ExportsPage /></ErrorBoundary></RoleGate>} />
