@@ -175,6 +175,31 @@ export default function BulkScanSchedulingTab() {
           ))}
         </div>
       )}
+
+      {/* Multi-Language Detection */}
+      <Card className="bg-card border-border p-5 space-y-4 mt-4">
+        <div className="flex items-center gap-3">
+          <Languages className="h-5 w-5 text-primary" />
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+              Multi-Language Threat Detection
+              <InfoTooltip text="When enabled, scans will detect and analyze mentions in any language. Non-English mentions are automatically translated for analysis." />
+            </h4>
+            <p className="text-xs text-muted-foreground mt-0.5">Detect threats in 20+ languages including Spanish, French, German, Chinese, Arabic, Japanese, Korean, Portuguese, and Russian</p>
+          </div>
+          <Switch checked={multiLangEnabled} onCheckedChange={setMultiLangEnabled} />
+        </div>
+
+        {multiLangEnabled && (
+          <div className="flex items-center gap-3 pl-8 border-t border-border pt-3">
+            <div className="flex-1">
+              <Label className="text-xs text-foreground">Auto-translate to English</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Automatically translate non-English mentions into English summaries. Turn off to keep original language only.</p>
+            </div>
+            <Switch checked={autoTranslate} onCheckedChange={setAutoTranslate} />
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

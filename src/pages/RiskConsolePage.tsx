@@ -344,6 +344,8 @@ export default function RiskConsolePage() {
       </Card>
       {/* Predictive Risk */}
       <PredictiveRiskWidget />
+      {/* Source Credibility */}
+      <SourceCredibilityWidget />
     </div>
   );
 }
