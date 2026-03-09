@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import UpgradeBanner from "@/components/UpgradeBanner";
+import ResponseCopilot from "@/components/respond/ResponseCopilot";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sparkles } from "lucide-react";
 
 interface Claim { claim_text: string; category: string; }
 interface MatchedFact { id: string; title: string; statement: string; }
