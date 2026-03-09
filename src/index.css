@@ -207,3 +207,25 @@
     );
   }
 }
+
+/* Mobile-optimized touch targets and spacing */
+@media (max-width: 768px) {
+  .space-y-6 > * + * {
+    margin-top: 1.25rem;
+  }
+
+  /* Larger touch targets on mobile */
+  button, [role="button"], a {
+    min-height: 2.25rem;
+  }
+
+  /* Better card spacing on mobile */
+  .grid {
+    gap: 0.75rem;
+  }
+
+  /* Ensure charts don't overflow */
+  .recharts-wrapper {
+    max-width: 100% !important;
+  }
+}
