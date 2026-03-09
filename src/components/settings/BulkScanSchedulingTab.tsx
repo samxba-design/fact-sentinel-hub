@@ -60,6 +60,8 @@ export default function BulkScanSchedulingTab() {
       const sources = sourcesRes.data || [];
       const settings = (profileRes.data?.settings as Record<string, any>) || {};
       const scanSchedules = settings.scan_schedules || {};
+      setMultiLangEnabled(settings.multi_language_detection ?? false);
+      setAutoTranslate(settings.auto_translate ?? true);
 
       setSchedules(
         sources.map(s => ({
