@@ -127,8 +127,20 @@ export default function RespondPage() {
       )}
       <div>
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
-        <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>
+        <p className="text-sm text-muted-foreground mt-1">Strict response engine & AI copilot</p>
       </div>
+
+      <Tabs defaultValue="strict" className="space-y-4">
+        <TabsList className="bg-muted border border-border">
+          <TabsTrigger value="strict"><MessageCircleReply className="h-3.5 w-3.5 mr-1.5" /> Strict Engine</TabsTrigger>
+          <TabsTrigger value="copilot"><Sparkles className="h-3.5 w-3.5 mr-1.5" /> AI Copilot</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="copilot">
+          <ResponseCopilot prefillText={prefill.prefillText} mentionId={prefill.sourceMentionId} />
+        </TabsContent>
+
+        <TabsContent value="strict" className="space-y-6">
 
       <PageGuide
         title="How the Response Engine Works"
