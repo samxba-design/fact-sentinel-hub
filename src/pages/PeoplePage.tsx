@@ -11,6 +11,7 @@ import AddPersonDialog from "@/components/people/AddPersonDialog";
 import EmptyState from "@/components/EmptyState";
 import PageGuide from "@/components/PageGuide";
 import InfluencerLeaderboard from "@/components/people/InfluencerLeaderboard";
+import WatchlistDiscoveryWidget from "@/components/people/WatchlistDiscoveryWidget";
 
 interface PersonRow {
   person_id: string;
@@ -163,6 +164,9 @@ export default function PeoplePage() {
           ))
         )}
       </div>
+
+      {/* Watchlist Discovery */}
+      <WatchlistDiscoveryWidget />
 
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onSaved={fetchPeople} />
     </div>

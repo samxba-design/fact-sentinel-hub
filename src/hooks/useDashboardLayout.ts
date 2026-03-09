@@ -14,7 +14,8 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "risk-sentiment", label: "Risk Index & Sentiment", visible: true, order: 3 },
   { id: "timeline-volume", label: "Activity & Volume", visible: true, order: 4 },
   { id: "narrative-monitoring-feed", label: "Narratives, Monitoring & Feed", visible: true, order: 5 },
-  { id: "sources", label: "Source Breakdown", visible: true, order: 6 },
+  { id: "watchlist-threats", label: "Top Tracked Threats", visible: true, order: 6 },
+  { id: "sources", label: "Source Breakdown", visible: true, order: 7 },
 ];
 
 const STORAGE_KEY = "sentiwatch_dashboard_layout";

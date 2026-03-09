@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import PersonTrendChart from "@/components/people/PersonTrendChart";
 
 interface Person {
   id: string;
@@ -330,6 +331,9 @@ export default function PersonDetailPage() {
           )}
         </Card>
       </div>
+
+      {/* Trend Charts */}
+      <PersonTrendChart mentions={mentions} />
 
       {/* Linked Mentions */}
       <Card className="bg-card border-border p-5">

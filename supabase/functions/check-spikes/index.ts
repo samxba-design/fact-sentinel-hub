@@ -149,6 +149,68 @@ Deno.serve(async (req) => {
           });
         }
       }
+
+      // Watchlist group alert: check if high-priority watchlist groups have negative spikes
+      const { data: watchlistGroups } = await supabase
+        .from("watchlist_groups")
+        .select("id, name, priority")
+        .eq("org_id", org.id)
+        .in("priority", ["high", "critical"]);
+
+      for (const group of (watchlistGroups || [])) {
+        // Get people in this group
+        const { data: groupPeople } = await supabase
+          .from("org_people")
+          .select("person_id")
+          .eq("org_id", org.id)
+          .eq("watchlist_group_id", group.id);
+
+        if (!groupPeople || groupPeople.length === 0) continue;
+        const personIds = groupPeople.map((p: any) => p.person_id);
+
+        // Get recent mentions linked to these people
+        const { data: linkedMentions } = await supabase
+          .from("mention_people")
+          .select("mention_id")
+          .in("person_id", personIds);
+
+        if (!linkedMentions || linkedMentions.length === 0) continue;
+        const mentionIds = linkedMentions.map((l: any) => l.mention_id);
+
+        // Count negative mentions in last 24h
+        const { count: groupNegCount } = await supabase
+          .from("mentions")
+          .select("id", { count: "exact", head: true })
+          .in("id", mentionIds.slice(0, 100))
+          .eq("sentiment_label", "negative")
+          .gte("created_at", twentyFourHoursAgo);
+
+        const threshold = group.priority === "critical" ? 3 : 5;
+        if ((groupNegCount || 0) >= threshold) {
+          const { data: existingAlert } = await supabase
+            .from("alerts")
+            .select("id")
+            .eq("org_id", org.id)
+            .eq("type", "watchlist_spike")
+            .eq("status", "active")
+            .gte("triggered_at", twentyFourHoursAgo)
+            .maybeSingle();
+
+          if (!existingAlert) {
+            alerts.push({
+              org_id: org.id,
+              type: "watchlist_spike",
+              payload: {
+                group_name: group.name,
+                group_priority: group.priority,
+                negative_count: groupNegCount,
+                people_count: personIds.length,
+                message: `Watchlist group "${group.name}" (${group.priority}) has ${groupNegCount} negative mentions in the last 24 hours`,
+              },
+            });
+          }
+        }
+      }
     }
 
     // Insert all alerts and trigger email notifications
