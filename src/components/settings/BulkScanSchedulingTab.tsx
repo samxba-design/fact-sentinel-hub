@@ -96,7 +96,12 @@ export default function BulkScanSchedulingTab() {
         .eq("org_id", currentOrg.id)
         .maybeSingle();
 
-      const newSettings = { ...((existing?.settings as Record<string, any>) || {}), scan_schedules: scanSchedules };
+      const newSettings = {
+        ...((existing?.settings as Record<string, any>) || {}),
+        scan_schedules: scanSchedules,
+        multi_language_detection: multiLangEnabled,
+        auto_translate: autoTranslate,
+      };
 
       if (existing) {
         await supabase.from("tracking_profiles").update({ settings: newSettings }).eq("id", existing.id);
