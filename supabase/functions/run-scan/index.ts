@@ -813,6 +813,8 @@ For RELEVANT mentions only, also return:
 - sentiment_score: -1 (very negative) to 1 (very positive)
 - sentiment_confidence: 0 to 1
 - severity: "low", "medium", "high", or "critical" based on reputational risk to "${brandContext}"
+- detected_language: ISO 639-1 code (e.g. "en", "es", "fr", "de", "zh", "ar", "ja", "ko", "pt", "ru")
+- translated_summary: if detected_language is NOT "en", provide an English translation of the clean_summary. Otherwise null.
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
 - rejection_reason: null for relevant, or a short reason
 
