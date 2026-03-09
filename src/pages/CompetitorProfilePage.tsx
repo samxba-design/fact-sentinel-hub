@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import CompetitorDeepDive from "@/components/competitors/CompetitorDeepDive";
 
 interface MentionRow {
   id: string;
@@ -35,6 +36,8 @@ export default function CompetitorProfilePage() {
 
   const [mentions, setMentions] = useState<MentionRow[]>([]);
   const [narratives, setNarratives] = useState<any[]>([]);
+  const [orgMentionCount, setOrgMentionCount] = useState(0);
+  const [orgNarratives, setOrgNarratives] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
@@ -47,7 +50,7 @@ export default function CompetitorProfilePage() {
     if (!currentOrg) return;
     setLoading(true);
 
-    const [mentionRes, narrativeRes] = await Promise.all([
+    const [mentionRes, narrativeRes, orgMentionRes, orgNarrativeRes] = await Promise.all([
       supabase
         .from("mentions")
         .select("id, content, source, url, sentiment_label, severity, posted_at, created_at, author_name")
@@ -62,10 +65,21 @@ export default function CompetitorProfilePage() {
         .or(`name.ilike.%${competitorName}%,description.ilike.%${competitorName}%`)
         .order("last_seen", { ascending: false, nullsFirst: false })
         .limit(20),
+      supabase
+        .from("mentions")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", currentOrg.id),
+      supabase
+        .from("narratives")
+        .select("id, name, description, confidence, status")
+        .eq("org_id", currentOrg.id)
+        .limit(200),
     ]);
 
     setMentions(mentionRes.data || []);
     setNarratives(narrativeRes.data || []);
+    setOrgMentionCount(orgMentionRes.count ?? 0);
+    setOrgNarratives(orgNarrativeRes.data || []);
     setLoading(false);
   };
 
@@ -195,6 +209,15 @@ export default function CompetitorProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Deep Dive Intelligence */}
+      <CompetitorDeepDive
+        competitorName={competitorName}
+        mentions={mentions}
+        narratives={narratives}
+        orgMentionCount={orgMentionCount}
+        orgNarratives={orgNarratives}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Mentions */}
         <div className="lg:col-span-2 space-y-4">
@@ -234,7 +257,7 @@ export default function CompetitorProfilePage() {
           )}
         </div>
 
-        {/* Sidebar: Narratives + Source breakdown */}
+        {/* Sidebar: Narratives */}
         <div className="space-y-6">
           <div>
             <h3 className="font-semibold text-foreground flex items-center gap-2 mb-3">

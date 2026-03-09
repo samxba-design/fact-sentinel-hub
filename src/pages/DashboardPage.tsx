@@ -194,7 +194,7 @@ function buildChartData(mentions: any[], rangeDays: number) {
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
-  const { widgets, toggleWidget, moveWidget, resetLayout } = useDashboardLayout();
+  const { widgets, toggleWidget, reorderWidgets, resetLayout } = useDashboardLayout();
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);
@@ -325,7 +325,7 @@ export default function DashboardPage() {
             <Plus className="h-3.5 w-3.5" /> Add Mention
           </Button>
           <ReportGeneratorDialog />
-          <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onMove={moveWidget} onReset={resetLayout} />
+          <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onReorder={reorderWidgets} onReset={resetLayout} />
           {/* Date range selector */}
           <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
             {DATE_RANGES.map(r => (
