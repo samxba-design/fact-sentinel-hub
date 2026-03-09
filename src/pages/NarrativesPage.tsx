@@ -24,8 +24,25 @@ interface Narrative {
 export default function NarrativesPage() {
   const navigate = useNavigate();
   const { currentOrg } = useOrg();
+  const { toast } = useToast();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detecting, setDetecting] = useState(false);
+
+  const loadNarratives = () => {
+    if (!currentOrg) return;
+    setLoading(true);
+    supabase
+      .from("narratives")
+      .select("*")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setNarratives(data || []);
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
     if (!currentOrg) return;
