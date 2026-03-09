@@ -47,6 +47,8 @@ export default function BulkScanSchedulingTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [schedules, setSchedules] = useState<SourceSchedule[]>([]);
+  const [multiLangEnabled, setMultiLangEnabled] = useState(false);
+  const [autoTranslate, setAutoTranslate] = useState(true);
 
   useEffect(() => {
     if (!currentOrg) return;
