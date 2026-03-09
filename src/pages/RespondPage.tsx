@@ -354,6 +354,8 @@ export default function RespondPage() {
           )}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

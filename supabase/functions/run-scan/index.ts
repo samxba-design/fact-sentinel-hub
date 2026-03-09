@@ -917,7 +917,10 @@ Return ONLY valid JSON, no markdown.`,
       const cleanSummary = analysis.clean_summary || r.content || "";
       // Detect paywall on content
       const paywallResult = detectPaywall(r.content || "");
-      // Store date verification, matched query, and paywall info in flags
+      // Use translated summary if non-English and auto-translate is enabled
+      const detectedLang = analysis.detected_language || "en";
+      const translatedSummary = analysis.translated_summary || null;
+      // Store date verification, matched query, paywall, and language info in flags
       const flags = {
         ...(analysis.flags || {}),
         date_verified: r.date_verified ?? true,
@@ -925,6 +928,8 @@ Return ONLY valid JSON, no markdown.`,
         matched_query: r.matched_query || "",
         paywall: paywallResult.is_paywalled,
         paywall_type: paywallResult.paywall_type,
+        detected_language: detectedLang,
+        translated_summary: translatedSummary,
       };
       return {
         org_id,

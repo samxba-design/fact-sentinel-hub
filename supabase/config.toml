@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.predict-risk]
 verify_jwt = false
+
+[functions.generate-copilot-response]
+verify_jwt = false
+
+[functions.score-source-credibility]
+verify_jwt = false
