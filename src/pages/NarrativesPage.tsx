@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Network, Scan, Brain, Layers, BarChart3 } from "lucide-react";
+import { Network, Scan, Brain, Layers, BarChart3, Loader2, Sparkles } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageGuide from "@/components/PageGuide";
+import { useToast } from "@/hooks/use-toast";
 
 interface Narrative {
   id: string;
