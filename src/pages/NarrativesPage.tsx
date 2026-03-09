@@ -44,20 +44,27 @@ export default function NarrativesPage() {
       });
   };
 
-  useEffect(() => {
+  useEffect(() => { loadNarratives(); }, [currentOrg]);
+
+  const detectNarratives = async () => {
     if (!currentOrg) return;
-    setLoading(true);
-    supabase
-      .from("narratives")
-      .select("*")
-      .eq("org_id", currentOrg.id)
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setNarratives(data || []);
-        setLoading(false);
+    setDetecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("detect-narratives", {
+        body: { org_id: currentOrg.id },
       });
-  }, [currentOrg]);
+      if (error) throw error;
+      toast({
+        title: "Narrative detection complete",
+        description: `Detected ${data?.narratives_created || 0} new narratives, linked ${data?.mentions_linked || 0} mentions.`,
+      });
+      loadNarratives();
+    } catch (err: any) {
+      toast({ title: "Detection failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDetecting(false);
+    }
+  };
 
   const timeAgo = (d: string | null) => {
     if (!d) return "—";
