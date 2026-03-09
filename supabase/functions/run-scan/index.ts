@@ -818,7 +818,7 @@ For RELEVANT mentions only, also return:
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
 - rejection_reason: null for relevant, or a short reason
 
-Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
+Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "detected_language": "en", "translated_summary": null, "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
             },
             {
