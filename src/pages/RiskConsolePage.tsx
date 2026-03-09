@@ -12,6 +12,7 @@ import UpgradeBanner from "@/components/UpgradeBanner";
 import { formatDistanceToNow } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import PageGuide from "@/components/PageGuide";
+import PredictiveRiskWidget from "@/components/dashboard/PredictiveRiskWidget";
 
 interface RiskMention {
   id: string;
