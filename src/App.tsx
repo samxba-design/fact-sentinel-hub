@@ -145,6 +145,9 @@ function AppRoutes() {
           <Route path="/incidents" element={<ErrorBoundary><IncidentsPage /></ErrorBoundary>} />
           <Route path="/incidents/:id" element={<ErrorBoundary><IncidentDetailPage /></ErrorBoundary>} />
           <Route path="/war-room" element={<ErrorBoundary><WarRoomPage /></ErrorBoundary>} />
+          <Route path="/threat-map" element={<ErrorBoundary><ThreatMapPage /></ErrorBoundary>} />
+          <Route path="/narrative-graph" element={<ErrorBoundary><NarrativeGraphPage /></ErrorBoundary>} />
+          <Route path="/briefing" element={<ErrorBoundary><BriefingPage /></ErrorBoundary>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
           <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
