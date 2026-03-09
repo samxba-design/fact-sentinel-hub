@@ -332,6 +332,9 @@ export default function PersonDetailPage() {
         </Card>
       </div>
 
+      {/* Trend Charts */}
+      <PersonTrendChart mentions={mentions} />
+
       {/* Linked Mentions */}
       <Card className="bg-card border-border p-5">
         <h3 className="text-sm font-medium text-card-foreground mb-4 flex items-center gap-2">

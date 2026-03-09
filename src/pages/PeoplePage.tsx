@@ -165,6 +165,9 @@ export default function PeoplePage() {
         )}
       </div>
 
+      {/* Watchlist Discovery */}
+      <WatchlistDiscoveryWidget />
+
       <AddPersonDialog open={addOpen} onOpenChange={setAddOpen} onSaved={fetchPeople} />
     </div>
   );
