@@ -77,9 +77,15 @@ export default function NarrativesPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Narratives</h1>
-        <p className="text-sm text-muted-foreground mt-1">Narrative intelligence and propagation tracking</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Narratives</h1>
+          <p className="text-sm text-muted-foreground mt-1">Narrative intelligence and propagation tracking</p>
+        </div>
+        <Button onClick={detectNarratives} disabled={detecting} className="gap-2">
+          {detecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {detecting ? "Detecting..." : "AI Detect Narratives"}
+        </Button>
       </div>
 
       <PageGuide
