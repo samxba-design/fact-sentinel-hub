@@ -6,7 +6,8 @@ import {
   Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
-  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2, Radio
+  ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2, Radio,
+  Globe, Share2, Brain
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import {
