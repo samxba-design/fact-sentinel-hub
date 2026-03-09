@@ -1101,6 +1101,7 @@ export type Database = {
           sentiment_impact: number | null
           status: string | null
           tier: string | null
+          watchlist_group_id: string | null
         }
         Insert: {
           confidence?: number | null
@@ -1117,6 +1118,7 @@ export type Database = {
           sentiment_impact?: number | null
           status?: string | null
           tier?: string | null
+          watchlist_group_id?: string | null
         }
         Update: {
           confidence?: number | null
@@ -1133,6 +1135,7 @@ export type Database = {
           sentiment_impact?: number | null
           status?: string | null
           tier?: string | null
+          watchlist_group_id?: string | null
         }
         Relationships: [
           {
@@ -1147,6 +1150,13 @@ export type Database = {
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_people_watchlist_group_id_fkey"
+            columns: ["watchlist_group_id"]
+            isOneToOne: false
+            referencedRelation: "watchlist_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -1717,6 +1727,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      watchlist_groups: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          priority: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          priority?: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          priority?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
