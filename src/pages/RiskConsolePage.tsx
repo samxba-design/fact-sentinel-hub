@@ -341,6 +341,8 @@ export default function RiskConsolePage() {
           )}
         </div>
       </Card>
+      {/* Predictive Risk */}
+      <PredictiveRiskWidget />
     </div>
   );
 }
