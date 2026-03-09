@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import UpgradeBanner from "@/components/UpgradeBanner";
+import ResponseCopilot from "@/components/respond/ResponseCopilot";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sparkles } from "lucide-react";
 
 interface Claim { claim_text: string; category: string; }
 interface MatchedFact { id: string; title: string; statement: string; }
@@ -124,8 +127,20 @@ export default function RespondPage() {
       )}
       <div>
         <h1 className="text-2xl font-bold text-foreground">How To Respond</h1>
-        <p className="text-sm text-muted-foreground mt-1">Strict response engine — drafts only from approved facts</p>
+        <p className="text-sm text-muted-foreground mt-1">Strict response engine & AI copilot</p>
       </div>
+
+      <Tabs defaultValue="strict" className="space-y-4">
+        <TabsList className="bg-muted border border-border">
+          <TabsTrigger value="strict"><MessageCircleReply className="h-3.5 w-3.5 mr-1.5" /> Strict Engine</TabsTrigger>
+          <TabsTrigger value="copilot"><Sparkles className="h-3.5 w-3.5 mr-1.5" /> AI Copilot</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="copilot">
+          <ResponseCopilot prefillText={prefill.prefillText} mentionId={prefill.sourceMentionId} />
+        </TabsContent>
+
+        <TabsContent value="strict" className="space-y-6">
 
       <PageGuide
         title="How the Response Engine Works"
@@ -354,6 +369,8 @@ export default function RespondPage() {
           )}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

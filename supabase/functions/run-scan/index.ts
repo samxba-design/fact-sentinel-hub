@@ -813,10 +813,12 @@ For RELEVANT mentions only, also return:
 - sentiment_score: -1 (very negative) to 1 (very positive)
 - sentiment_confidence: 0 to 1
 - severity: "low", "medium", "high", or "critical" based on reputational risk to "${brandContext}"
+- detected_language: ISO 639-1 code (e.g. "en", "es", "fr", "de", "zh", "ar", "ja", "ko", "pt", "ru")
+- translated_summary: if detected_language is NOT "en", provide an English translation of the clean_summary. Otherwise null.
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
 - rejection_reason: null for relevant, or a short reason
 
-Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "flags": {...} } ] }
+Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "detected_language": "en", "translated_summary": null, "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
             },
             {
@@ -915,7 +917,10 @@ Return ONLY valid JSON, no markdown.`,
       const cleanSummary = analysis.clean_summary || r.content || "";
       // Detect paywall on content
       const paywallResult = detectPaywall(r.content || "");
-      // Store date verification, matched query, and paywall info in flags
+      // Use translated summary if non-English and auto-translate is enabled
+      const detectedLang = analysis.detected_language || "en";
+      const translatedSummary = analysis.translated_summary || null;
+      // Store date verification, matched query, paywall, and language info in flags
       const flags = {
         ...(analysis.flags || {}),
         date_verified: r.date_verified ?? true,
@@ -923,6 +928,8 @@ Return ONLY valid JSON, no markdown.`,
         matched_query: r.matched_query || "",
         paywall: paywallResult.is_paywalled,
         paywall_type: paywallResult.paywall_type,
+        detected_language: detectedLang,
+        translated_summary: translatedSummary,
       };
       return {
         org_id,
@@ -937,7 +944,7 @@ Return ONLY valid JSON, no markdown.`,
         sentiment_score: analysis.sentiment_score || 0,
         sentiment_confidence: Math.min(100, Math.max(0, Math.round((analysis.sentiment_confidence || 0.5) * 100))),
         severity: analysis.severity || "low",
-        language: "en",
+        language: analysis.detected_language || "en",
         posted_at: r.posted_at || null,
         url: r.url || null,
         metrics: r.metrics || {},

@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import PageGuide from "@/components/PageGuide";
 import PredictiveRiskWidget from "@/components/dashboard/PredictiveRiskWidget";
+import SourceCredibilityWidget from "@/components/mentions/SourceCredibilityWidget";
 
 interface RiskMention {
   id: string;
@@ -343,6 +344,8 @@ export default function RiskConsolePage() {
       </Card>
       {/* Predictive Risk */}
       <PredictiveRiskWidget />
+      {/* Source Credibility */}
+      <SourceCredibilityWidget />
     </div>
   );
 }

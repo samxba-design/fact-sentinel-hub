@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Save, Loader2, Zap } from "lucide-react";
+import { Clock, Save, Loader2, Zap, Languages } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import InfoTooltip from "@/components/InfoTooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -46,6 +47,8 @@ export default function BulkScanSchedulingTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [schedules, setSchedules] = useState<SourceSchedule[]>([]);
+  const [multiLangEnabled, setMultiLangEnabled] = useState(false);
+  const [autoTranslate, setAutoTranslate] = useState(true);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -57,6 +60,8 @@ export default function BulkScanSchedulingTab() {
       const sources = sourcesRes.data || [];
       const settings = (profileRes.data?.settings as Record<string, any>) || {};
       const scanSchedules = settings.scan_schedules || {};
+      setMultiLangEnabled(settings.multi_language_detection ?? false);
+      setAutoTranslate(settings.auto_translate ?? true);
 
       setSchedules(
         sources.map(s => ({
@@ -91,7 +96,12 @@ export default function BulkScanSchedulingTab() {
         .eq("org_id", currentOrg.id)
         .maybeSingle();
 
-      const newSettings = { ...((existing?.settings as Record<string, any>) || {}), scan_schedules: scanSchedules };
+      const newSettings = {
+        ...((existing?.settings as Record<string, any>) || {}),
+        scan_schedules: scanSchedules,
+        multi_language_detection: multiLangEnabled,
+        auto_translate: autoTranslate,
+      };
 
       if (existing) {
         await supabase.from("tracking_profiles").update({ settings: newSettings }).eq("id", existing.id);
@@ -165,6 +175,31 @@ export default function BulkScanSchedulingTab() {
           ))}
         </div>
       )}
+
+      {/* Multi-Language Detection */}
+      <Card className="bg-card border-border p-5 space-y-4 mt-4">
+        <div className="flex items-center gap-3">
+          <Languages className="h-5 w-5 text-primary" />
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+              Multi-Language Threat Detection
+              <InfoTooltip text="When enabled, scans will detect and analyze mentions in any language. Non-English mentions are automatically translated for analysis." />
+            </h4>
+            <p className="text-xs text-muted-foreground mt-0.5">Detect threats in 20+ languages including Spanish, French, German, Chinese, Arabic, Japanese, Korean, Portuguese, and Russian</p>
+          </div>
+          <Switch checked={multiLangEnabled} onCheckedChange={setMultiLangEnabled} />
+        </div>
+
+        {multiLangEnabled && (
+          <div className="flex items-center gap-3 pl-8 border-t border-border pt-3">
+            <div className="flex-1">
+              <Label className="text-xs text-foreground">Auto-translate to English</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Automatically translate non-English mentions into English summaries. Turn off to keep original language only.</p>
+            </div>
+            <Switch checked={autoTranslate} onCheckedChange={setAutoTranslate} />
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
