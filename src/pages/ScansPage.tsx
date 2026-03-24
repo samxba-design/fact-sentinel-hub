@@ -544,7 +544,7 @@ export default function ScansPage() {
                           {formatDate(run.started_at)}
                         </div>
                         <StatusIcon className={`h-3.5 w-3.5 ${sc.className}`} />
-                        {hasErrors && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" title="Some sources had errors" />}
+                        {hasErrors && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                         {sourcesUsed.length > 0 && (
