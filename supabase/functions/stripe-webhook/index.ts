@@ -12,11 +12,14 @@ Deno.serve(async (req) => {
 
   let event: Stripe.Event;
   try {
-    if (webhookSecret && signature) {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } else {
-      event = JSON.parse(body) as Stripe.Event;
+    if (!webhookSecret) {
+      console.error("STRIPE_WEBHOOK_SECRET not configured");
+      return new Response(JSON.stringify({ error: "Webhook not configured" }), { status: 500 });
     }
+    if (!signature) {
+      return new Response(JSON.stringify({ error: "Missing stripe-signature" }), { status: 400 });
+    }
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
     console.error("Webhook signature verification failed:", err.message);
     return new Response(JSON.stringify({ error: err.message }), { status: 400 });

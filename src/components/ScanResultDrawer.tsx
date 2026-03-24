@@ -15,7 +15,7 @@ interface ScanRun {
   negative_pct: number | null;
   emergencies_count: number | null;
   config_snapshot: any;
-  result_snapshot: any;
+  result_snapshot?: any;
 }
 
 interface Props {
