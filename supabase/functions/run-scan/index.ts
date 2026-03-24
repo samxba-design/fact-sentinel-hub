@@ -746,7 +746,19 @@ Deno.serve(async (req) => {
           total_mentions: 0,
           negative_pct: 0,
           emergencies_count: 0,
-        })
+          result_snapshot: {
+            scan_log: scanLog,
+            keyword_groups: kwGroups,
+            total_found: allResults.length,
+            quality_filtered: allResults.length,
+            ai_rejected: 0,
+            duplicates_skipped: 0,
+            mentions_saved: 0,
+            zero_reason: reasons.join(" "),
+            errors,
+            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
+          },
+        } as any)
         .eq("id", scanRun.id);
 
       return new Response(
@@ -850,15 +862,34 @@ Return ONLY valid JSON, no markdown.`,
     }
 
     // Filter by relevance first, then sentiment
+    // LOOSENED: Only hard-reject when AI is confident (relevant===false AND rejection_reason is strong)
+    // When AI analysis failed/incomplete, default to INCLUDE (benefit of doubt)
     let filteredResults = cleanedResults
       .map((r, i) => ({ result: r, analysis: analyses[i] || {} }))
       .filter(({ analysis, result }) => {
-        // AI relevance gate: reject irrelevant content
-        if (analysis.relevant === false) {
-          console.log("AI rejected as irrelevant:", result.url, "reason:", analysis.rejection_reason || "not about brand");
-          return false;
+        // If AI gave no analysis (parse failure), include with neutral defaults
+        if (!analysis || Object.keys(analysis).length === 0) {
+          console.log("No AI analysis — including with defaults:", result.url);
+          return true;
         }
-        // Also reject if AI couldn't extract meaningful content
+        // AI relevance gate: only reject if explicitly false AND has a reason
+        // (avoids false negatives from AI being overly conservative)
+        if (analysis.relevant === false && analysis.rejection_reason) {
+          // Don't reject for vague reasons — only hard blockers
+          const reason = (analysis.rejection_reason || "").toLowerCase();
+          const isHardBlock = reason.includes("evergreen") || reason.includes("reference page") ||
+            reason.includes("product listing") || reason.includes("app store description") ||
+            reason.includes("wikipedia") || reason.includes("price ticker") ||
+            reason.includes("sitemap") || reason.includes("career page");
+          if (isHardBlock) {
+            console.log("AI hard-rejected:", result.url, "reason:", analysis.rejection_reason);
+            return false;
+          }
+          // Soft rejection — include but log
+          console.log("AI soft-rejected (including anyway):", result.url, "reason:", analysis.rejection_reason);
+          return true;
+        }
+        // Also reject if AI explicitly couldn't extract meaningful content
         const summary = analysis.clean_summary || "";
         if (summary.toLowerCase().includes("unable to extract meaningful content")) {
           console.log("AI couldn't extract content:", result.url);
@@ -970,7 +1001,19 @@ Return ONLY valid JSON, no markdown.`,
           total_mentions: 0,
           negative_pct: 0,
           emergencies_count: 0,
-        })
+          result_snapshot: {
+            scan_log: scanLog,
+            keyword_groups: kwGroups,
+            total_found: allResults.length,
+            quality_filtered: cleanedResults.length,
+            ai_rejected: cleanedResults.length,
+            duplicates_skipped: 0,
+            mentions_saved: 0,
+            zero_reason: reasons.join(" "),
+            errors,
+            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
+          },
+        } as any)
         .eq("id", scanRun.id);
 
       return new Response(
@@ -1099,6 +1142,21 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
       m.severity === "critical" || m.severity === "high"
     ).length;
 
+    const resultSnapshot = {
+      scan_log: scanLog,
+      keyword_groups: kwGroups,
+      total_found: allResults.length,
+      quality_filtered: allResults.length - cleanedResults.length,
+      ai_rejected: cleanedResults.length - filteredResults.length,
+      duplicates_skipped: filteredResults.length - dedupedResults.length,
+      mentions_saved: mentionRows.length,
+      negative_pct: Math.round((negCount / mentionRows.length) * 100),
+      emergencies: emergencyCount,
+      errors: errors.length > 0 ? errors : [],
+      relevance_rejections: analyses.filter((a: any) => a?.relevant === false).map((a: any) => a?.rejection_reason).filter(Boolean),
+      sources_used: [...new Set(scanLog.map((s: any) => s.source))],
+    };
+
     await supabase
       .from("scan_runs")
       .update({
@@ -1107,7 +1165,8 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
         total_mentions: mentionRows.length,
         negative_pct: Math.round((negCount / mentionRows.length) * 100),
         emergencies_count: emergencyCount,
-      })
+        result_snapshot: resultSnapshot,
+      } as any)
       .eq("id", scanRun.id);
 
     return new Response(
@@ -1116,7 +1175,8 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
         mentions_created: mentionRows.length,
         total_found: allResults.length,
         quality_filtered: allResults.length - cleanedResults.length,
-        ai_irrelevant: cleanedResults.length - filteredResults.length - (sentiment_filter && sentiment_filter !== "all" ? 0 : 0),
+        ai_irrelevant: cleanedResults.length - filteredResults.length,
+        duplicates_removed: filteredResults.length - dedupedResults.length,
         relevance_rejections: analyses.filter((a: any) => a?.relevant === false).map((a: any) => a?.rejection_reason).filter(Boolean),
         negative_pct: Math.round((negCount / mentionRows.length) * 100),
         emergencies: emergencyCount,

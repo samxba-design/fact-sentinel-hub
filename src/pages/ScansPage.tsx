@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2, Filter, Link2 } from "lucide-react";
+import { Scan, Plus, Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar, ExternalLink, Trash2, AlertTriangle, Info, Sparkles, Brain, Network, Settings2, Filter, Link2, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import PageGuide from "@/components/PageGuide";
@@ -18,6 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import UpgradeBanner from "@/components/UpgradeBanner";
+import ScanResultDrawer from "@/components/ScanResultDrawer";
+import { useScanPreflight } from "@/hooks/useScanPreflight";
 
 interface ScanRun {
   id: string;
@@ -28,6 +30,8 @@ interface ScanRun {
   negative_pct: number | null;
   emergencies_count: number | null;
   config_snapshot: any;
+  result_snapshot: any;
+}
 }
 
 const statusConfig: Record<string, { icon: any; className: string }> = {
@@ -75,6 +79,7 @@ export default function ScansPage() {
   const [scanDateRange, setScanDateRange] = useState<string>("7days");
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [customSentimentFilter, setCustomSentimentFilter] = useState<string>("all");
+  const [selectedDrawerRun, setSelectedDrawerRun] = useState<ScanRun | null>(null);
   // Builder state
   const [selectedSources, setSelectedSources] = useState<string[]>(["news", "google-news", "reddit", "social", "youtube"]);
   const [keywordInput, setKeywordInput] = useState("");
@@ -84,6 +89,9 @@ export default function ScansPage() {
   const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleInterval, setScheduleInterval] = useState("daily");
+
+  // Preflight validation
+  const { preflight, preflightLoading } = useScanPreflight(selectedSources);
 
   const fetchRuns = useCallback(async () => {
     if (!currentOrg) return;
@@ -503,56 +511,95 @@ export default function ScansPage() {
           runs.map(run => {
             const sc = statusConfig[run.status || "pending"];
             const StatusIcon = sc.icon;
+            const snap = run.result_snapshot as any;
+            const totalFound = snap?.total_found ?? null;
+            const zeroReason = snap?.zero_reason ?? "";
+            const sourcesUsed: string[] = snap?.sources_used ?? run.config_snapshot?.sources ?? [];
+            const hasErrors = (snap?.errors?.length ?? 0) > 0;
             return (
               <Card
                 key={run.id}
-                className="bg-card border-border p-5 hover:border-primary/30 transition-colors"
+                className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer"
+                onClick={() => setSelectedDrawerRun(run)}
               >
-                <div className="flex items-center justify-between">
-                  <div
-                    className="flex items-center gap-4 flex-1 cursor-pointer"
-                    onClick={() => navigate(`/mentions?scan=${run.id}`)}
-                  >
-                    <Scan className="h-5 w-5 text-primary" />
-                    <div>
-                      <div className="text-sm font-medium text-card-foreground">
-                        {formatDate(run.started_at)}
+                <div className="flex items-center justify-between p-5">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      run.status === "completed" && (run.total_mentions ?? 0) > 0
+                        ? "bg-emerald-500/10"
+                        : run.status === "failed"
+                        ? "bg-red-500/10"
+                        : "bg-primary/10"
+                    }`}>
+                      <Scan className={`h-4 w-4 ${
+                        run.status === "completed" && (run.total_mentions ?? 0) > 0
+                          ? "text-emerald-400"
+                          : run.status === "failed"
+                          ? "text-red-400"
+                          : "text-primary"
+                      }`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-card-foreground">
+                          {formatDate(run.started_at)}
+                        </div>
+                        <StatusIcon className={`h-3.5 w-3.5 ${sc.className}`} />
+                        {hasErrors && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" title="Some sources had errors" />}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                        <span className="capitalize">{run.status}</span>
-                        {run.config_snapshot?.sources && (
-                          <span>· {(run.config_snapshot.sources as string[]).join(", ")}</span>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        {sourcesUsed.length > 0 && (
+                          <span>{sourcesUsed.slice(0, 4).join(", ")}{sourcesUsed.length > 4 ? ` +${sourcesUsed.length - 4}` : ""}</span>
+                        )}
+                        {totalFound !== null && (
+                          <span className="text-muted-foreground/60">· {totalFound} found</span>
+                        )}
+                        {zeroReason && (run.total_mentions ?? 0) === 0 && (
+                          <span className="text-amber-400/70 truncate max-w-xs" title={zeroReason}>· no results</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-5 shrink-0">
                     <div className="text-right">
-                      <div className="text-sm font-mono text-card-foreground">{run.total_mentions ?? 0}</div>
+                      <div className={`text-sm font-mono ${(run.total_mentions ?? 0) > 0 ? "text-card-foreground" : "text-muted-foreground"}`}>
+                        {run.total_mentions ?? 0}
+                      </div>
                       <div className="text-[10px] text-muted-foreground">mentions</div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-sm font-mono ${(run.negative_pct ?? 0) > 10 ? "text-sentinel-amber" : "text-card-foreground"}`}>
+                      <div className={`text-sm font-mono ${(run.negative_pct ?? 0) > 10 ? "text-amber-400" : "text-card-foreground"}`}>
                         {Number(run.negative_pct ?? 0).toFixed(0)}%
                       </div>
                       <div className="text-[10px] text-muted-foreground">negative</div>
                     </div>
                     {(run.emergencies_count ?? 0) > 0 && (
-                      <Badge variant="outline" className="border-sentinel-red/30 text-sentinel-red text-[10px]">
-                        {run.emergencies_count} emergency
+                      <Badge variant="outline" className="border-red-500/30 text-red-400 text-[10px]">
+                        {run.emergencies_count} 🚨
                       </Badge>
                     )}
-                    <div className="flex items-center gap-1.5">
-                      <StatusIcon className={`h-4 w-4 ${sc.className}`} />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if ((run.total_mentions ?? 0) > 0) navigate(`/mentions?scan=${run.id}`);
+                          else setSelectedDrawerRun(run);
+                        }}
+                      >
+                        {(run.total_mentions ?? 0) > 0 ? <ExternalLink className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(run.id); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(run.id); }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </Card>
@@ -873,16 +920,49 @@ export default function ScansPage() {
               </div>
             )}
 
+            {/* Preflight Warnings */}
+            {!scanning && !scanResult && preflight.issues.length > 0 && (
+              <div className="space-y-2">
+                {preflight.issues.map((issue, i) => (
+                  <div key={i} className={`flex items-start gap-2 rounded-md p-3 border text-xs ${
+                    issue.level === "error"
+                      ? "bg-red-500/5 border-red-500/20 text-red-400"
+                      : "bg-amber-500/5 border-amber-500/20 text-amber-400"
+                  }`}>
+                    {issue.level === "error"
+                      ? <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      : <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    }
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">{issue.message}</span>
+                      {issue.action && (
+                        <button
+                          className="ml-2 underline text-primary hover:text-primary/80"
+                          onClick={() => { setBuilderOpen(false); navigate(issue.action!.href); }}
+                        >
+                          {issue.action.label} →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Run Button */}
             {!scanResult && (
               <div className="flex justify-between items-center">
                 <p className="text-xs text-muted-foreground">
-                  {selectedSources.length} sources · {keywords.length} keywords
+                  {selectedSources.length} sources · {preflight.keywordCount > 0 ? preflight.keywordCount : keywords.length} keywords
                   {scheduleEnabled && ` · repeats ${scheduleInterval}`}
                 </p>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setBuilderOpen(false)}>Cancel</Button>
-                  <Button onClick={runScan} disabled={scanning || selectedSources.length === 0}>
+                  <Button
+                    onClick={runScan}
+                    disabled={scanning || selectedSources.length === 0 || !preflight.canRun}
+                    title={!preflight.canRun ? "Fix errors above before running" : undefined}
+                  >
                     {scanning ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1006,6 +1086,9 @@ export default function ScansPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Scan Result Drawer */}
+      <ScanResultDrawer run={selectedDrawerRun} onClose={() => setSelectedDrawerRun(null)} />
     </div>
   );
 }
