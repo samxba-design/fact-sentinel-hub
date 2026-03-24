@@ -746,20 +746,20 @@ Deno.serve(async (req) => {
           total_mentions: 0,
           negative_pct: 0,
           emergencies_count: 0,
-          result_snapshot: {
-            scan_log: scanLog,
-            keyword_groups: kwGroups,
-            total_found: allResults.length,
-            quality_filtered: allResults.length,
-            ai_rejected: 0,
-            duplicates_skipped: 0,
-            mentions_saved: 0,
-            zero_reason: reasons.join(" "),
-            errors,
-            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
-          },
         } as any)
         .eq("id", scanRun.id);
+      // Best-effort: save result_snapshot (requires migration to have run)
+      try {
+        await supabase.from("scan_runs").update({
+          result_snapshot: {
+            scan_log: scanLog, keyword_groups: kwGroups,
+            total_found: allResults.length, quality_filtered: allResults.length,
+            ai_rejected: 0, duplicates_skipped: 0, mentions_saved: 0,
+            zero_reason: reasons.join(" "), errors,
+            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
+          }
+        } as any).eq("id", scanRun.id);
+      } catch { /* column may not exist yet */ }
 
       return new Response(
         JSON.stringify({
@@ -1001,20 +1001,20 @@ Return ONLY valid JSON, no markdown.`,
           total_mentions: 0,
           negative_pct: 0,
           emergencies_count: 0,
-          result_snapshot: {
-            scan_log: scanLog,
-            keyword_groups: kwGroups,
-            total_found: allResults.length,
-            quality_filtered: cleanedResults.length,
-            ai_rejected: cleanedResults.length,
-            duplicates_skipped: 0,
-            mentions_saved: 0,
-            zero_reason: reasons.join(" "),
-            errors,
-            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
-          },
         } as any)
         .eq("id", scanRun.id);
+      // Best-effort: save result_snapshot (requires migration to have run)
+      try {
+        await supabase.from("scan_runs").update({
+          result_snapshot: {
+            scan_log: scanLog, keyword_groups: kwGroups,
+            total_found: allResults.length, quality_filtered: cleanedResults.length,
+            ai_rejected: cleanedResults.length, duplicates_skipped: 0, mentions_saved: 0,
+            zero_reason: reasons.join(" "), errors,
+            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
+          }
+        } as any).eq("id", scanRun.id);
+      } catch { /* column may not exist yet */ }
 
       return new Response(
         JSON.stringify({
@@ -1165,9 +1165,12 @@ Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
         total_mentions: mentionRows.length,
         negative_pct: Math.round((negCount / mentionRows.length) * 100),
         emergencies_count: emergencyCount,
-        result_snapshot: resultSnapshot,
       } as any)
       .eq("id", scanRun.id);
+    // Best-effort: save result_snapshot (requires migration to have run)
+    try {
+      await supabase.from("scan_runs").update({ result_snapshot: resultSnapshot } as any).eq("id", scanRun.id);
+    } catch { /* column may not exist yet */ }
 
     return new Response(
       JSON.stringify({
