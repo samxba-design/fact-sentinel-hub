@@ -50,9 +50,47 @@ Deno.serve(async (req) => {
       });
     }
 
-    // --- Alert / escalation notifications (org-based) ---
+    // --- Alert / escalation notifications (org-based, requires auth) ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerUserId = claimsData.claims.sub;
+
     const { org_id, payload } = body;
     if (!type || !org_id) throw new Error("Missing type or org_id");
+
+    // Verify caller is a member of the target org
+    const { data: membership } = await supabase
+      .from("org_memberships")
+      .select("id")
+      .eq("user_id", callerUserId)
+      .eq("org_id", org_id)
+      .not("accepted_at", "is", null)
+      .limit(1);
+
+    if (!membership || membership.length === 0) {
+      return new Response(JSON.stringify({ error: "Forbidden: not a member of this org" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: org } = await supabase.from("organizations").select("name").eq("id", org_id).single();
     const orgName = org?.name || "Your Organization";

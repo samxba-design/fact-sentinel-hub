@@ -32,7 +32,6 @@ interface ScanRun {
   config_snapshot: any;
   result_snapshot: any;
 }
-}
 
 const statusConfig: Record<string, { icon: any; className: string }> = {
   completed: { icon: CheckCircle2, className: "text-sentinel-emerald" },
