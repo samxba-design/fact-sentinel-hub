@@ -30,7 +30,7 @@ interface ScanRun {
   negative_pct: number | null;
   emergencies_count: number | null;
   config_snapshot: any;
-  result_snapshot: any;
+  result_snapshot?: any;
 }
 
 const statusConfig: Record<string, { icon: any; className: string }> = {
