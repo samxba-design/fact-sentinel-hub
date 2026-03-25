@@ -36,6 +36,7 @@ import DashboardCustomizer from "@/components/dashboard/DashboardCustomizer";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 import SentimentForecastWidget from "@/components/dashboard/SentimentForecastWidget";
 import WatchlistThreatsWidget from "@/components/dashboard/WatchlistThreatsWidget";
+import ActiveThreatsWidget from "@/components/dashboard/ActiveThreatsWidget";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);
@@ -510,6 +511,9 @@ export default function DashboardPage() {
         <LiveThreatFeed />
       </div>
       )}
+
+      {/* Active Threats Widget - Quick threat detection */}
+      {isVisible("active-threats") && <ActiveThreatsWidget />}
 
       {isVisible("watchlist-threats") && <WatchlistThreatsWidget />}
 
