@@ -242,7 +242,9 @@ export default function SourceConnectionsTab() {
         </div>
         <div className="grid gap-2">
           {[
-            { name: "Web / News / Blogs", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Article text, author, URL" },
+            { name: "Web / News / Blogs", status: "ready" as const, via: "Firecrawl + Brave + NewsAPI", cost: "Included", dataPoints: "Article text, author, URL" },
+            { name: "Reddit (public search)", status: "ready" as const, via: "Reddit public API", cost: "Included (no key)", dataPoints: "Posts, comments, upvotes" },
+            { name: "Hacker News", status: "ready" as const, via: "Algolia HN API", cost: "Included (no key)", dataPoints: "Stories and comments" },
             { name: "Review Sites", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Trustpilot, G2, Glassdoor, Capterra reviews" },
             { name: "RSS Feeds", status: "ready" as const, via: "Custom Sources", cost: "Included", dataPoints: "Blog posts, news articles, publications" },
             { name: "Google News", status: "ready" as const, via: "Firecrawl", cost: "Included", dataPoints: "Press coverage, mainstream media" },

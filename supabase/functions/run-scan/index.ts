@@ -316,10 +316,15 @@ Deno.serve(async (req) => {
     const scanLog: { source: string; query: string; found: number }[] = [];
     const selectedSources: string[] = sources || ["news", "google-news", "reddit", "social"];
 
+    // Global scan timeout — prevent hanging forever (90s max for full scan)
+    const globalScanDeadline = Date.now() + 90000;
+    const isDeadlineExceeded = () => Date.now() > globalScanDeadline;
+
     // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
+      if (isDeadlineExceeded()) throw new Error("Scan deadline exceeded");
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
+      const timeout = setTimeout(() => controller.abort(), 28000);
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
           method: "POST",
@@ -631,6 +636,41 @@ Deno.serve(async (req) => {
           }
         } catch (e: any) {
           errors.push(`Podcasts: ${e.name === "AbortError" ? "Timed out" : e.message}`);
+        }
+      })());
+    }
+
+    // === Multi-source search (Brave + NewsAPI + HN + Reddit public) — runs in parallel with Firecrawl ===
+    // This provides independent coverage when Firecrawl is slow/out of credits
+    if (selectedSources.some(s => ["news", "google-news", "blogs", "forums", "web", "social"].includes(s))) {
+      scanPromises.push((async () => {
+        try {
+          const searchResult = await callFunction("scan-search", {
+            keywords: brandKws.slice(0, 5),
+            limit: 25,
+            date_from,
+            date_to,
+            search_type: "general",
+            include_hn: selectedSources.some(s => ["forums", "web", "blogs"].includes(s)),
+            include_reddit: selectedSources.includes("reddit"),
+          });
+          if (searchResult.success && searchResult.results?.length > 0) {
+            allResults.push(...searchResult.results);
+            const eb = searchResult.engine_breakdown || {};
+            scanLog.push({
+              source: "multi-search",
+              query: searchResult.query_used || brandKws.join(", "),
+              found: searchResult.results.length,
+            });
+            if (eb.brave > 0) scanLog.push({ source: "brave-search", query: "", found: eb.brave });
+            if (eb.newsapi > 0) scanLog.push({ source: "newsapi", query: "", found: eb.newsapi });
+            if (eb.hackernews > 0) scanLog.push({ source: "hackernews", query: "", found: eb.hackernews });
+            if (eb.reddit_public > 0) scanLog.push({ source: "reddit-public", query: "", found: eb.reddit_public });
+          } else if (searchResult.error) {
+            errors.push(`Multi-search: ${searchResult.error}`);
+          }
+        } catch (e: any) {
+          errors.push(`Multi-search: ${e.name === "AbortError" ? "Timed out" : e.message}`);
         }
       })());
     }
