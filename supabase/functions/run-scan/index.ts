@@ -96,38 +96,33 @@ function isJunkContent(text: string): boolean {
 }
 
 // Detect content that is PRIMARILY a ticker/price list, sitemap, or navigation dump
-// Only reject if the content is MOSTLY junk, not if it has a few tickers mixed with real article text
+// LENIENT: Only reject if CLEARLY junk, not just because it mentions prices
 function isNonArticleContent(text: string): boolean {
   const lower = text.toLowerCase();
   const wordCount = text.split(/\s+/).length;
   
-  // Ticker/price pattern: only reject if tickers dominate (>50% of content)
+  // Reject ONLY if tickers dominate (>80% of content)
   const priceMatches = text.match(/\$[\d,]+\.?\d*\s+[\d.]+%/g);
-  if (priceMatches && priceMatches.length >= 5 && wordCount < priceMatches.length * 15) return true;
+  if (priceMatches && priceMatches.length >= 8 && wordCount < priceMatches.length * 10) return true;
   
-  // Sitemap-like: mostly URLs or link lists
+  // Reject if MOSTLY URLs (>70%)
   const urlCount = (text.match(/https?:\/\//g) || []).length;
-  if (urlCount > 10 && urlCount > wordCount * 0.3) return true;
+  if (urlCount > 15 && urlCount > wordCount * 0.3) return true;
   
-  // Navigation dump: very short content that is mostly nav labels
-  const navPatterns = ["home", "about", "contact", "login", "sign up", "subscribe", "menu", "search", "privacy", "terms"];
+  // Reject if navigation dump (very short with lots of nav terms)
+  const navPatterns = ["home", "about", "contact", "login", "sign up", "subscribe", "menu"];
   const navMatchCount = navPatterns.filter(p => lower.includes(p)).length;
-  if (navMatchCount >= 6 && text.length < 300) return true;
+  if (navMatchCount >= 6 && text.length < 150) return true;
   
   return false;
 }
 
 // Validate that content has enough substance to be a real article/post
+// LENIENT: Accept almost any content with meaningful text
 function hasSubstantiveContent(text: string): boolean {
-  // Must have at least some sentences (periods, question marks, etc.)
-  const sentenceEnders = (text.match(/[.!?]/g) || []).length;
-  if (sentenceEnders < 2 && text.length > 200) return false;
-  
-  // Must have a reasonable ratio of actual words vs symbols/numbers
-  const words = text.split(/\s+/).filter(w => /[a-zA-Z]{3,}/.test(w));
-  const totalTokens = text.split(/\s+/).length;
-  if (totalTokens > 20 && words.length / totalTokens < 0.3) return false;
-  
+  // Just need some actual words, accept titles and short snippets
+  const words = text.split(/\s+/).filter(w => /[a-zA-Z]{2,}/.test(w));
+  if (words.length < 2) return false; // At least 2 words
   return true;
 }
 
@@ -236,10 +231,21 @@ Deno.serve(async (req) => {
     const lovableKey = Deno.env.get("LOVABLE_API_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (authErr || !user) throw new Error("Unauthorized");
+    // Verify user (handle both user JWTs and service role bypass for scheduled scans)
+    const isServiceRole = authHeader.replace("Bearer ", "") === supabaseKey;
+    let user: any = null;
+    
+    if (isServiceRole) {
+      // Scheduled scan - use system-level access
+      console.log("Service role request — scheduled scan");
+      user = { id: "system-scheduled-scan" };
+    } else {
+      // Regular user request
+      const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+      const { data: { user: authUser }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (authErr || !authUser) throw new Error("Unauthorized");
+      user = authUser;
+    }
 
     const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter, scan_context } = await req.json();
     // rawKeywords can be string[] (legacy) or we load structured keywords from DB
@@ -263,15 +269,17 @@ Deno.serve(async (req) => {
       .eq("org_id", org_id);
     const ignoredDomains = new Set((ignoredSourcesData || []).map((s: any) => s.domain.toLowerCase()));
 
-    // Verify membership
-    const { data: membership } = await supabase
-      .from("org_memberships")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("org_id", org_id)
-      .not("accepted_at", "is", null)
-      .maybeSingle();
-    if (!membership) throw new Error("Not a member of this org");
+    // Verify membership (skip for system scheduled scans)
+    if (user.id !== "system-scheduled-scan") {
+      const { data: membership } = await supabase
+        .from("org_memberships")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("org_id", org_id)
+        .not("accepted_at", "is", null)
+        .maybeSingle();
+      if (!membership) throw new Error("Not a member of this org");
+    }
 
     // Load structured keywords from DB for smart grouping
     const { data: keywordRows } = await supabase
@@ -316,15 +324,15 @@ Deno.serve(async (req) => {
     const scanLog: { source: string; query: string; found: number }[] = [];
     const selectedSources: string[] = sources || ["news", "google-news", "reddit", "social"];
 
-    // Global scan timeout — prevent hanging forever (90s max for full scan)
-    const globalScanDeadline = Date.now() + 90000;
+    // Global scan timeout — prevent hanging forever (200s max for full scan)
+    const globalScanDeadline = Date.now() + 200000;
     const isDeadlineExceeded = () => Date.now() > globalScanDeadline;
 
     // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
       if (isDeadlineExceeded()) return { success: false, error: "Scan deadline exceeded" };
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 28000);
+      const timeout = setTimeout(() => controller.abort(), 35000); // 35s per function (up from 28s)
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
           method: "POST",
@@ -853,34 +861,33 @@ Deno.serve(async (req) => {
               role: "system",
               content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
 
-For each mention, you MUST first determine RELEVANCE then analyze sentiment.
+For each mention, determine RELEVANCE first, then analyze sentiment.
 
-RELEVANCE RULES (CRITICAL — be VERY strict):
-- relevant=true ONLY if the content describes a SPECIFIC, RECENT EVENT, NEWS STORY, USER EXPERIENCE, or OPINION about "${brandContext}"
-- relevant=false if ANY of these apply:
-  - The content is an evergreen/reference page (Wikipedia, encyclopedia, "what is X", explainer, tutorial, FAQ, help doc)
-  - The content is a product listing, app store description, or marketing page
-  - The content is a company overview, career page, or investor page
-  - The content merely lists "${brandContext}" in a table, sidebar, menu, or comparison chart
-  - The content is a generic review site page (Glassdoor overview, Capterra overview, G2 overview) — NOT a specific review with a date
-  - The content is primarily about a DIFFERENT entity and only mentions "${brandContext}" in passing (e.g., an article about CZ's investments that tangentially mentions Binance)
-  - The content describes a historical event (>3 months old) without new developments
-  - The content is a tag page, category page, or index page
-  - The content is a market data / price ticker page
-- PRECISION over RECALL: when in doubt, reject. It is better to miss one real mention than to include 5 irrelevant ones.
+RELEVANCE RULES — INCLUSIVE approach (err on the side of INCLUDING):
+- relevant=true for ANY mention that describes a SPECIFIC, RECENT EVENT, NEWS, OPINION, or EXPERIENCE about "${brandContext}"
+- This includes: news articles, social posts, reviews, forum discussions, Reddit threads about the brand
+- ONLY reject with relevant=false if CLEARLY one of these HARD BLOCKS:
+  - Evergreen reference page (Wikipedia, Investopedia "what is X", tutorial, FAQ, help doc)
+  - Generic product listing or app store description (no date, no opinion)
+  - Company HR/careers page (not about public reputation)
+  - Historical event (>6 months old with no new developments mentioned)
+  - Page is pure navigation/menu (no actual content)
+- For news articles, trading volume updates, product announcements, reviews, etc: INCLUDE THEM
+- For Reddit/forum/Twitter posts about "${brandContext}": INCLUDE THEM (unless they're just listing it in a comparison chart)
+- When uncertain: INCLUDE the mention. False positives are better than missing real signals.
 
-For RELEVANT mentions only, also return:
-- clean_summary: 2-4 sentence summary of a SPECIFIC event/opinion about "${brandContext}". Must describe WHAT happened, WHEN, and WHY it matters to the brand's reputation. NEVER include boilerplate.
-- sentiment_label: "positive", "negative", "neutral", or "mixed" (relative to "${brandContext}")
+For RELEVANT mentions, also return:
+- clean_summary: 2-4 sentence summary of WHAT happened and WHY it matters to "${brandContext}"
+- sentiment_label: "positive", "negative", "neutral", or "mixed"
 - sentiment_score: -1 (very negative) to 1 (very positive)
 - sentiment_confidence: 0 to 1
-- severity: "low", "medium", "high", or "critical" based on reputational risk to "${brandContext}"
-- detected_language: ISO 639-1 code (e.g. "en", "es", "fr", "de", "zh", "ar", "ja", "ko", "pt", "ru")
-- translated_summary: if detected_language is NOT "en", provide an English translation of the clean_summary. Otherwise null.
+- severity: "low", "medium", "high", or "critical" based on reputational impact
+- detected_language: ISO 639-1 code
+- translated_summary: English translation if not English, else null
 - flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
-- rejection_reason: null for relevant, or a short reason
+- rejection_reason: null for relevant mentions
 
-Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": "..." or null, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "detected_language": "en", "translated_summary": null, "flags": {...} } ] }
+Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": null or string, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "detected_language": "en", "translated_summary": null, "flags": {...} } ] }
 Return ONLY valid JSON, no markdown.`,
             },
             {
@@ -911,38 +918,26 @@ Return ONLY valid JSON, no markdown.`,
       console.error("AI analysis failed with status:", aiRes.status);
     }
 
-    // Filter by relevance first, then sentiment
-    // LOOSENED: Only hard-reject when AI is confident (relevant===false AND rejection_reason is strong)
-    // When AI analysis failed/incomplete, default to INCLUDE (benefit of doubt)
+    // Filter by relevance — MUCH more lenient than before
+    // Only hard-reject when AI explicitly says false AND has a strong reason
     let filteredResults = cleanedResults
       .map((r, i) => ({ result: r, analysis: analyses[i] || {} }))
       .filter(({ analysis, result }) => {
-        // If AI gave no analysis (parse failure), include with neutral defaults
+        // No analysis = include by default
         if (!analysis || Object.keys(analysis).length === 0) {
-          console.log("No AI analysis — including with defaults:", result.url);
+          console.log("No AI analysis — including by default:", result.url);
           return true;
         }
-        // AI relevance gate: only reject if explicitly false AND has a reason
-        // (avoids false negatives from AI being overly conservative)
-        if (analysis.relevant === false && analysis.rejection_reason) {
-          // Don't reject for vague reasons — only hard blockers
+        // Only reject if explicitly false AND reason matches hard blockers
+        if (analysis.relevant === false) {
           const reason = (analysis.rejection_reason || "").toLowerCase();
-          const isHardBlock = reason.includes("evergreen") || reason.includes("reference page") ||
-            reason.includes("product listing") || reason.includes("app store description") ||
-            reason.includes("wikipedia") || reason.includes("price ticker") ||
-            reason.includes("sitemap") || reason.includes("career page");
-          if (isHardBlock) {
-            console.log("AI hard-rejected:", result.url, "reason:", analysis.rejection_reason);
-            return false;
+          const hardBlocks = ["evergreen", "wikipedia", "reference page", "product listing", "app store", "help doc", "navigation"];
+          if (!hardBlocks.some(b => reason.includes(b))) {
+            // Soft rejection — include anyway
+            console.log("Soft rejection, including anyway:", result.url, "reason:", reason);
+            return true;
           }
-          // Soft rejection — include but log
-          console.log("AI soft-rejected (including anyway):", result.url, "reason:", analysis.rejection_reason);
-          return true;
-        }
-        // Also reject if AI explicitly couldn't extract meaningful content
-        const summary = analysis.clean_summary || "";
-        if (summary.toLowerCase().includes("unable to extract meaningful content")) {
-          console.log("AI couldn't extract content:", result.url);
+          console.log("Hard rejection:", result.url, "reason:", analysis.rejection_reason);
           return false;
         }
         return true;

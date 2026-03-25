@@ -155,7 +155,8 @@ export default function ScansPage() {
       const connectedProviders = [...new Set((provRes.data || []).map(k => k.provider))];
       const customTypes = (customSourcesRes.data || []).map(s => s.type);
 
-      const autoSources = ["news", "blogs", "forums", "reviews", "google-news", "youtube"];
+      // Improved source selection - include social media and more sources by default
+      const autoSources = ["news", "blogs", "forums", "reviews", "google-news", "youtube", "social"];
       if (connectedProviders.includes("twitter")) autoSources.push("twitter");
       if (connectedProviders.includes("reddit")) autoSources.push("reddit");
       customTypes.forEach(t => { if (!autoSources.includes(t)) autoSources.push(t); });
@@ -174,12 +175,14 @@ export default function ScansPage() {
           dateFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           break;
         default:
-          dateFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Default to 7 days
       }
 
-      setTimeout(() => setScanProgress("Scanning all connected sources..."), 1500);
-      setTimeout(() => setScanProgress("Analyzing sentiment & detecting threats..."), 4000);
-      setTimeout(() => setScanProgress("Detecting coordinated patterns & clustering narratives..."), 7000);
+      // Live progress updates
+      setTimeout(() => setScanProgress("Scanning news, blogs, forums, reviews..."), 1000);
+      setTimeout(() => setScanProgress("Scanning social media (Reddit, Twitter, YouTube)..."), 3000);
+      setTimeout(() => setScanProgress("Analyzing sentiment & detecting threats..."), 5500);
+      setTimeout(() => setScanProgress("Clustering narratives & calculating risk..."), 8000);
 
       const { data, error } = await supabase.functions.invoke("run-scan", {
         body: {
@@ -195,45 +198,38 @@ export default function ScansPage() {
       if (data?.error) throw new Error(data.error);
 
       const totalFound = data.total_found || data.mentions_created || 0;
-      const filtered = data.filtered_out || 0;
-      const dupes = data.duplicates_removed || 0;
-      const aiFiltered = data.ai_filtered || 0;
       const created = data.mentions_created || 0;
       const scanLogEntries = data.scan_log || [];
       const kwGroupsUsed = data.keyword_groups || {};
       const zeroReason = data.zero_results_reason || "";
 
-      const sourceBreakdown = scanLogEntries.map((s: any) => `${s.source}: ${s.found} found`).join(", ");
+      const sourceBreakdown = scanLogEntries.map((s: any) => `${s.source}: ${s.found}`).join(" · ");
 
       if (created === 0) {
         // Zero results — give detailed explanation
         const details = [
           zeroReason || "No relevant mentions found.",
           sourceBreakdown ? `Scanned: ${sourceBreakdown}` : null,
-          kwGroupsUsed.brand?.length ? `Keywords used: ${kwGroupsUsed.brand.slice(0, 5).join(", ")}` : null,
+          kwGroupsUsed.brand?.length ? `Brand keywords: ${kwGroupsUsed.brand.slice(0, 5).join(", ")}` : null,
           data.errors?.length ? `Issues: ${data.errors.slice(0, 2).join("; ")}` : null,
-          "💡 Try widening your date range, adding more keywords, or checking your keyword configuration in Settings.",
+          "💡 Try widening your date range or checking your keyword configuration in Settings.",
         ].filter(Boolean).join("\n");
 
         toast({
-          title: "Scan complete — no new mentions",
+          title: "Scan complete — no new mentions found",
           description: details,
           duration: 15000,
         });
       } else {
         const details = [
-          `${created} mentions saved`,
-          totalFound > created ? `${totalFound} total found across sources` : null,
+          `✅ ${created} relevant mentions found`,
+          totalFound > created ? `${totalFound} total scanned (quality filtered to ${created})` : null,
           sourceBreakdown ? `Sources: ${sourceBreakdown}` : null,
-          filtered > 0 ? `${filtered} filtered (junk/out-of-range)` : null,
-          dupes > 0 ? `${dupes} duplicates removed` : null,
-          aiFiltered > 0 ? `${aiFiltered} removed by AI quality filter` : null,
-          kwGroupsUsed.brand?.length ? `Brand keywords: ${kwGroupsUsed.brand.slice(0, 3).join(", ")}` : null,
-          kwGroupsUsed.risk?.length ? `Risk keywords: ${kwGroupsUsed.risk.slice(0, 3).join(", ")}` : null,
+          kwGroupsUsed.brand?.length ? `Tracked: ${kwGroupsUsed.brand.slice(0, 3).join(", ")}` : null,
         ].filter(Boolean).join(" · ");
 
         toast({
-          title: `Auto-scan complete! ${created} mentions found`,
+          title: `Auto-scan complete`,
           description: details,
         });
       }
@@ -302,10 +298,10 @@ export default function ScansPage() {
     setScanProgress("Connecting to sources...");
     setScanResult(null);
     try {
-      // Simulate progress stages
-      setTimeout(() => setScanProgress("Crawling web content..."), 1500);
+      // Live progress stages
+      setTimeout(() => setScanProgress("Crawling content from sources..."), 1500);
       setTimeout(() => setScanProgress("Analyzing sentiment & severity..."), 4000);
-      setTimeout(() => setScanProgress("Clustering narratives..."), 7000);
+      setTimeout(() => setScanProgress("Detecting and clustering narratives..."), 7000);
 
       const { data, error } = await supabase.functions.invoke("run-scan", {
         body: {

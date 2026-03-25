@@ -270,31 +270,46 @@ export default function DashboardPage() {
     }, 2000);
   }, [currentOrg, rangeDays]);
 
-  // Realtime subscription for live dashboard updates
+  // Live polling for active scans — update dashboard real-time
   useEffect(() => {
     if (!currentOrg) return;
-
-    const channel = supabase
-      .channel(`dashboard-${currentOrg.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mentions', filter: `org_id=eq.${currentOrg.id}` },
-        () => triggerRealtimeRefresh()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'alerts', filter: `org_id=eq.${currentOrg.id}` },
-        () => {
-          // Alerts changed — could trigger notification refresh
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      if (realtimeRefreshRef.current) clearTimeout(realtimeRefreshRef.current);
-    };
-  }, [currentOrg, rangeDays, triggerRealtimeRefresh]);
+    
+    const pollActiveScan = setInterval(async () => {
+      const { data: activeScan } = await supabase
+        .from("scan_runs")
+        .select("id, status, total_mentions, negative_pct, emergencies_count, finished_at")
+        .eq("org_id", currentOrg.id)
+        .eq("status", "running")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (activeScan?.finished_at) {
+        // Scan just finished — refresh the full dashboard
+        const now = new Date();
+        const rangeAgo = subDays(now, rangeDays).toISOString();
+        
+        Promise.all([
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+        ]).then(([total, neg, emg, mentionsRaw]) => {
+          setTotalMentions(total.count ?? 0);
+          setNegativeMentions(neg.count ?? 0);
+          setEmergencies(emg.count ?? 0);
+          const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
+          setVolumeData(vd);
+          setSentimentData(sd);
+          setSourceData(srd);
+        });
+        
+        clearInterval(pollActiveScan);
+      }
+    }, 5000); // Poll every 5 seconds during active scans
+    
+    return () => clearInterval(pollActiveScan);
+  }, [currentOrg, rangeDays]);
 
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
