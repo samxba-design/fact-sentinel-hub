@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     }
 
     // Call AI to cluster mentions into narratives
-    const aiResponse = await fetch("https://ai.lovable.dev/api/v1/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -95,7 +95,7 @@ Return a JSON object with this exact structure (no markdown, just JSON):
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: "You are a predictive risk analytics engine. Return ONLY valid JSON, no markdown formatting." },
           { role: "user", content: prompt },

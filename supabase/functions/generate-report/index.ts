@@ -101,7 +101,7 @@ Generate the report content with these sections. Use markdown formatting with he
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: "You are a professional analyst writing branded intelligence reports. Write in clear, executive-friendly language. Use markdown with proper headers (##), bullet points, and bold text. Be concise but thorough." },
           { role: "user", content: aiPrompt },
