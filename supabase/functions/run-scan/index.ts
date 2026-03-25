@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
 
     // Helper to call edge functions internally with timeout
     const callFunction = async (fnName: string, body: any): Promise<any> => {
-      if (isDeadlineExceeded()) throw new Error("Scan deadline exceeded");
+      if (isDeadlineExceeded()) return { success: false, error: "Scan deadline exceeded" };
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 28000);
       try {
@@ -335,7 +335,17 @@ Deno.serve(async (req) => {
           body: JSON.stringify(body),
           signal: controller.signal,
         });
+        // Always safe-parse — never let a bad response crash the whole scan
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) {
+          const text = await res.text().catch(() => "");
+          console.error(`${fnName} returned non-JSON (${res.status}):`, text.slice(0, 200));
+          return { success: false, error: `${fnName} returned HTTP ${res.status}` };
+        }
         return res.json();
+      } catch (e: any) {
+        if (e.name === "AbortError") return { success: false, error: `${fnName} timed out` };
+        return { success: false, error: e.message };
       } finally {
         clearTimeout(timeout);
       }
