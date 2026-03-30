@@ -458,12 +458,16 @@ Deno.serve(async (req) => {
 
   const sb = createClient(supabaseUrl, serviceKey);
 
+  // Capture body text early so the catch block can read org_id for cleanup
+  let bodyText = "";
+  try { bodyText = await req.text(); } catch {}
+
   try {
     /* ── Auth ── */
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ","");
     const isService = token === serviceKey;
-    let userId = "system";
+    let userId: string | null = null; // null = system/scheduled scan (valid UUID null for owner_user_id)
     if (!isService) {
       const anonSb = createClient(supabaseUrl, anonKey);
       const { data: { user }, error } = await anonSb.auth.getUser(token);
@@ -471,7 +475,7 @@ Deno.serve(async (req) => {
       userId = user.id;
     }
 
-    const body = await req.json();
+    const body = JSON.parse(bodyText || "{}");
     const { org_id, keywords: rawKws, sources, date_from, date_to, sentiment_filter } = body;
     if (!org_id) return new Response(JSON.stringify({ error: "org_id required" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
 
@@ -617,8 +621,16 @@ Deno.serve(async (req) => {
         ? `No results found from any source. Ensure your keywords match how "${brandName}" appears in news (e.g., exact brand name or product name). Sources tried: ${scanLog.map(s=>s.source).join(", ")}.`
         : `${rawCount} results found but all filtered out (duplicates, error pages, out-of-date-range, or self-published content from ${orgDomain}).`;
 
-      return new Response(JSON.stringify({ scan_run_id: scanRun.id, mentions_created: 0, total_found: rawCount, message: msg, scan_log: scanLog }),
-        { headers: { ...CORS, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({
+        scan_run_id: scanRun.id,
+        mentions_created: 0,
+        total_found: rawCount,
+        message: msg,
+        zero_results_reason: msg,
+        scan_log: scanLog,
+        keyword_groups: { brand: keywords.slice(0,5), risk: [], product: [] },
+        errors: [],
+      }), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
     /* ── Dedup against existing DB mentions ── */
@@ -635,6 +647,20 @@ Deno.serve(async (req) => {
     });
     const dedupSkipped = filtered.length - newItems.length;
     console.log(`New items to analyze: ${newItems.length} (${dedupSkipped} already in DB)`);
+
+    // All items already exist in DB — still a successful scan
+    if (newItems.length === 0) {
+      await sb.from("scan_runs").update({ status:"completed", finished_at:new Date().toISOString(), total_mentions:0, negative_pct:0, emergencies_count:0 } as any).eq("id",scanRun.id);
+      return new Response(JSON.stringify({
+        scan_run_id: scanRun.id,
+        mentions_created: 0,
+        total_found: allRaw.length,
+        message: `Scan complete — ${filtered.length} mentions found but all already exist in your database (no new mentions since last scan).`,
+        zero_results_reason: `All ${filtered.length} results already exist in database.`,
+        scan_log: scanLog,
+        keyword_groups: { brand: keywords.slice(0,5), risk: [], product: [] },
+      }), { headers: { ...CORS, "Content-Type":"application/json" } });
+    }
 
     /* ── AI Analysis with keyword fallback ── */
     const aiInput = newItems.map(r => ({ source: r.source, url: r.url, title: r.title, content: r.content }));
@@ -680,7 +706,7 @@ Deno.serve(async (req) => {
         metrics: r.metrics || {},
         flags: { ...(a.flags||{}), date_verified: r.date_verified },
         status: "new",
-        owner_user_id: userId,
+        owner_user_id: userId || null,
       };
     });
 
@@ -696,12 +722,31 @@ Deno.serve(async (req) => {
     /* ── Insert mentions ── */
     if (mentionRows.length === 0) {
       await sb.from("scan_runs").update({ status:"completed", finished_at:new Date().toISOString(), total_mentions:0, negative_pct:0, emergencies_count:0 } as any).eq("id",scanRun.id);
-      return new Response(JSON.stringify({ scan_run_id:scanRun.id, mentions_created:0, total_found:filtered.length, message:"All mentions matched the sentiment filter or were filtered out.", scan_log:scanLog }),
-        { headers: { ...CORS, "Content-Type":"application/json" } });
+      return new Response(JSON.stringify({
+        scan_run_id: scanRun.id,
+        mentions_created: 0,
+        total_found: filtered.length,
+        message: "All mentions matched the sentiment filter or were filtered out.",
+        zero_results_reason: "All mentions matched the sentiment filter or were filtered out.",
+        scan_log: scanLog,
+        keyword_groups: { brand: keywords.slice(0,5), risk: [], product: [] },
+      }), { headers: { ...CORS, "Content-Type":"application/json" } });
     }
 
-    const { data: inserted, error: insErr } = await sb.from("mentions").insert(mentionRows).select("id");
-    if (insErr) { console.error("Insert error:", insErr); throw insErr; }
+    /* ── Insert mentions (batched to avoid payload limits) ── */
+    const INSERT_BATCH = 50;
+    const allInserted: { id: string }[] = [];
+    for (let i = 0; i < mentionRows.length; i += INSERT_BATCH) {
+      const batch = mentionRows.slice(i, i + INSERT_BATCH);
+      const { data: batchInserted, error: insErr } = await sb.from("mentions").insert(batch).select("id");
+      if (insErr) {
+        console.error(`Insert batch ${i}–${i+INSERT_BATCH} error:`, insErr.message);
+        // Continue with next batch rather than crashing entire scan
+        continue;
+      }
+      if (batchInserted) allInserted.push(...batchInserted);
+    }
+    const inserted = allInserted;
 
     /* ── Stats ── */
     const negCount  = mentionRows.filter(m=>m.sentiment_label==="negative"||m.sentiment_label==="mixed").length;
@@ -716,14 +761,16 @@ Deno.serve(async (req) => {
       emergencies_count: critCount,
     } as any).eq("id", scanRun.id);
 
-    // Save scan snapshot (non-blocking)
-    sb.from("scan_runs").update({ result_snapshot: {
-      scan_log: scanLog, total_found: allRaw.length,
-      filtered_to: filtered.length, dedup_skipped: dedupSkipped,
-      mentions_saved: mentionRows.length, negative_pct: negPct,
-      sources_used: [...new Set(scanLog.map(s=>s.source))],
-      ai_used: lovableKey ? "lovable-gateway" : "keyword-fallback",
-    }} as any).eq("id", scanRun.id).then(() => {}).catch(() => {});
+    // Save scan snapshot (best-effort — column may not exist in all deployments)
+    try {
+      await sb.from("scan_runs").update({ result_snapshot: {
+        scan_log: scanLog, total_found: allRaw.length,
+        filtered_to: filtered.length, dedup_skipped: dedupSkipped,
+        mentions_saved: mentionRows.length, negative_pct: negPct,
+        sources_used: [...new Set(scanLog.map(s=>s.source))],
+        ai_used: lovableKey ? "lovable-gateway" : "keyword-fallback",
+      }} as any).eq("id", scanRun.id);
+    } catch (_) { /* column may not exist — non-fatal */ }
 
     // Trigger narrative clustering async (non-blocking — won't crash scan if it fails)
     (async () => {
@@ -776,6 +823,7 @@ Deno.serve(async (req) => {
       negative_pct: negPct,
       emergencies: critCount,
       scan_log: scanLog,
+      keyword_groups: { brand: keywords.slice(0,5), risk: [], product: [] },
       ai_used: lovableKey ? "lovable-gateway" : "keyword-fallback",
     }), { headers: { ...CORS, "Content-Type":"application/json" } });
 
@@ -783,9 +831,9 @@ Deno.serve(async (req) => {
     console.error("run-scan fatal error:", err);
     // Try to mark any running scan as failed
     try {
-      const body2 = await req.clone().json().catch(()=>({}));
-      if (body2.org_id) {
-        await sb.from("scan_runs").update({ status:"failed", finished_at:new Date().toISOString() }).eq("org_id",body2.org_id).eq("status","running");
+      const parsed = JSON.parse(bodyText || "{}");
+      if (parsed.org_id) {
+        await sb.from("scan_runs").update({ status:"failed", finished_at:new Date().toISOString() }).eq("org_id",parsed.org_id).eq("status","running");
       }
     } catch {}
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type":"application/json" } });
