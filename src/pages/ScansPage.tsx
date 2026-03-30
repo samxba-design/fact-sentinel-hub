@@ -194,8 +194,16 @@ export default function ScansPage() {
           sentiment_filter: sentimentFilter,
         },
       });
-      if (error) throw new Error(error.message);
+      // Surface the real error message — run-scan returns 200 even on internal errors
+      // so check data.error first, then fall through to the Supabase relay error
       if (data?.error) throw new Error(data.error);
+      if (error) {
+        // Supabase relay error — try to extract meaningful message
+        const msg = error.message?.includes("non-2xx")
+          ? "Edge function crashed — check Supabase logs for details"
+          : error.message;
+        throw new Error(msg);
+      }
 
       const totalFound = data.total_found || data.mentions_created || 0;
       const created = data.mentions_created || 0;
@@ -313,8 +321,13 @@ export default function ScansPage() {
           sentiment_filter: customSentimentFilter,
         },
       });
-      if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
+      if (error) {
+        const msg = error.message?.includes("non-2xx")
+          ? "Edge function crashed — check Supabase logs for details"
+          : error.message;
+        throw new Error(msg);
+      }
 
       setScanResult({
         mentions: data.mentions_created || 0,
