@@ -1,1257 +1,793 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
+const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/* ── types ── */
 interface RawResult {
   source: string;
   content: string;
-  title?: string;
-  url?: string;
-  author_name?: string;
-  author_handle?: string;
-  author_verified?: boolean;
-  author_follower_count?: number;
-  posted_at?: string;
+  title: string;
+  url: string;
+  author_name: string;
+  posted_at: string | null;
+  date_verified: boolean;
   metrics?: { likes?: number; shares?: number; comments?: number };
-  subreddit?: string;
-  date_verified?: boolean;
-  date_source?: string;
-  matched_query?: string;
 }
 
-// Group keywords by type for focused searches
-function groupKeywords(allKeywords: { value: string; type: string }[]): { brand: string[]; risk: string[]; product: string[] } {
-  const brand: string[] = [];
-  const risk: string[] = [];
-  const product: string[] = [];
-  for (const kw of allKeywords) {
-    if (kw.type === "brand" || kw.type === "alias") brand.push(kw.value);
-    else if (kw.type === "risk") risk.push(kw.value);
-    else if (kw.type === "product") product.push(kw.value);
-    else brand.push(kw.value); // default to brand
-  }
-  return { brand, risk, product };
+/* ── helpers ── */
+function src(url: string): string {
+  if (!url) return "news";
+  const h = url.toLowerCase();
+  if (h.includes("reddit.com")) return "reddit";
+  if (h.includes("twitter.com") || h.includes("x.com")) return "twitter";
+  if (h.includes("youtube.com") || h.includes("youtu.be")) return "youtube";
+  if (h.includes("linkedin.com")) return "linkedin";
+  if (h.includes("trustpilot.com")) return "trustpilot";
+  if (h.includes("g2.com")) return "g2";
+  if (h.includes("glassdoor.com")) return "glassdoor";
+  if (h.includes("medium.com") || h.includes("substack.com")) return "blog";
+  if (h.includes("forum") || h.includes("discuss") || h.includes("community")) return "forum";
+  if (h.includes("hackernews") || h.includes("news.ycombinator")) return "forum";
+  return "news";
 }
 
-// Clean raw markdown/HTML into usable text
-function cleanContent(raw: string): string {
-  let text = raw;
-  text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
-  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
-  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  text = text.replace(/https?:\/\/\S+/g, "");
-  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
-  text = text.replace(/<[^>]+>/g, " ");
-  text = text.replace(/[#*_~`>|]/g, "");
-  text = text.replace(/[-=]{3,}/g, " ");
-  text = text.replace(/\s+/g, " ").trim();
-  // Strip leading boilerplate
-  text = text.replace(/^skip to (content|main|navigation)\s*/i, "");
-  text = text.replace(/^(menu|navigation|home|about|contact|sign in|log in|subscribe)(\s+(menu|navigation|home|about|contact|sign in|log in|subscribe))*\s*/i, "");
-  // Strip nav fragments anywhere: "Digital Assets - News - Crypto Prices - NFT Prices"
-  text = text.replace(/(?:^|\s)(?:[A-Z][a-zA-Z&]{0,20}\s*-\s*){2,}[A-Z][a-zA-Z&]{0,20}(?:\s|$)/g, " ");
-  // Strip crypto ticker bars
-  text = text.replace(/\b[A-Z]{2,5}\s+\$[\d,]+\.?\d*\s+[\d.]+%\s*/g, "");
-  // Strip common UI junk
-  text = text.replace(/\b(sign up|log in|sign in|create account|get started|download app)\b[^.]{0,30}(sign up|log in|sign in|create account|get started)\b/gi, " ");
-  text = text.replace(/\b(cookie|privacy) (policy|notice|settings)\b[^.]*\./gi, " ");
-  text = text.replace(/\b(share|tweet|pin|email)\s+(this|on|via)\b[^.]{0,30}/gi, " ");
-  text = text.replace(/©\s*\d{4}[^.]*\./g, " ");
-  text = text.replace(/all rights reserved[^.]*\.?/gi, " ");
-  text = text.replace(/\s+/g, " ").trim();
-  return text;
-}
-
-// (dateToTbs removed — no longer needed with Gemini discovery)
-
-// Detect blocked/error pages and non-article junk
-function isJunkContent(text: string): boolean {
-  const blockers = [
-    "blocked by an extension", "enable javascript", "access denied",
-    "403 forbidden", "captcha", "please verify you are a human",
-    "cloudflare", "just a moment", "checking your browser", "ray id",
-    "please turn javascript on", "ERR_BLOCKED", "error 403",
-    "that's an error", "you do not have access", "skip navigation",
-    "sign in to youtube", "playback doesn't begin", "try restarting your device",
-    "videos you watch may be added", "tap to unmute", "search with your voice",
-    "cookie policy", "accept cookies", "we use cookies",
-    "page not found", "404 not found", "500 internal server error",
-    "view original source",
-    "javascript is not available", "javascript needs to be enabled",
-    "javascript is required", "this site requires javascript",
-    "disable your ad blocker", "adblocker detected", "ad blocker",
-    "please disable adblock", "turn off your ad blocker",
-  ];
-  const lower = text.toLowerCase();
-  // If 2+ blockers match, definitely junk
-  const matchCount = blockers.filter(b => lower.includes(b)).length;
-  if (matchCount >= 2) return true;
-  // Single match + short content = junk
-  if (matchCount >= 1 && text.length < 200) return true;
-  return false;
-}
-
-// Detect content that is PRIMARILY a ticker/price list, sitemap, or navigation dump
-// LENIENT: Only reject if CLEARLY junk, not just because it mentions prices
-function isNonArticleContent(text: string): boolean {
-  const lower = text.toLowerCase();
-  const wordCount = text.split(/\s+/).length;
-  
-  // Reject ONLY if tickers dominate (>80% of content)
-  const priceMatches = text.match(/\$[\d,]+\.?\d*\s+[\d.]+%/g);
-  if (priceMatches && priceMatches.length >= 8 && wordCount < priceMatches.length * 10) return true;
-  
-  // Reject if MOSTLY URLs (>70%)
-  const urlCount = (text.match(/https?:\/\//g) || []).length;
-  if (urlCount > 15 && urlCount > wordCount * 0.3) return true;
-  
-  // Reject if navigation dump (very short with lots of nav terms)
-  const navPatterns = ["home", "about", "contact", "login", "sign up", "subscribe", "menu"];
-  const navMatchCount = navPatterns.filter(p => lower.includes(p)).length;
-  if (navMatchCount >= 6 && text.length < 150) return true;
-  
-  return false;
-}
-
-// Validate that content has enough substance to be a real article/post
-// LENIENT: Accept almost any content with meaningful text
-function hasSubstantiveContent(text: string): boolean {
-  // Just need some actual words, accept titles and short snippets
-  const words = text.split(/\s+/).filter(w => /[a-zA-Z]{2,}/.test(w));
-  if (words.length < 2) return false; // At least 2 words
-  return true;
-}
-
-// Paywall detection indicators
-const PAYWALL_INDICATORS = [
-  "subscribe to read", "subscribers only", "premium content", "paywall",
-  "sign in to continue reading", "this article is for subscribers",
-  "to continue reading", "unlock this article", "membership required",
-  "create a free account to continue", "already a subscriber",
-  "exclusive to subscribers", "premium article", "paid content",
-  "meter has been exhausted", "you've reached your limit",
-  "free articles remaining", "register to continue",
-];
-
-function detectPaywall(content: string): { is_paywalled: boolean; paywall_type: string | null } {
-  const lower = content.toLowerCase();
-  for (const indicator of PAYWALL_INDICATORS) {
-    if (lower.includes(indicator)) {
-      if (lower.includes("subscribe") || lower.includes("subscription")) return { is_paywalled: true, paywall_type: "subscription" };
-      if (lower.includes("register") || lower.includes("sign in") || lower.includes("free account")) return { is_paywalled: true, paywall_type: "registration" };
-      if (lower.includes("meter") || lower.includes("limit") || lower.includes("remaining")) return { is_paywalled: true, paywall_type: "metered" };
-      return { is_paywalled: true, paywall_type: "hard" };
-    }
-  }
-  // Short content from known paywall sites
-  if (content.length < 200) {
-    const paywallDomains = ["vanity fair", "new york times", "wall street journal", "financial times", "washington post", "the athletic"];
-    if (paywallDomains.some(d => lower.includes(d))) return { is_paywalled: true, paywall_type: "likely" };
-  }
-  return { is_paywalled: false, paywall_type: null };
-}
-
-// Blocklist of evergreen/reference domains that are never "news" or "threats"
-const EVERGREEN_DOMAINS = new Set([
-  "en.wikipedia.org", "wikipedia.org",
-  "investopedia.com", "www.investopedia.com",
-  "help.wealthsimple.com", "wealthsimple.com",
-  "apps.apple.com", "play.google.com",
-  "ca.investing.com", "investing.com",
-  "support.google.com", "support.apple.com",
-  "docs.google.com", "help.coinbase.com",
-  "academy.binance.com", "www.binance.com",
-  "kraken.com", "support.kraken.com",
-  "gemini.com", "support.gemini.com",
-  "howstuffworks.com", "about.com",
-  "dictionary.com", "merriam-webster.com",
-  "britannica.com", "www.britannica.com",
-  "corporatefinanceinstitute.com",
-  "nerdwallet.com", "bankrate.com",
+const BLOCK_DOMAINS = new Set([
+  "en.wikipedia.org","wikipedia.org","investopedia.com","apps.apple.com",
+  "play.google.com","support.google.com","support.apple.com","docs.google.com",
+  "help.coinbase.com","academy.binance.com","howstuffworks.com","about.com",
+  "dictionary.com","merriam-webster.com","britannica.com","corporatefinanceinstitute.com",
+  "nerdwallet.com","bankrate.com","investing.com","ca.investing.com",
 ]);
 
-// Known review site homepages (not individual review pages)
-function isGenericReviewPage(url: string): boolean {
-  if (!url) return false;
-  const lower = url.toLowerCase();
-  // Block generic Glassdoor/Capterra/G2 overview pages (not review-specific pages with dates)
-  if ((lower.includes("glassdoor.com/Overview") || lower.includes("glassdoor.com/Reviews")) && !lower.includes("?sort.sortType=RD")) return true;
-  if (lower.includes("capterra.com/p/") && lower.endsWith("/reviews/")) return false; // actual reviews OK
-  if (lower.includes("capterra.com") && !lower.includes("/reviews/")) return true;
-  if (lower.includes("g2.com/products/") && !lower.includes("/reviews")) return true;
-  if (lower.includes("trustpilot.com/review/") && lower.includes("?page=")) return false; // paginated reviews OK
+function blocked(url: string): boolean {
+  try { return BLOCK_DOMAINS.has(new URL(url).hostname.replace("www.","").toLowerCase()); }
+  catch { return false; }
+}
+
+function clean(raw: string): string {
+  return raw
+    .replace(/!\[.*?\]\([^)]*\)/g," ").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1")
+    .replace(/https?:\/\/\S+/g," ").replace(/<[^>]+>/g," ")
+    .replace(/[#*_~`>|]/g," ").replace(/[-=]{3,}/g," ")
+    .replace(/\s+/g," ").trim();
+}
+
+function xmlDecode(s: string): string {
+  return s.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1")
+    .replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+}
+
+function isJunk(text: string): boolean {
+  const lower = text.toLowerCase();
+  const blockers = ["blocked by an extension","enable javascript","access denied",
+    "403 forbidden","captcha","please verify you are a human","cloudflare",
+    "just a moment","checking your browser","page not found","404 not found",
+    "javascript is required","disable your ad blocker","cookie policy",
+    "sign in to youtube","playback doesn't begin","skip navigation"];
+  const hits = blockers.filter(b => lower.includes(b)).length;
+  if (hits >= 2) return true;
+  if (hits >= 1 && text.length < 200) return true;
   return false;
 }
 
-function isEvergreenDomain(url: string): boolean {
-  if (!url) return false;
+function dedup(arr: RawResult[]): RawResult[] {
+  const seen = new Set<string>();
+  return arr.filter(r => {
+    if (!r.url) return true;
+    const key = r.url.toLowerCase().replace(/\/$/, "").replace(/^https?:\/\//,"");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/* ──────────────────────────────────────────────
+   CRAWLERS (all inline — no sub-function calls)
+   ────────────────────────────────────────────── */
+
+/* 1. Google News RSS — free, no key */
+async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  // Run one query per keyword to maximise coverage
+  const queries = [
+    keywords.slice(0,3).join(" OR "),
+    keywords[0],
+    keywords.length > 1 ? `"${keywords[0]}" review` : null,
+    keywords.length > 1 ? `"${keywords[0]}" news` : null,
+  ].filter(Boolean) as string[];
+
+  await Promise.allSettled(queries.map(async (q) => {
+    try {
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; SentinelBot/2.0)" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return;
+      const xml = await res.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items.slice(0,15)) {
+        try {
+          const title  = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
+          const link   = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
+          const desc   = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "");
+          const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+          if (!link || blocked(link)) continue;
+          const content = clean([title, desc].filter(Boolean).join(". "));
+          if (content.length < 30) continue;
+          let posted_at: string | null = null;
+          if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch {} }
+          if (dateFrom && posted_at) {
+            if (new Date(posted_at).getTime() < new Date(dateFrom).getTime()) continue;
+          }
+          results.push({ source: src(link), content, title, url: link,
+            author_name: (() => { try { return new URL(link).hostname.replace("www.",""); } catch { return "news"; } })(),
+            posted_at, date_verified: !!posted_at });
+        } catch {}
+      }
+    } catch (e: any) { console.warn("[google-rss] failed:", e.message); }
+  }));
+  return results;
+}
+
+/* 2. Bing News RSS — free, no key */
+async function crawlBingNews(keywords: string[]): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  const query = keywords.slice(0,3).join(" ");
   try {
-    const hostname = new URL(url).hostname.replace("www.", "").toLowerCase();
-    return EVERGREEN_DOMAINS.has(hostname);
-  } catch { return false; }
+    const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SentinelBot/2.0)" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return results;
+    const xml = await res.text();
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items.slice(0,20)) {
+      try {
+        const title  = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
+        const link   = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
+        const desc   = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "");
+        const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+        if (!link || blocked(link)) continue;
+        const content = clean([title, desc].filter(Boolean).join(". "));
+        if (content.length < 30) continue;
+        let posted_at: string | null = null;
+        if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch {} }
+        results.push({ source: src(link), content, title, url: link,
+          author_name: (() => { try { return new URL(link).hostname.replace("www.",""); } catch { return "news"; } })(),
+          posted_at, date_verified: !!posted_at });
+      } catch {}
+    }
+  } catch (e: any) { console.warn("[bing-rss] failed:", e.message); }
+  return results;
 }
 
-// Classify source from URL
-function classifySource(url: string, fallback: string): string {
-  if (!url) return fallback;
-  const lower = url.toLowerCase();
-  if (lower.includes("trustpilot.com")) return "trustpilot";
-  if (lower.includes("g2.com")) return "g2";
-  if (lower.includes("glassdoor.com")) return "glassdoor";
-  if (lower.includes("capterra.com")) return "capterra";
-  if (lower.includes("twitter.com") || lower.includes("x.com")) return "twitter";
-  if (lower.includes("reddit.com")) return "reddit";
-  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
-  if (lower.includes("facebook.com")) return "facebook";
-  if (lower.includes("linkedin.com")) return "linkedin";
-  if (lower.includes("medium.com") || lower.includes("substack.com") || lower.includes("blog")) return "blog";
-  if (lower.includes("forum") || lower.includes("community") || lower.includes("discuss")) return "forum";
-  // Known news outlets override "review" label
-  const newsOutlets = ["bbc.com", "bbc.co.uk", "cnn.com", "reuters.com", "nytimes.com", "theguardian.com", 
-    "bloomberg.com", "forbes.com", "techcrunch.com", "wsj.com", "ft.com", "cnbc.com", "apnews.com"];
-  if (newsOutlets.some(n => lower.includes(n))) return "news";
-  return fallback;
+/* 3. Hacker News — free, Algolia API */
+async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  await Promise.allSettled(keywords.slice(0,3).map(async (kw) => {
+    try {
+      const params = new URLSearchParams({ query: kw, hitsPerPage: "20", tags: "story,comment" });
+      if (dateFrom) params.set("numericFilters", `created_at_i>${Math.floor(new Date(dateFrom).getTime()/1000)}`);
+      const res = await fetch(`https://hn.algolia.com/api/v1/search?${params}`, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const h of (data.hits || [])) {
+        const raw = h.story_text || h.comment_text || h.title || "";
+        if (!raw) continue;
+        const content = clean(raw.slice(0,600));
+        if (content.length < 30) continue;
+        results.push({
+          source: "forum",
+          content,
+          title: h.title || kw,
+          url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+          author_name: h.author || "HackerNews",
+          posted_at: h.created_at || null,
+          date_verified: !!h.created_at,
+          metrics: { comments: h.num_comments || 0, likes: h.points || 0 },
+        });
+      }
+    } catch (e: any) { console.warn("[hackernews] failed:", e.message); }
+  }));
+  return results;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+/* 4. Reddit public JSON — free, no OAuth */
+async function crawlReddit(keywords: string[], dateFrom?: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+  await Promise.allSettled(keywords.slice(0,3).map(async (kw) => {
+    try {
+      const params = new URLSearchParams({ q: kw, sort: "new", limit: "25", t: "month" });
+      const res = await fetch(`https://www.reddit.com/search.json?${params}`, {
+        headers: { "User-Agent": "FactSentinel/2.0 (+https://factsentinel.app)" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const child of (data.data?.children || [])) {
+        const p = child.data;
+        if (dateMs && p.created_utc * 1000 < dateMs) continue;
+        const raw = p.selftext || p.title || "";
+        const content = clean(raw.slice(0,600));
+        if (content.length < 20) continue;
+        results.push({
+          source: "reddit",
+          content,
+          title: p.title || kw,
+          url: `https://reddit.com${p.permalink}`,
+          author_name: p.author || "reddit",
+          posted_at: new Date(p.created_utc * 1000).toISOString(),
+          date_verified: true,
+          metrics: { likes: p.ups || 0, comments: p.num_comments || 0 },
+        });
+      }
+    } catch (e: any) { console.warn("[reddit] failed:", e.message); }
+  }));
+  return results;
+}
+
+/* 5. Brave Search — paid, optional */
+async function crawlBrave(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  const query = keywords.map(k=>`"${k}"`).slice(0,4).join(" OR ");
+  let freshness = "pw";
+  if (dateFrom) {
+    const d = (Date.now() - new Date(dateFrom).getTime()) / 86400000;
+    if (d<=1) freshness="pd"; else if (d<=7) freshness="pw"; else if (d<=30) freshness="pm"; else freshness="py";
+  }
+  try {
+    const params = new URLSearchParams({ q: query, count: String(Math.min(limit,20)), search_lang: "en", safesearch: "off", freshness });
+    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+      headers: { "Accept": "application/json", "X-Subscription-Token": apiKey },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return results;
+    const data = await res.json();
+    for (const r of [...(data.web?.results||[]),(data.news?.results||[])]) {
+      if (!r.url || blocked(r.url)) continue;
+      const snippets = [r.title, r.description, ...(r.extra_snippets||[])].filter(Boolean);
+      const content = clean(snippets.join(" ").slice(0,800));
+      if (content.length < 30) continue;
+      const age = r.age?.toLowerCase() || "";
+      let posted_at: string | null = null;
+      if (age) {
+        const n = parseInt(age)||1;
+        if (age.includes("hour")) posted_at = new Date(Date.now()-n*3600000).toISOString();
+        else if (age.includes("day")) posted_at = new Date(Date.now()-n*86400000).toISOString();
+        else if (age.includes("week")) posted_at = new Date(Date.now()-n*7*86400000).toISOString();
+        else if (age.includes("month")) posted_at = new Date(Date.now()-n*30*86400000).toISOString();
+      }
+      results.push({ source: src(r.url), content, title: r.title||"", url: r.url,
+        author_name: (() => { try { return new URL(r.url).hostname.replace("www.",""); } catch { return ""; } })(),
+        posted_at, date_verified: !!posted_at });
+    }
+    console.log(`[brave] Got ${results.length} results`);
+  } catch (e: any) { console.warn("[brave] failed:", e.message); }
+  return results;
+}
+
+/* 6. NewsAPI — paid, optional */
+async function crawlNewsAPI(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  const query = keywords.slice(0,5).map(k=>`"${k}"`).join(" OR ");
+  try {
+    const params = new URLSearchParams({ q: query, pageSize: String(Math.min(limit,100)), language: "en", sortBy: "publishedAt" });
+    if (dateFrom) params.set("from", new Date(dateFrom).toISOString().split("T")[0]);
+    const res = await fetch(`https://newsapi.org/v2/everything?${params}`, {
+      headers: { "X-Api-Key": apiKey },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return results;
+    const data = await res.json();
+    if (data.status !== "ok") return results;
+    for (const a of (data.articles||[])) {
+      if (!a.url || !a.title || blocked(a.url)) continue;
+      const content = clean([a.title, a.description, a.content?.replace(/\[\+\d+ chars\]/,"")].filter(Boolean).join(" ").slice(0,700));
+      if (content.length < 30) continue;
+      results.push({ source: src(a.url), content, title: a.title||"", url: a.url,
+        author_name: a.source?.name || (() => { try { return new URL(a.url).hostname.replace("www.",""); } catch { return ""; } })(),
+        posted_at: a.publishedAt||null, date_verified: !!a.publishedAt });
+    }
+    console.log(`[newsapi] Got ${results.length} results`);
+  } catch (e: any) { console.warn("[newsapi] failed:", e.message); }
+  return results;
+}
+
+/* 7. Firecrawl — paid, optional */
+async function crawlFirecrawl(keywords: string[], limit: number, apiKey: string): Promise<RawResult[]> {
+  const results: RawResult[] = [];
+  const query = keywords.slice(0,4).map(k=>`"${k}"`).join(" OR ");
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query, limit: Math.min(limit,15), scrapeOptions: { formats: ["markdown"], onlyMainContent: true } }),
+      signal: AbortSignal.timeout(25000),
+    });
+    if (res.status === 402 || res.status === 429 || !res.ok) {
+      console.log(`[firecrawl] Error ${res.status}`);
+      return results;
+    }
+    const data = await res.json();
+    for (const item of (data.data||data.results||[])) {
+      if (!item.url || blocked(item.url)) continue;
+      const raw = item.markdown || item.content || item.description || "";
+      const content = clean(raw.slice(0,1000));
+      if (content.length < 30) continue;
+      results.push({ source: src(item.url), content, title: item.title||item.metadata?.title||"", url: item.url,
+        author_name: (() => { try { return new URL(item.url).hostname.replace("www.",""); } catch { return ""; } })(),
+        posted_at: item.metadata?.publishedTime||null, date_verified: !!item.metadata?.publishedTime });
+    }
+    console.log(`[firecrawl] Got ${results.length} results`);
+  } catch (e: any) { console.warn("[firecrawl] failed:", e.message); }
+  return results;
+}
+
+/* ────────────────────────────────
+   KEYWORD SENTIMENT FALLBACK
+   (used when AI is unavailable)
+   ──────────────────────────────── */
+const POS_WORDS = ["award","growth","launch","partnership","milestone","record","upgrade","trusted",
+  "excellent","proud","innovative","leader","success","safe","reliable","invest","positive","profit",
+  "expand","improve","strong","winning","hire","funding","certified","best","loved","popular","secure"];
+const NEG_WORDS = ["fraud","scam","breach","hack","lawsuit","penalty","fine","suspend","ban","fail",
+  "layoff","shutdown","bankrupt","corrupt","mislead","lie","complaint","violated","unsafe","worst",
+  "toxic","illegal","investigation","SEC","recall","outage","loss","decline","crash","warning","alert",
+  "problem","issue","crisis","scandal","controversy","bad","poor","terrible","awful","horrible"];
+const CRIT_WORDS = ["fraud","scam","breach","lawsuit","penalty","SEC","bankrupt","illegal","shutdown","ban"];
+
+function kwSentiment(text: string): { label: string; score: number; severity: string } {
+  const lower = text.toLowerCase();
+  const posHits = POS_WORDS.filter(w => lower.includes(w)).length;
+  const negHits = NEG_WORDS.filter(w => lower.includes(w)).length;
+  const critHits = CRIT_WORDS.filter(w => lower.includes(w)).length;
+  if (negHits === 0 && posHits === 0) return { label: "neutral", score: 0, severity: "low" };
+  if (negHits > posHits) {
+    const score = -Math.min(0.9, negHits * 0.2);
+    const severity = critHits >= 2 ? "critical" : critHits >= 1 ? "high" : negHits >= 3 ? "medium" : "low";
+    return { label: "negative", score, severity };
+  }
+  if (posHits > negHits) return { label: "positive", score: Math.min(0.9, posHits*0.2), severity: "low" };
+  return { label: "mixed", score: 0, severity: negHits >= 2 ? "medium" : "low" };
+}
+
+/* ────────────────────────────────
+   AI ANALYSIS (with full fallback)
+   ──────────────────────────────── */
+async function analyzeWithAI(
+  items: { source: string; url: string; title: string; content: string }[],
+  brandName: string,
+  apiKey: string
+): Promise<any[]> {
+  if (!apiKey || apiKey === "undefined") {
+    console.log("[ai] No API key — using keyword fallback for all items");
+    return [];
   }
 
-  try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing auth");
+  // Batch into groups of 20 to avoid token limits
+  const BATCH = 20;
+  const allAnalyses: any[] = [];
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Verify user (handle both user JWTs and service role bypass for scheduled scans)
-    const isServiceRole = authHeader.replace("Bearer ", "") === supabaseKey;
-    let user: any = null;
-    
-    if (isServiceRole) {
-      // Scheduled scan - use system-level access
-      console.log("Service role request — scheduled scan");
-      user = { id: "system-scheduled-scan" };
-    } else {
-      // Regular user request
-      const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-      const { data: { user: authUser }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-      if (authErr || !authUser) throw new Error("Unauthorized");
-      user = authUser;
-    }
-
-    const { org_id, keywords: rawKeywords, sources, date_from, date_to, review_urls, sentiment_filter, scan_context } = await req.json();
-    // rawKeywords can be string[] (legacy) or we load structured keywords from DB
-    // scan_context: "competitor" means use rawKeywords as the brand context for AI filtering
-    const isCompetitorScan = scan_context === "competitor" || false;
-    if (!org_id) throw new Error("org_id required");
-
-    // Get org domain to filter out self-published content
-    const { data: orgData } = await supabase
-      .from("organizations")
-      .select("domain, name")
-      .eq("id", org_id)
-      .single();
-    const orgDomain = orgData?.domain?.toLowerCase() || "";
-    const orgName = orgData?.name?.toLowerCase() || "";
-
-    // Load ignored source domains
-    const { data: ignoredSourcesData } = await supabase
-      .from("ignored_sources")
-      .select("domain")
-      .eq("org_id", org_id);
-    const ignoredDomains = new Set((ignoredSourcesData || []).map((s: any) => s.domain.toLowerCase()));
-
-    // Verify membership (skip for system scheduled scans)
-    if (user.id !== "system-scheduled-scan") {
-      const { data: membership } = await supabase
-        .from("org_memberships")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("org_id", org_id)
-        .not("accepted_at", "is", null)
-        .maybeSingle();
-      if (!membership) throw new Error("Not a member of this org");
-    }
-
-    // Load structured keywords from DB for smart grouping
-    const { data: keywordRows } = await supabase
-      .from("keywords")
-      .select("value, type")
-      .eq("org_id", org_id)
-      .eq("status", "active");
-    
-    const structuredKws = keywordRows || [];
-    
-    // For competitor scans: use the passed keywords directly as brand context
-    // For normal scans: use structured DB keywords or fall back to passed keywords
-    let keywords: string[];
-    let kwGroups: { brand: string[]; risk: string[]; product: string[] };
-    
-    if (isCompetitorScan && rawKeywords?.length > 0) {
-      // Competitor scan: treat passed keywords AS the brand for search + AI filtering
-      keywords = rawKeywords;
-      kwGroups = { brand: rawKeywords, risk: [], product: [] };
-    } else {
-      keywords = rawKeywords?.length > 0 ? rawKeywords : structuredKws.map((k: any) => k.value);
-      kwGroups = groupKeywords(structuredKws.length > 0 ? structuredKws : keywords.map((v: string) => ({ value: v, type: "brand" })));
-    }
-    
-    // Create scan_run with keyword groups for transparency
-    const configSnapshot = { keywords, sources, date_from, date_to, sentiment_filter, keyword_groups: kwGroups };
-    const { data: scanRun, error: scanErr } = await supabase
-      .from("scan_runs")
-      .insert({
-        org_id,
-        status: "running",
-        started_at: new Date().toISOString(),
-        config_snapshot: configSnapshot,
-      })
-      .select()
-      .single();
-    if (scanErr) throw scanErr;
-
-    // Collect results from real sources
-    const allResults: RawResult[] = [];
-    const errors: string[] = [];
-    const scanLog: { source: string; query: string; found: number }[] = [];
-    const selectedSources: string[] = sources || ["news", "google-news", "reddit", "social"];
-
-    // Global scan timeout — prevent hanging forever (200s max for full scan)
-    const globalScanDeadline = Date.now() + 200000;
-    const isDeadlineExceeded = () => Date.now() > globalScanDeadline;
-
-    // Helper to call edge functions internally with timeout
-    const callFunction = async (fnName: string, body: any): Promise<any> => {
-      if (isDeadlineExceeded()) return { success: false, error: "Scan deadline exceeded" };
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 35000); // 35s per function (up from 28s)
-      try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${supabaseKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
-        // Always safe-parse — never let a bad response crash the whole scan
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) {
-          const text = await res.text().catch(() => "");
-          console.error(`${fnName} returned non-JSON (${res.status}):`, text.slice(0, 200));
-          return { success: false, error: `${fnName} returned HTTP ${res.status}` };
-        }
-        return res.json();
-      } catch (e: any) {
-        if (e.name === "AbortError") return { success: false, error: `${fnName} timed out` };
-        return { success: false, error: e.message };
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-
-    // Run all source scans in PARALLEL
-    const scanPromises: Promise<void>[] = [];
-    const brandKws = kwGroups.brand.length > 0 ? kwGroups.brand.slice(0, 7) : keywords.slice(0, 7);
-
-    // === SMART KEYWORD GROUPING for Web/News ===
-    if (selectedSources.some(s => ["news", "blogs", "forums", "web"].includes(s))) {
-      // Search 1: Brand keywords — general news discovery via Gemini
-      scanPromises.push((async () => {
-        try {
-          const webResult = await callFunction("scan-web", {
-            keywords: brandKws,
-            limit: 20,
-            date_from,
-            date_to,
-            search_type: "general",
-          });
-          if (webResult.success && webResult.results) {
-            allResults.push(...webResult.results);
-            scanLog.push({ source: "web-brand", query: webResult.query_used || brandKws.join(", "), found: webResult.results.length });
-          } else if (webResult.error) {
-            errors.push(`Web (brand): ${webResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Web (brand): ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-
-      // Search 2: Brand + Risk keywords — threat-focused discovery via Gemini
-      if (kwGroups.risk.length > 0 && kwGroups.brand.length > 0) {
-        const primaryBrand = kwGroups.brand[0];
-        const riskKws = kwGroups.risk.slice(0, 4).map(r => `${primaryBrand} ${r}`);
-        scanPromises.push((async () => {
-          try {
-            const webResult = await callFunction("scan-web", {
-              keywords: riskKws,
-              limit: 15,
-              date_from,
-              date_to,
-              search_type: "risk",
-            });
-            if (webResult.success && webResult.results) {
-              allResults.push(...webResult.results);
-              scanLog.push({ source: "web-risk", query: webResult.query_used || riskKws.join(", "), found: webResult.results.length });
-            } else if (webResult.error) {
-              errors.push(`Web (risk): ${webResult.error}`);
-            }
-          } catch (e: any) {
-            errors.push(`Web (risk): ${e.name === "AbortError" ? "Timed out" : e.message}`);
-          }
-        })());
-      }
-    }
-
-    // === Google News — Gemini discovery with site prioritization ===
-    if (selectedSources.includes("google-news")) {
-      scanPromises.push((async () => {
-        try {
-          const gnResult = await callFunction("scan-web", {
-            keywords: brandKws.slice(0, 3),
-            sites: ["reuters.com", "bloomberg.com", "cnbc.com", "bbc.com", "techcrunch.com", "forbes.com", "coindesk.com", "cointelegraph.com", "theblock.co", "decrypt.co", "theverge.com", "wired.com"],
-            limit: 15,
-            date_from,
-            date_to,
-            search_type: "general",
-          });
-          if (gnResult.success && gnResult.results) {
-            allResults.push(...gnResult.results);
-            scanLog.push({ source: "google-news", query: gnResult.query_used || "", found: gnResult.results.length });
-          } else if (gnResult.error) {
-            errors.push(`Google News: ${gnResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Google News: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // === Reddit: try API first, fallback to web search ===
-    if (selectedSources.includes("reddit")) {
-      scanPromises.push((async () => {
-        try {
-          // Try Reddit API first
-          const diffDays = date_from ? (Date.now() - new Date(date_from).getTime()) / (1000 * 60 * 60 * 24) : 7;
-          const redditTimeFilter = diffDays <= 1 ? "day" : diffDays <= 7 ? "week" : diffDays <= 30 ? "month" : "year";
-          const redditResult = await callFunction("scan-reddit", {
-            org_id,
-            keywords: brandKws,
-            limit: 25,
-            time_filter: redditTimeFilter,
-          });
-          if (redditResult.success && redditResult.results?.length > 0) {
-            allResults.push(...redditResult.results);
-            scanLog.push({ source: "reddit-api", query: brandKws.join(" OR "), found: redditResult.results.length });
-          } else {
-            // Fallback: search Reddit via Gemini discovery
-            console.log("Reddit API unavailable or returned no results, falling back to AI discovery");
-            const redditQueries = brandKws.slice(0, 3).map(k => `${k} reddit discussion`);
-            const webRedditResult = await callFunction("scan-web", {
-              keywords: redditQueries,
-              limit: 20,
-              date_from,
-              search_type: "social",
-            });
-            if (webRedditResult.success && webRedditResult.results) {
-              allResults.push(...webRedditResult.results);
-              scanLog.push({ source: "reddit-web", query: webRedditResult.query_used || "", found: webRedditResult.results.length });
-            }
-          }
-        } catch (e: any) {
-          // Fallback on error too
-          try {
-            const redditQueries2 = brandKws.slice(0, 3).map(k => `${k} reddit discussion`);
-            const webRedditResult = await callFunction("scan-web", {
-              keywords: redditQueries2,
-              limit: 20,
-              date_from,
-              search_type: "social",
-            });
-            if (webRedditResult.success && webRedditResult.results) {
-              allResults.push(...webRedditResult.results);
-              scanLog.push({ source: "reddit-web", query: webRedditResult.query_used || "", found: webRedditResult.results.length });
-            }
-          } catch { /* skip */ }
-          errors.push(`Reddit: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // === Social Media via web search (Twitter/X, LinkedIn) ===
-    // Note: Facebook is manual-only — no public search API or scraping available
-    if (selectedSources.includes("social") || selectedSources.some(s => ["twitter", "linkedin"].includes(s))) {
-      scanPromises.push((async () => {
-        try {
-          const socialQueries = brandKws.slice(0, 3).map(k => `${k} social media discussion`);
-          const socialResult = await callFunction("scan-web", {
-            keywords: socialQueries,
-            limit: 15,
-            date_from,
-            date_to,
-            search_type: "social",
-          });
-          if (socialResult.success && socialResult.results) {
-            allResults.push(...socialResult.results);
-            scanLog.push({ source: "social-web", query: socialResult.query_used || "", found: socialResult.results.length });
-          } else if (socialResult.error) {
-            errors.push(`Social: ${socialResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Social: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // Twitter (dedicated API)
-    if (selectedSources.includes("twitter")) {
-      scanPromises.push((async () => {
-        try {
-          const twitterResult = await callFunction("scan-twitter", {
-            org_id,
-            keywords: brandKws,
-            max_results: 15,
-            date_from,
-            date_to,
-          });
-          if (twitterResult.success && twitterResult.results) {
-            allResults.push(...twitterResult.results);
-            scanLog.push({ source: "twitter", query: "", found: twitterResult.results.length });
-          } else if (twitterResult.error) {
-            errors.push(`Twitter: ${twitterResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Twitter: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // YouTube — try API first, fall back to Firecrawl web search for YouTube content
-    if (selectedSources.includes("youtube")) {
-      scanPromises.push((async () => {
-        try {
-          const ytResult = await callFunction("scan-youtube", {
-            org_id,
-            keywords: brandKws,
-            limit: 15,
-            include_comments: true,
-            date_from,
-            date_to,
-          });
-          if (ytResult.success && ytResult.results?.length > 0) {
-            allResults.push(...ytResult.results);
-            scanLog.push({ source: "youtube-api", query: brandKws.join(" OR "), found: ytResult.results.length });
-          } else {
-            // Fallback: search YouTube via Firecrawl web search
-            console.log("YouTube API unavailable or no results, falling back to web search");
-            const ytWebQueries = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
-            const ytWebResult = await callFunction("scan-web", {
-              keywords: ytWebQueries,
-              limit: 15,
-              date_from,
-              date_to,
-              search_type: "social",
-            });
-            if (ytWebResult.success && ytWebResult.results?.length > 0) {
-              // Tag results as youtube source
-              const ytResults = ytWebResult.results.map((r: any) => ({
-                ...r,
-                source: "youtube",
-              }));
-              allResults.push(...ytResults);
-              scanLog.push({ source: "youtube-web", query: ytWebQueries.join(" | "), found: ytResults.length });
-            } else {
-              scanLog.push({ source: "youtube", query: brandKws.join(" OR "), found: 0 });
-              if (ytResult.error && !ytResult.error.includes("API key")) {
-                errors.push(`YouTube: ${ytResult.error}`);
-              }
-            }
-          }
-        } catch (e: any) {
-          // Final fallback on error
-          try {
-            const ytWebQueries2 = brandKws.slice(0, 3).map(k => `site:youtube.com ${k}`);
-            const ytWebResult = await callFunction("scan-web", {
-              keywords: ytWebQueries2,
-              limit: 15,
-              date_from,
-              search_type: "social",
-            });
-            if (ytWebResult.success && ytWebResult.results?.length > 0) {
-              const ytResults = ytWebResult.results.map((r: any) => ({ ...r, source: "youtube" }));
-              allResults.push(...ytResults);
-              scanLog.push({ source: "youtube-web", query: ytWebQueries2.join(" | "), found: ytResults.length });
-            }
-          } catch { /* skip */ }
-          errors.push(`YouTube: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // Review sites
-    if (selectedSources.includes("reviews")) {
-      scanPromises.push((async () => {
-        try {
-          const reviewResult = await callFunction("scan-reviews", {
-            keywords: brandKws,
-            review_urls: review_urls || [],
-            limit: 10,
-          });
-          if (reviewResult.success && reviewResult.results) {
-            allResults.push(...reviewResult.results);
-            scanLog.push({ source: "reviews", query: "", found: reviewResult.results.length });
-          } else if (reviewResult.error) {
-            errors.push(`Reviews: ${reviewResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Reviews: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // App Store reviews (Apple App Store & Google Play)
-    if (selectedSources.includes("app-store")) {
-      scanPromises.push((async () => {
-        try {
-          const appResult = await callFunction("scan-app-store", {
-            keywords: brandKws,
-            limit: 10,
-          });
-          if (appResult.success && appResult.results) {
-            allResults.push(...appResult.results);
-            scanLog.push({ source: "app-store", query: brandKws.join(", "), found: appResult.results.length });
-          } else if (appResult.error) {
-            errors.push(`App Store: ${appResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`App Store: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // Podcasts
-    if (selectedSources.includes("podcasts")) {
-      scanPromises.push((async () => {
-        try {
-          const podResult = await callFunction("scan-podcasts", {
-            keywords: brandKws,
-            limit: 10,
-          });
-          if (podResult.success && podResult.results) {
-            allResults.push(...podResult.results);
-            scanLog.push({ source: "podcasts", query: brandKws.join(", "), found: podResult.results.length });
-          } else if (podResult.error) {
-            errors.push(`Podcasts: ${podResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Podcasts: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // === Multi-source search (Brave + NewsAPI + HN + Reddit public) — runs in parallel with Firecrawl ===
-    // This provides independent coverage when Firecrawl is slow/out of credits
-    if (selectedSources.some(s => ["news", "google-news", "blogs", "forums", "web", "social"].includes(s))) {
-      scanPromises.push((async () => {
-        try {
-          const searchResult = await callFunction("scan-search", {
-            keywords: brandKws.slice(0, 5),
-            limit: 25,
-            date_from,
-            date_to,
-            search_type: "general",
-            include_hn: selectedSources.some(s => ["forums", "web", "blogs"].includes(s)),
-            include_reddit: selectedSources.includes("reddit"),
-          });
-          if (searchResult.success && searchResult.results?.length > 0) {
-            allResults.push(...searchResult.results);
-            const eb = searchResult.engine_breakdown || {};
-            scanLog.push({
-              source: "multi-search",
-              query: searchResult.query_used || brandKws.join(", "),
-              found: searchResult.results.length,
-            });
-            if (eb.brave > 0) scanLog.push({ source: "brave-search", query: "", found: eb.brave });
-            if (eb.newsapi > 0) scanLog.push({ source: "newsapi", query: "", found: eb.newsapi });
-            if (eb.hackernews > 0) scanLog.push({ source: "hackernews", query: "", found: eb.hackernews });
-            if (eb.reddit_public > 0) scanLog.push({ source: "reddit-public", query: "", found: eb.reddit_public });
-          } else if (searchResult.error) {
-            errors.push(`Multi-search: ${searchResult.error}`);
-          }
-        } catch (e: any) {
-          errors.push(`Multi-search: ${e.name === "AbortError" ? "Timed out" : e.message}`);
-        }
-      })());
-    }
-
-    // Wait for all sources in parallel
-    await Promise.all(scanPromises);
-
-    // === CLEAN & FILTER results before AI analysis ===
-    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
-    const dateToMs = date_to ? new Date(date_to).getTime() : 0;
-    const cleanedResults: RawResult[] = [];
-    const seenUrls = new Set<string>();
-    for (const r of allResults) {
-      // Block evergreen/reference domains
-      if (isEvergreenDomain(r.url || "")) {
-        console.log("Filtering evergreen domain:", r.url);
-        continue;
-      }
-      // Block generic review site overview pages
-      if (isGenericReviewPage(r.url || "")) {
-        console.log("Filtering generic review page:", r.url);
-        continue;
-      }
-      // Deduplicate by URL
-      if (r.url) {
-        const normalizedUrl = r.url.toLowerCase().replace(/\/$/, "");
-        if (seenUrls.has(normalizedUrl)) {
-          console.log("Filtering duplicate URL:", r.url);
-          continue;
-        }
-        seenUrls.add(normalizedUrl);
-      }
-      // Enforce date range for ALL sources that have a posted_at date
-      if (dateFromMs > 0 && r.posted_at) {
-        const postedMs = new Date(r.posted_at).getTime();
-        if (postedMs < dateFromMs) {
-          console.log("Filtering out-of-range result:", r.url, r.posted_at);
-          continue;
-        }
-      }
-      if (dateToMs > 0 && r.posted_at) {
-        const postedMs = new Date(r.posted_at).getTime();
-        if (postedMs > dateToMs) {
-          console.log("Filtering future result:", r.url, r.posted_at);
-          continue;
-        }
-      }
-      // Accept undated results — they were already accepted by scan-web with accept_undated: true
-      // Mark them with date_verified: false (already in flags) so the UI can badge them
-      if (!r.posted_at && !r.date_verified) {
-        r.date_verified = false;
-      }
-      const cleaned = cleanContent(r.content || "");
-      if (isJunkContent(r.content || "") || isJunkContent(cleaned)) {
-        console.log("Filtering out blocked/junk content from:", r.url);
-        continue;
-      }
-      if (isNonArticleContent(cleaned)) {
-        console.log("Filtering out non-article content (ticker/sitemap/nav):", r.url);
-        continue;
-      }
-      if (cleaned.length < 40) {
-        console.log("Filtering out low-quality content:", r.url);
-        continue;
-      }
-      if (!hasSubstantiveContent(cleaned)) {
-        console.log("Filtering out non-substantive content:", r.url);
-        continue;
-      }
-      // Filter out self-published content (from the org's own domain)
-      const urlLower = (r.url || "").toLowerCase();
-      if (orgDomain && urlLower.includes(orgDomain)) {
-        console.log("Filtering out self-published content from org domain:", r.url);
-        continue;
-      }
-      // Filter out ignored source domains
-      try {
-        const urlDomain = new URL(r.url || "").hostname.replace("www.", "").toLowerCase();
-        if (ignoredDomains.has(urlDomain)) {
-          console.log("Filtering out ignored source domain:", r.url);
-          continue;
-        }
-      } catch { /* skip URL parse errors */ }
-
-      const correctedSource = classifySource(r.url || "", r.source);
-      cleanedResults.push({ ...r, content: cleaned.slice(0, 800), source: correctedSource });
-    }
-
-    if (cleanedResults.length === 0) {
-      // Build descriptive reason for zero results
-      const reasons: string[] = [];
-      if (allResults.length === 0) {
-        reasons.push("No content found from any source. This can happen if keywords are too specific or sources are inaccessible.");
-      } else {
-        reasons.push(`${allResults.length} raw results were found but all were filtered out.`);
-        const evergreenCount = allResults.filter(r => isEvergreenDomain(r.url || "")).length;
-        const junkCount = allResults.filter(r => isJunkContent(r.content || "") || isJunkContent(cleanContent(r.content || ""))).length;
-        const shortCount = allResults.filter(r => cleanContent(r.content || "").length < 40).length;
-        const selfCount = orgDomain ? allResults.filter(r => (r.url || "").toLowerCase().includes(orgDomain)).length : 0;
-        const ignoredCount = allResults.filter(r => { try { return ignoredDomains.has(new URL(r.url || "").hostname.replace("www.", "").toLowerCase()); } catch { return false; } }).length;
-        if (evergreenCount > 0) reasons.push(`${evergreenCount} were reference/evergreen pages (Wikipedia, etc.)`);
-        if (junkCount > 0) reasons.push(`${junkCount} were blocked/error pages`);
-        if (shortCount > 0) reasons.push(`${shortCount} had insufficient content`);
-        if (selfCount > 0) reasons.push(`${selfCount} were from your own domain`);
-        if (ignoredCount > 0) reasons.push(`${ignoredCount} were from ignored sources`);
-      }
-
-      await supabase
-        .from("scan_runs")
-        .update({
-          status: "completed",
-          finished_at: new Date().toISOString(),
-          total_mentions: 0,
-          negative_pct: 0,
-          emergencies_count: 0,
-        } as any)
-        .eq("id", scanRun.id);
-      // Best-effort: save result_snapshot (requires migration to have run)
-      try {
-        await supabase.from("scan_runs").update({
-          result_snapshot: {
-            scan_log: scanLog, keyword_groups: kwGroups,
-            total_found: allResults.length, quality_filtered: allResults.length,
-            ai_rejected: 0, duplicates_skipped: 0, mentions_saved: 0,
-            zero_reason: reasons.join(" "), errors,
-            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
-          }
-        } as any).eq("id", scanRun.id);
-      } catch { /* column may not exist yet */ }
-
-      return new Response(
-        JSON.stringify({
-          scan_run_id: scanRun.id,
-          mentions_created: 0,
-          total_found: allResults.length,
-          negative_pct: 0,
-          emergencies: 0,
-          errors,
-          scan_log: scanLog,
-          keyword_groups: kwGroups,
-          zero_results_reason: reasons.join(" "),
-          message: reasons.join(" "),
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // === TWO-PASS AI ANALYSIS ===
-    // Pass 1: Relevance + Sentiment (combined for efficiency)
-    // For competitor scans, use the competitor name as brand context (not the org name)
-    const brandContext = isCompetitorScan ? (rawKeywords?.[0] || brandKws[0] || "the brand") : (orgData?.name || brandKws[0] || "the brand");
-    const brandAliases = kwGroups.brand.join(", ");
-    
-    const aiController = new AbortController();
-    const aiTimeout = setTimeout(() => aiController.abort(), 60000); // 60s timeout for AI
-    let aiRes: Response;
+  for (let i = 0; i < items.length; i += BATCH) {
+    const batch = items.slice(i, i + BATCH);
     try {
-      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${lovableKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: aiController.signal,
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(55000),
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           temperature: 0.1,
-          messages: [
-            {
-              role: "system",
-              content: `You are a reputation intelligence engine monitoring "${brandContext}" (also known as: ${brandAliases}).
-
-For each mention, determine RELEVANCE first, then analyze sentiment.
-
-RELEVANCE RULES — INCLUSIVE approach (err on the side of INCLUDING):
-- relevant=true for ANY mention that describes a SPECIFIC, RECENT EVENT, NEWS, OPINION, or EXPERIENCE about "${brandContext}"
-- This includes: news articles, social posts, reviews, forum discussions, Reddit threads about the brand
-- ONLY reject with relevant=false if CLEARLY one of these HARD BLOCKS:
-  - Evergreen reference page (Wikipedia, Investopedia "what is X", tutorial, FAQ, help doc)
-  - Generic product listing or app store description (no date, no opinion)
-  - Company HR/careers page (not about public reputation)
-  - Historical event (>6 months old with no new developments mentioned)
-  - Page is pure navigation/menu (no actual content)
-- For news articles, trading volume updates, product announcements, reviews, etc: INCLUDE THEM
-- For Reddit/forum/Twitter posts about "${brandContext}": INCLUDE THEM (unless they're just listing it in a comparison chart)
-- When uncertain: INCLUDE the mention. False positives are better than missing real signals.
-
-For RELEVANT mentions, also return:
-- clean_summary: 2-4 sentence summary of WHAT happened and WHY it matters to "${brandContext}"
-- sentiment_label: "positive", "negative", "neutral", or "mixed"
-- sentiment_score: -1 (very negative) to 1 (very positive)
-- sentiment_confidence: 0 to 1
-- severity: "low", "medium", "high", or "critical" based on reputational impact
-- detected_language: ISO 639-1 code
-- translated_summary: English translation if not English, else null
-- flags: { misinformation: bool, coordinated: bool, bot_likely: bool, viral_potential: bool }
-- rejection_reason: null for relevant mentions
-
-Return JSON: { "analyses": [ { "relevant": true/false, "rejection_reason": null or string, "clean_summary": "...", "sentiment_label": "...", "sentiment_score": 0.5, "sentiment_confidence": 0.9, "severity": "low", "detected_language": "en", "translated_summary": null, "flags": {...} } ] }
+          messages: [{
+            role: "system",
+            content: `You are a reputation intelligence engine monitoring "${brandName}".
+Analyze each mention. For each return:
+- relevant: true if about "${brandName}" specifically (not just a generic mention)
+- sentiment_label: "positive" | "negative" | "neutral" | "mixed"
+- sentiment_score: -1.0 to 1.0
+- severity: "low" | "medium" | "high" | "critical"
+- summary: 2-3 sentence plain English summary of what happened
+- flags: { misinformation: bool, viral_potential: bool }
+Be INCLUSIVE — include borderline content. Only mark relevant=false for clearly unrelated pages.
+Return JSON: { "analyses": [{ "relevant": true, "sentiment_label": "negative", "sentiment_score": -0.7, "severity": "medium", "summary": "...", "flags": {} }] }
 Return ONLY valid JSON, no markdown.`,
-            },
-            {
-              role: "user",
-              content: `Analyze these ${cleanedResults.length} mentions for "${brandContext}":\n${JSON.stringify(
-                cleanedResults.map((r, i) => ({ index: i, source: r.source, url: r.url, author_name: r.author_name, title: r.title || "", content: r.content?.slice(0, 600) }))
-              )}`,
-            },
-          ],
+          }, {
+            role: "user",
+            content: `Analyze these ${batch.length} mentions for "${brandName}":\n${JSON.stringify(batch.map((r,i)=>({i, source:r.source, url:r.url, title:r.title, content:r.content.slice(0,500)})))}`,
+          }],
         }),
       });
-    } finally {
-      clearTimeout(aiTimeout);
-    }
 
-    let analyses: any[] = [];
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      let rawContent = aiData.choices?.[0]?.message?.content || "{}";
-      rawContent = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      if (!res.ok) {
+        console.warn(`[ai] HTTP ${res.status} for batch ${i}—${i+BATCH}`);
+        // Fill with keyword fallbacks for this batch
+        for (const r of batch) { const k = kwSentiment(r.content + " " + r.title); allAnalyses.push({ relevant: true, ...k, summary: r.content.slice(0,200), flags: {} }); }
+        continue;
+      }
+
+      const data = await res.json();
+      let raw = data.choices?.[0]?.message?.content || "{}";
+      raw = raw.replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
       try {
-        const parsed = JSON.parse(rawContent);
-        analyses = parsed.analyses || parsed || [];
+        const parsed = JSON.parse(raw);
+        const analyses = parsed.analyses || (Array.isArray(parsed) ? parsed : []);
+        // Pad with keyword fallbacks if AI returned fewer items than batch
+        for (let j = 0; j < batch.length; j++) {
+          const a = analyses[j];
+          if (a && typeof a === "object") {
+            allAnalyses.push(a);
+          } else {
+            const k = kwSentiment(batch[j].content + " " + batch[j].title);
+            allAnalyses.push({ relevant: true, ...k, summary: batch[j].content.slice(0,200), flags: {} });
+          }
+        }
       } catch {
-        console.error("Failed to parse AI analysis, using defaults");
+        console.warn("[ai] JSON parse failed, using keyword fallback for batch");
+        for (const r of batch) { const k = kwSentiment(r.content + " " + r.title); allAnalyses.push({ relevant: true, ...k, summary: r.content.slice(0,200), flags: {} }); }
       }
-    } else {
-      console.error("AI analysis failed with status:", aiRes.status);
+    } catch (e: any) {
+      console.warn("[ai] fetch failed:", e.message, "— using keyword fallback for batch");
+      for (const r of batch) { const k = kwSentiment(r.content + " " + r.title); allAnalyses.push({ relevant: true, ...k, summary: r.content.slice(0,200), flags: {} }); }
+    }
+  }
+
+  return allAnalyses;
+}
+
+/* ══════════════════════════════════════════
+   MAIN HANDLER
+   ══════════════════════════════════════════ */
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const supabaseUrl   = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const anonKey       = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const lovableKey    = Deno.env.get("LOVABLE_API_KEY") || "";
+  const firecrawlKey  = Deno.env.get("FIRECRAWL_API_KEY") || "";
+  const braveKey      = Deno.env.get("BRAVE_SEARCH_API_KEY") || "";
+  const newsApiKey    = Deno.env.get("NEWSAPI_KEY") || "";
+
+  const sb = createClient(supabaseUrl, serviceKey);
+
+  try {
+    /* ── Auth ── */
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace("Bearer ","");
+    const isService = token === serviceKey;
+    let userId = "system";
+    if (!isService) {
+      const anonSb = createClient(supabaseUrl, anonKey);
+      const { data: { user }, error } = await anonSb.auth.getUser(token);
+      if (error || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS, "Content-Type": "application/json" } });
+      userId = user.id;
     }
 
-    // Filter by relevance — MUCH more lenient than before
-    // Only hard-reject when AI explicitly says false AND has a strong reason
-    let filteredResults = cleanedResults
-      .map((r, i) => ({ result: r, analysis: analyses[i] || {} }))
-      .filter(({ analysis, result }) => {
-        // No analysis = include by default
-        if (!analysis || Object.keys(analysis).length === 0) {
-          console.log("No AI analysis — including by default:", result.url);
-          return true;
-        }
-        // Only reject if explicitly false AND reason matches hard blockers
-        if (analysis.relevant === false) {
-          const reason = (analysis.rejection_reason || "").toLowerCase();
-          const hardBlocks = ["evergreen", "wikipedia", "reference page", "product listing", "app store", "help doc", "navigation"];
-          if (!hardBlocks.some(b => reason.includes(b))) {
-            // Soft rejection — include anyway
-            console.log("Soft rejection, including anyway:", result.url, "reason:", reason);
-            return true;
-          }
-          console.log("Hard rejection:", result.url, "reason:", analysis.rejection_reason);
-          return false;
-        }
-        return true;
-      });
-    
-    if (sentiment_filter && sentiment_filter !== "all") {
-      filteredResults = filteredResults.filter(({ analysis }) => {
-        const label = analysis.sentiment_label || "neutral";
-        if (sentiment_filter === "negative") return label === "negative" || label === "mixed";
-        if (sentiment_filter === "positive") return label === "positive";
-        return true;
-      });
+    const body = await req.json();
+    const { org_id, keywords: rawKws, sources, date_from, date_to, sentiment_filter } = body;
+    if (!org_id) return new Response(JSON.stringify({ error: "org_id required" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+
+    /* ── Load org + keywords ── */
+    const [orgRes, kwRes, memberRes] = await Promise.all([
+      sb.from("organizations").select("name,domain").eq("id",org_id).single(),
+      sb.from("keywords").select("value,type").eq("org_id",org_id).eq("status","active"),
+      isService ? Promise.resolve({ data: true }) : sb.from("org_memberships").select("id").eq("user_id",userId).eq("org_id",org_id).not("accepted_at","is",null).maybeSingle(),
+    ]);
+
+    if (!isService && !memberRes.data) return new Response(JSON.stringify({ error: "Not a member" }), { status: 403, headers: { ...CORS, "Content-Type": "application/json" } });
+
+    const orgName   = orgRes.data?.name || "";
+    const orgDomain = (orgRes.data?.domain || "").toLowerCase();
+    const dbKws     = (kwRes.data || []).map((k:any) => k.value);
+    const keywords  = (rawKws?.length ? rawKws : dbKws).filter(Boolean).slice(0,10) as string[];
+
+    if (keywords.length === 0) return new Response(JSON.stringify({ error: "No keywords configured. Add keywords in Settings first." }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+
+    const brandName = orgName || keywords[0];
+    const selectedSources: string[] = sources || ["news","google-news","reddit","social"];
+
+    /* ── Create scan_run ── */
+    const { data: scanRun, error: scanErr } = await sb
+      .from("scan_runs").insert({ org_id, status: "running", started_at: new Date().toISOString(), config_snapshot: { keywords, sources: selectedSources, date_from, date_to } }).select().single();
+    if (scanErr) throw scanErr;
+
+    /* ── Load ignored domains ── */
+    const { data: ignoredRows } = await sb.from("ignored_sources").select("domain").eq("org_id",org_id);
+    const ignoredDomains = new Set((ignoredRows||[]).map((r:any)=>r.domain.toLowerCase()));
+
+    const scanLog: { source: string; found: number }[] = [];
+    const allRaw: RawResult[] = [];
+
+    /* ── Run ALL crawlers in parallel ── */
+    console.log(`Starting scan for "${brandName}" with keywords: ${keywords.join(", ")}`);
+
+    const crawlPromises: Promise<void>[] = [];
+
+    // === FREE SOURCES (always run, no keys needed) ===
+
+    // Google News RSS — always run
+    crawlPromises.push((async () => {
+      const r = await crawlGoogleNews(keywords, date_from);
+      console.log(`[google-rss] ${r.length} results`);
+      scanLog.push({ source: "google-news-rss", found: r.length });
+      allRaw.push(...r);
+    })());
+
+    // Bing News RSS — always run
+    crawlPromises.push((async () => {
+      const r = await crawlBingNews(keywords);
+      console.log(`[bing-rss] ${r.length} results`);
+      scanLog.push({ source: "bing-news-rss", found: r.length });
+      allRaw.push(...r);
+    })());
+
+    // HackerNews — always run
+    if (selectedSources.some(s => ["forums","web","news","google-news"].includes(s))) {
+      crawlPromises.push((async () => {
+        const r = await crawlHackerNews(keywords, date_from);
+        console.log(`[hackernews] ${r.length} results`);
+        scanLog.push({ source: "hackernews", found: r.length });
+        allRaw.push(...r);
+      })());
     }
 
-    // === URL DEDUP: Check existing mentions in DB to avoid re-adding ===
-    const candidateUrls = filteredResults
-      .map(({ result: r }) => r.url?.toLowerCase().replace(/\/$/, ""))
-      .filter(Boolean) as string[];
-    
-    const existingUrlSet = new Set<string>();
-    if (candidateUrls.length > 0) {
-      // Query in batches of 50 to avoid URL list being too long
-      for (let i = 0; i < candidateUrls.length; i += 50) {
-        const batch = candidateUrls.slice(i, i + 50);
-        const { data: existingMentions } = await supabase
-          .from("mentions")
-          .select("url")
-          .eq("org_id", org_id)
-          .in("url", batch);
-        if (existingMentions) {
-          for (const m of existingMentions) {
-            if (m.url) existingUrlSet.add(m.url.toLowerCase().replace(/\/$/, ""));
-          }
-        }
-      }
-      if (existingUrlSet.size > 0) {
-        console.log(`URL dedup: found ${existingUrlSet.size} existing URLs, will skip duplicates`);
-      }
+    // Reddit public — always run
+    if (selectedSources.includes("reddit") || selectedSources.includes("social") || selectedSources.includes("forums")) {
+      crawlPromises.push((async () => {
+        const r = await crawlReddit(keywords, date_from);
+        console.log(`[reddit-public] ${r.length} results`);
+        scanLog.push({ source: "reddit-public", found: r.length });
+        allRaw.push(...r);
+      })());
     }
 
-    // Filter out already-existing URLs
-    const dedupedResults = filteredResults.filter(({ result: r }) => {
-      if (!r.url) return true; // keep mentions without URLs
-      const normalized = r.url.toLowerCase().replace(/\/$/, "");
-      if (existingUrlSet.has(normalized)) {
-        console.log("Skipping duplicate URL (already in DB):", r.url);
-        return false;
+    // === PAID SOURCES (run if keys are configured) ===
+
+    if (braveKey) {
+      crawlPromises.push((async () => {
+        const r = await crawlBrave(keywords, 25, braveKey, date_from);
+        scanLog.push({ source: "brave-search", found: r.length });
+        allRaw.push(...r);
+      })());
+    }
+
+    if (newsApiKey) {
+      crawlPromises.push((async () => {
+        const r = await crawlNewsAPI(keywords, 25, newsApiKey, date_from);
+        scanLog.push({ source: "newsapi", found: r.length });
+        allRaw.push(...r);
+      })());
+    }
+
+    if (firecrawlKey) {
+      crawlPromises.push((async () => {
+        const r = await crawlFirecrawl(keywords, 20, firecrawlKey);
+        scanLog.push({ source: "firecrawl", found: r.length });
+        allRaw.push(...r);
+      })());
+    }
+
+    await Promise.all(crawlPromises);
+    console.log(`Total raw results: ${allRaw.length}`);
+
+    /* ── Filter ── */
+    const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
+    const dateToMs   = date_to   ? new Date(date_to).getTime()   : 0;
+    const SKIP_DOMAINS = new Set(["google.com","news.google.com","bing.com"]);
+
+    const filtered: RawResult[] = dedup(allRaw).filter(r => {
+      if (!r.content || r.content.length < 25) return false;
+      if (blocked(r.url)) return false;
+      if (isJunk(r.content)) return false;
+      // Skip news aggregator domains
+      try {
+        const host = new URL(r.url).hostname.replace("www.","");
+        if (SKIP_DOMAINS.has(host)) return false;
+        if (orgDomain && host.includes(orgDomain)) return false; // self-published
+        if (ignoredDomains.has(host)) return false;
+      } catch {}
+      // Date filter (only for items with known dates)
+      if (dateFromMs && r.posted_at) {
+        if (new Date(r.posted_at).getTime() < dateFromMs) return false;
+      }
+      if (dateToMs && r.posted_at) {
+        if (new Date(r.posted_at).getTime() > dateToMs) return false;
       }
       return true;
     });
 
-    const mentionRows = dedupedResults.map(({ result: r, analysis }) => {
-      const cleanSummary = analysis.clean_summary || r.content || "";
-      // Detect paywall on content
-      const paywallResult = detectPaywall(r.content || "");
-      // Use translated summary if non-English and auto-translate is enabled
-      const detectedLang = analysis.detected_language || "en";
-      const translatedSummary = analysis.translated_summary || null;
-      // Store date verification, matched query, paywall, and language info in flags
-      const flags = {
-        ...(analysis.flags || {}),
-        date_verified: r.date_verified ?? true,
-        date_source: r.date_source || "unknown",
-        matched_query: r.matched_query || "",
-        paywall: paywallResult.is_paywalled,
-        paywall_type: paywallResult.paywall_type,
-        detected_language: detectedLang,
-        translated_summary: translatedSummary,
-      };
+    console.log(`After filtering: ${filtered.length} results`);
+
+    if (filtered.length === 0) {
+      await sb.from("scan_runs").update({
+        status: "completed", finished_at: new Date().toISOString(),
+        total_mentions: 0, negative_pct: 0, emergencies_count: 0,
+      } as any).eq("id", scanRun.id);
+
+      const rawCount = allRaw.length;
+      const msg = rawCount === 0
+        ? `No results found from any source. Ensure your keywords match how "${brandName}" appears in news (e.g., exact brand name or product name). Sources tried: ${scanLog.map(s=>s.source).join(", ")}.`
+        : `${rawCount} results found but all filtered out (duplicates, error pages, out-of-date-range, or self-published content from ${orgDomain}).`;
+
+      return new Response(JSON.stringify({ scan_run_id: scanRun.id, mentions_created: 0, total_found: rawCount, message: msg, scan_log: scanLog }),
+        { headers: { ...CORS, "Content-Type": "application/json" } });
+    }
+
+    /* ── Dedup against existing DB mentions ── */
+    const candidateUrls = filtered.map(r => r.url?.toLowerCase().replace(/\/$/,"")).filter(Boolean);
+    const existingUrls = new Set<string>();
+    for (let i = 0; i < candidateUrls.length; i += 50) {
+      const batch = candidateUrls.slice(i, i+50);
+      const { data: ex } = await sb.from("mentions").select("url").eq("org_id",org_id).in("url",batch as string[]);
+      for (const m of (ex||[])) { if (m.url) existingUrls.add(m.url.toLowerCase().replace(/\/$/,"")); }
+    }
+    const newItems = filtered.filter(r => {
+      if (!r.url) return true;
+      return !existingUrls.has(r.url.toLowerCase().replace(/\/$/,""));
+    });
+    const dedupSkipped = filtered.length - newItems.length;
+    console.log(`New items to analyze: ${newItems.length} (${dedupSkipped} already in DB)`);
+
+    /* ── AI Analysis with keyword fallback ── */
+    const aiInput = newItems.map(r => ({ source: r.source, url: r.url, title: r.title, content: r.content }));
+    let analyses: any[] = [];
+
+    if (lovableKey) {
+      analyses = await analyzeWithAI(aiInput, brandName, lovableKey);
+    }
+
+    // If AI returned nothing at all, fill with keyword sentiment
+    if (analyses.length === 0) {
+      console.log("[ai] Falling back to full keyword sentiment");
+      analyses = newItems.map(r => {
+        const k = kwSentiment(r.content + " " + r.title);
+        return { relevant: true, ...k, summary: r.title || r.content.slice(0,200), flags: {} };
+      });
+    }
+
+    /* ── Build mention rows ── */
+    let mentionRows = newItems.map((r, i) => {
+      const a = analyses[i] || {};
+      const kw = kwSentiment(r.content + " " + r.title); // always have a fallback
+      const sentiment_label = a.sentiment_label || kw.label;
+      const sentiment_score = typeof a.sentiment_score === "number" ? a.sentiment_score : kw.score;
+      const severity        = a.severity || kw.severity;
+      const summary         = a.summary || r.title || r.content.slice(0,200);
       return {
         org_id,
         scan_run_id: scanRun.id,
-        source: r.source || "unknown",
-        content: cleanSummary,
+        source: r.source,
+        content: summary,
         author_name: r.author_name || null,
-        author_handle: r.author_handle || null,
-        author_verified: r.author_verified || false,
-        author_follower_count: r.author_follower_count || 0,
-        sentiment_label: analysis.sentiment_label || "neutral",
-        sentiment_score: analysis.sentiment_score || 0,
-        sentiment_confidence: Math.min(100, Math.max(0, Math.round((analysis.sentiment_confidence || 0.5) * 100))),
-        severity: analysis.severity || "low",
-        language: analysis.detected_language || "en",
+        author_handle: null,
+        author_verified: false,
+        author_follower_count: 0,
+        sentiment_label,
+        sentiment_score,
+        sentiment_confidence: Math.round((a.sentiment_confidence || 0.65) * 100),
+        severity,
+        language: "en",
         posted_at: r.posted_at || null,
         url: r.url || null,
         metrics: r.metrics || {},
-        flags,
+        flags: { ...(a.flags||{}), date_verified: r.date_verified },
         status: "new",
-        owner_user_id: user.id,
+        owner_user_id: userId,
       };
     });
 
-    if (mentionRows.length === 0) {
-      const aiRejections = analyses.filter((a: any) => a?.relevant === false);
-      const reasons: string[] = [];
-      reasons.push(`${cleanedResults.length} results passed quality filters, but all ${aiRejections.length} were rejected by AI as not relevant to "${brandContext}".`);
-      const topReasons = aiRejections.map((a: any) => a?.rejection_reason).filter(Boolean).slice(0, 3);
-      if (topReasons.length > 0) reasons.push(`Top rejection reasons: ${topReasons.join("; ")}`);
-      reasons.push("Try broadening your keywords or date range, or check that your brand keywords match how your brand appears in media.");
-
-      await supabase
-        .from("scan_runs")
-        .update({
-          status: "completed",
-          finished_at: new Date().toISOString(),
-          total_mentions: 0,
-          negative_pct: 0,
-          emergencies_count: 0,
-        } as any)
-        .eq("id", scanRun.id);
-      // Best-effort: save result_snapshot (requires migration to have run)
-      try {
-        await supabase.from("scan_runs").update({
-          result_snapshot: {
-            scan_log: scanLog, keyword_groups: kwGroups,
-            total_found: allResults.length, quality_filtered: cleanedResults.length,
-            ai_rejected: cleanedResults.length, duplicates_skipped: 0, mentions_saved: 0,
-            zero_reason: reasons.join(" "), errors,
-            sources_used: [...new Set(scanLog.map((s: any) => s.source))],
-          }
-        } as any).eq("id", scanRun.id);
-      } catch { /* column may not exist yet */ }
-
-      return new Response(
-        JSON.stringify({
-          scan_run_id: scanRun.id,
-          mentions_created: 0,
-          total_found: allResults.length,
-          negative_pct: 0,
-          emergencies: 0,
-          errors,
-          scan_log: scanLog,
-          keyword_groups: kwGroups,
-          zero_results_reason: reasons.join(" "),
-          message: reasons.join(" "),
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Apply sentiment filter if requested
+    if (sentiment_filter && sentiment_filter !== "all") {
+      mentionRows = mentionRows.filter(m =>
+        sentiment_filter === "negative" ? (m.sentiment_label==="negative"||m.sentiment_label==="mixed")
+        : sentiment_filter === "positive" ? m.sentiment_label==="positive"
+        : true
       );
     }
 
-    const { data: insertedMentions, error: insertErr } = await supabase.from("mentions").insert(mentionRows).select("id");
-    if (insertErr) throw insertErr;
-
-    // === Narrative Auto-Clustering ===
-    // Ask AI to cluster the mentions into narrative themes
-    try {
-      const narrativeRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${lovableKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          temperature: 0.3,
-          messages: [
-            {
-              role: "system",
-              content: `You are a narrative intelligence engine. Given a set of mentions, identify distinct narrative themes.
-For each narrative, provide:
-- name: short descriptive name (e.g. "Security breach rumors")
-- description: 1-2 sentence summary
-- status: "active" or "watch"
-- confidence: number 0-1
-- example_phrases: array of 2-3 key phrases from the mentions
-- mention_indices: array of indices (0-based) of mentions belonging to this narrative
-
-Return JSON: { "narratives": [...] }
-Only return narratives with 2+ mentions. Return ONLY valid JSON, no markdown.`,
-            },
-            {
-              role: "user",
-              content: `Cluster these ${filteredResults.length} mentions into narrative themes:\n${JSON.stringify(
-                filteredResults.map(({ result: r, analysis }, i) => ({ index: i, source: r.source, content: (analysis.clean_summary || r.content)?.slice(0, 200) }))
-              )}`,
-            },
-          ],
-        }),
-      });
-
-      if (narrativeRes.ok) {
-        const narrativeData = await narrativeRes.json();
-        let rawNarr = narrativeData.choices?.[0]?.message?.content || "{}";
-        rawNarr = rawNarr.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        try {
-          const parsed = JSON.parse(rawNarr);
-          const narrativeClusters = parsed.narratives || [];
-          const mentionIds = (insertedMentions || []).map((m: any) => m.id);
-
-          for (const cluster of narrativeClusters) {
-            if (!cluster.name || !cluster.mention_indices?.length) continue;
-
-            // Check if an exact narrative already exists (avoid false matches from partial ilike)
-            const { data: existing } = await supabase
-              .from("narratives")
-              .select("id")
-              .eq("org_id", org_id)
-              .eq("name", cluster.name)
-              .limit(1);
-
-            let narrativeId: string;
-
-            if (existing && existing.length > 0) {
-              narrativeId = existing[0].id;
-              // Update last_seen
-              await supabase.from("narratives").update({
-                last_seen: new Date().toISOString(),
-                confidence: cluster.confidence || 0.5,
-              }).eq("id", narrativeId);
-            } else {
-              const { data: newNarr } = await supabase.from("narratives").insert({
-                org_id,
-                name: cluster.name,
-                description: cluster.description || "",
-                status: cluster.status || "active",
-                confidence: cluster.confidence || 0.5,
-                example_phrases: cluster.example_phrases || [],
-                first_seen: new Date().toISOString(),
-                last_seen: new Date().toISOString(),
-              }).select("id").single();
-              if (!newNarr) continue;
-              narrativeId = newNarr.id;
-            }
-
-            // Link mentions to narrative
-            const links = cluster.mention_indices
-              .filter((idx: number) => idx >= 0 && idx < mentionIds.length)
-              .map((idx: number) => ({ mention_id: mentionIds[idx], narrative_id: narrativeId }));
-            if (links.length > 0) {
-              await supabase.from("mention_narratives").insert(links);
-            }
-          }
-        } catch (e) {
-          console.error("Failed to parse narrative clusters:", e);
-        }
-      }
-    } catch (e: any) {
-      console.error("Narrative clustering failed:", e.message);
-      // Non-fatal — scan still succeeds
+    /* ── Insert mentions ── */
+    if (mentionRows.length === 0) {
+      await sb.from("scan_runs").update({ status:"completed", finished_at:new Date().toISOString(), total_mentions:0, negative_pct:0, emergencies_count:0 } as any).eq("id",scanRun.id);
+      return new Response(JSON.stringify({ scan_run_id:scanRun.id, mentions_created:0, total_found:filtered.length, message:"All mentions matched the sentiment filter or were filtered out.", scan_log:scanLog }),
+        { headers: { ...CORS, "Content-Type":"application/json" } });
     }
 
-    // Calculate stats
-    const negCount = mentionRows.filter(m =>
-      m.sentiment_label === "negative" || m.sentiment_label === "mixed"
-    ).length;
-    const emergencyCount = mentionRows.filter(m =>
-      m.severity === "critical" || m.severity === "high"
-    ).length;
+    const { data: inserted, error: insErr } = await sb.from("mentions").insert(mentionRows).select("id");
+    if (insErr) { console.error("Insert error:", insErr); throw insErr; }
 
-    const resultSnapshot = {
+    /* ── Stats ── */
+    const negCount  = mentionRows.filter(m=>m.sentiment_label==="negative"||m.sentiment_label==="mixed").length;
+    const critCount = mentionRows.filter(m=>m.severity==="critical"||m.severity==="high").length;
+    const negPct    = Math.round((negCount / mentionRows.length) * 100);
+
+    await sb.from("scan_runs").update({
+      status: "completed",
+      finished_at: new Date().toISOString(),
+      total_mentions: mentionRows.length,
+      negative_pct: negPct,
+      emergencies_count: critCount,
+    } as any).eq("id", scanRun.id);
+
+    // Save scan snapshot (non-blocking)
+    sb.from("scan_runs").update({ result_snapshot: {
+      scan_log: scanLog, total_found: allRaw.length,
+      filtered_to: filtered.length, dedup_skipped: dedupSkipped,
+      mentions_saved: mentionRows.length, negative_pct: negPct,
+      sources_used: [...new Set(scanLog.map(s=>s.source))],
+      ai_used: lovableKey ? "lovable-gateway" : "keyword-fallback",
+    }} as any).eq("id", scanRun.id).then(() => {}).catch(() => {});
+
+    // Trigger narrative clustering async (non-blocking — won't crash scan if it fails)
+    (async () => {
+      try {
+        const mentionIds = (inserted||[]).map((m:any)=>m.id);
+        const sample = mentionRows.slice(0,30).map((m,i)=>({ index:i, source:m.source, content:(m.content||"").slice(0,200) }));
+        const nRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization":`Bearer ${lovableKey}`, "Content-Type":"application/json" },
+          signal: AbortSignal.timeout(40000),
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash", temperature: 0.3,
+            messages: [
+              { role:"system", content:`Cluster these mentions into 2-5 narrative themes. Return JSON: { "narratives": [{ "name":"...", "description":"...", "status":"active", "confidence":0.8, "example_phrases":["..."], "mention_indices":[0,1,2] }] }` },
+              { role:"user", content:`Cluster mentions for "${brandName}":\n${JSON.stringify(sample)}` },
+            ],
+          }),
+        });
+        if (!nRes.ok) return;
+        const nData = await nRes.json();
+        let rawN = nData.choices?.[0]?.message?.content||"{}";
+        rawN = rawN.replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
+        const parsed = JSON.parse(rawN);
+        for (const c of (parsed.narratives||[])) {
+          if (!c.name || !c.mention_indices?.length) continue;
+          const { data: ex } = await sb.from("narratives").select("id").eq("org_id",org_id).eq("name",c.name).limit(1);
+          let nid: string;
+          if (ex?.length) {
+            nid = ex[0].id;
+            await sb.from("narratives").update({ last_seen:new Date().toISOString(), confidence:c.confidence||0.5 }).eq("id",nid);
+          } else {
+            const { data: newN } = await sb.from("narratives").insert({ org_id, name:c.name, description:c.description||"", status:c.status||"active", confidence:c.confidence||0.5, example_phrases:c.example_phrases||[], first_seen:new Date().toISOString(), last_seen:new Date().toISOString() }).select("id").single();
+            if (!newN) continue;
+            nid = newN.id;
+          }
+          const links = c.mention_indices.filter((i:number)=>i>=0&&i<mentionIds.length).map((i:number)=>({ mention_id:mentionIds[i], narrative_id:nid }));
+          if (links.length>0) await sb.from("mention_narratives").insert(links);
+        }
+      } catch (e:any) { console.warn("Narrative clustering failed (non-fatal):", e.message); }
+    })();
+
+    console.log(`Scan complete: ${mentionRows.length} mentions saved, ${negPct}% negative, ${critCount} high/critical`);
+
+    return new Response(JSON.stringify({
+      scan_run_id: scanRun.id,
+      mentions_created: mentionRows.length,
+      total_found: allRaw.length,
+      filtered_to: filtered.length,
+      dedup_skipped: dedupSkipped,
+      negative_pct: negPct,
+      emergencies: critCount,
       scan_log: scanLog,
-      keyword_groups: kwGroups,
-      total_found: allResults.length,
-      quality_filtered: allResults.length - cleanedResults.length,
-      ai_rejected: cleanedResults.length - filteredResults.length,
-      duplicates_skipped: filteredResults.length - dedupedResults.length,
-      mentions_saved: mentionRows.length,
-      negative_pct: Math.round((negCount / mentionRows.length) * 100),
-      emergencies: emergencyCount,
-      errors: errors.length > 0 ? errors : [],
-      relevance_rejections: analyses.filter((a: any) => a?.relevant === false).map((a: any) => a?.rejection_reason).filter(Boolean),
-      sources_used: [...new Set(scanLog.map((s: any) => s.source))],
-    };
+      ai_used: lovableKey ? "lovable-gateway" : "keyword-fallback",
+    }), { headers: { ...CORS, "Content-Type":"application/json" } });
 
-    await supabase
-      .from("scan_runs")
-      .update({
-        status: "completed",
-        finished_at: new Date().toISOString(),
-        total_mentions: mentionRows.length,
-        negative_pct: Math.round((negCount / mentionRows.length) * 100),
-        emergencies_count: emergencyCount,
-      } as any)
-      .eq("id", scanRun.id);
-    // Best-effort: save result_snapshot (requires migration to have run)
-    try {
-      await supabase.from("scan_runs").update({ result_snapshot: resultSnapshot } as any).eq("id", scanRun.id);
-    } catch { /* column may not exist yet */ }
-
-    return new Response(
-      JSON.stringify({
-        scan_run_id: scanRun.id,
-        mentions_created: mentionRows.length,
-        total_found: allResults.length,
-        quality_filtered: allResults.length - cleanedResults.length,
-        ai_irrelevant: cleanedResults.length - filteredResults.length,
-        duplicates_removed: filteredResults.length - dedupedResults.length,
-        relevance_rejections: analyses.filter((a: any) => a?.relevant === false).map((a: any) => a?.rejection_reason).filter(Boolean),
-        negative_pct: Math.round((negCount / mentionRows.length) * 100),
-        emergencies: emergencyCount,
-        scan_log: scanLog,
-        keyword_groups: kwGroups,
-        errors: errors.length > 0 ? errors : undefined,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   } catch (err: any) {
-    console.error("run-scan error:", err);
+    console.error("run-scan fatal error:", err);
     // Try to mark any running scan as failed
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const sb = createClient(supabaseUrl, supabaseKey);
-      const body = await req.clone().json().catch(() => ({}));
-      if (body.org_id) {
-        await sb.from("scan_runs").update({
-          status: "failed",
-          finished_at: new Date().toISOString(),
-        }).eq("org_id", body.org_id).eq("status", "running");
+      const body2 = await req.clone().json().catch(()=>({}));
+      if (body2.org_id) {
+        await sb.from("scan_runs").update({ status:"failed", finished_at:new Date().toISOString() }).eq("org_id",body2.org_id).eq("status","running");
       }
-    } catch { /* best effort */ }
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    } catch {}
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type":"application/json" } });
   }
 });
