@@ -31,13 +31,13 @@ function src(url: string): string {
   return "news";
 }
 
-// ── Block list ─────────────────────────────────────────────────────────────
+// ── Block list — evergreen/reference sites only, NOT aggregators ───────────
+// Do NOT add news.google.com or bing.com — their redirect URLs are valid results
 const BLOCK_DOMAINS = new Set([
   "en.wikipedia.org", "wikipedia.org", "investopedia.com",
   "apps.apple.com", "play.google.com", "support.google.com", "support.apple.com",
   "howstuffworks.com", "about.com", "dictionary.com", "merriam-webster.com",
-  "britannica.com", "nerdwallet.com", "bankrate.com", "investing.com",
-  "news.google.com", "bing.com",
+  "britannica.com",
 ]);
 
 function blocked(url: string): boolean {
@@ -128,7 +128,7 @@ async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<a
   const queries = [
     keywords.slice(0, 3).join(" OR "),
     keywords[0],
-    keywords.length > 1 ? `"${keywords[0]}" review` : null,
+    keywords.length > 1 ? `"${keywords[0]}" site:news` : null,
   ].filter(Boolean) as string[];
 
   await Promise.allSettled(queries.map(async (q) => {
@@ -141,22 +141,44 @@ async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<a
       if (!res.ok) return;
       const xml = await res.text();
       const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
-      for (const item of items.slice(0, 15)) {
+      for (const item of items.slice(0, 20)) {
         try {
-          const title = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
-          const link = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
+          const titleRaw = item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "";
+          const title = xmlDecode(titleRaw);
           const desc = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "");
           const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
-          if (!link || blocked(link)) continue;
+
+          // Google News puts a redirect URL in <link>. Extract the real source URL
+          // from <source url="..."> attribute — this is the actual publisher domain
+          const sourceUrl = item.match(/<source\s+url="([^"]+)"/)?.[1] || "";
+          const sourceName = xmlDecode(item.match(/<source[^>]*>([^<]+)<\/source>/)?.[1] || "");
+
+          // The redirect URL itself is fine as the stored URL — it resolves to the article
+          const gnLink = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
+
+          // Use the real publisher URL if available, otherwise the google redirect
+          const articleUrl = sourceUrl
+            ? `${sourceUrl.replace(/\/$/, "")}` // domain only — we don't have the path
+            : gnLink;
+
+          // Skip if blocked
+          if (sourceUrl && blocked(sourceUrl)) continue;
+
           const content = clean([title, desc].filter(Boolean).join(". "));
           if (content.length < 30) continue;
+
           let posted_at: string | null = null;
           try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
           if (dateFrom && posted_at && new Date(posted_at).getTime() < new Date(dateFrom).getTime()) continue;
+
           results.push({
-            source: src(link), content, title, url: link,
-            author_name: (() => { try { return new URL(link).hostname.replace("www.", ""); } catch { return "news"; } })(),
-            posted_at, date_verified: !!posted_at,
+            source: "news",
+            content,
+            title: title.replace(/\s+-\s+[^-]+$/, "").trim(), // strip "- Publisher Name" suffix
+            url: gnLink || articleUrl, // use redirect URL so it's unique per article
+            author_name: sourceName || (sourceUrl ? new URL(sourceUrl).hostname.replace("www.", "") : "news"),
+            posted_at,
+            date_verified: !!posted_at,
           });
         } catch { /* skip malformed item */ }
       }
@@ -180,22 +202,107 @@ async function crawlBingNews(keywords: string[]): Promise<any[]> {
     for (const item of items.slice(0, 20)) {
       try {
         const title = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
-        const link = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
         const desc = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "");
         const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
-        if (!link || blocked(link)) continue;
+
+        // Bing encodes real URL in the redirect link as url=... query param
+        const rawLink = item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "";
+        const decodedLink = xmlDecode(rawLink);
+
+        // Extract real URL from Bing redirect: url=https%3a%2f%2f...
+        const realUrlMatch = decodedLink.match(/[?&]url=([^&]+)/);
+        const articleUrl = realUrlMatch
+          ? decodeURIComponent(realUrlMatch[1])
+          : decodedLink;
+
+        if (!articleUrl) continue;
+        if (blocked(articleUrl)) continue;
+
         const content = clean([title, desc].filter(Boolean).join(". "));
         if (content.length < 30) continue;
+
         let posted_at: string | null = null;
         try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+
         results.push({
-          source: src(link), content, title, url: link,
-          author_name: (() => { try { return new URL(link).hostname.replace("www.", ""); } catch { return "news"; } })(),
-          posted_at, date_verified: !!posted_at,
+          source: src(articleUrl),
+          content,
+          title,
+          url: articleUrl, // real article URL, not bing redirect
+          author_name: (() => { try { return new URL(articleUrl).hostname.replace("www.", ""); } catch { return "news"; } })(),
+          posted_at,
+          date_verified: !!posted_at,
         });
       } catch { /* skip */ }
     }
   } catch (e: any) { console.warn("[bing-rss] failed:", e.message); }
+  return results;
+}
+
+// Direct RSS feeds from publishers — real URLs, real content, no redirects
+async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
+  const results: any[] = [];
+
+  // General interest feeds — always crawl these for context
+  const generalFeeds = [
+    { url: "https://techcrunch.com/feed/", name: "TechCrunch" },
+    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", name: "BBC Business" },
+    { url: "https://feeds.bbci.co.uk/news/technology/rss.xml", name: "BBC Tech" },
+    { url: "https://www.theverge.com/rss/index.xml", name: "The Verge" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml", name: "NYT Tech" },
+    { url: "https://feeds.arstechnica.com/arstechnica/index", name: "Ars Technica" },
+  ];
+
+  // Keyword-based filtering — only keep items mentioning any keyword
+  const kwLower = keywords.map(k => k.toLowerCase());
+
+  await Promise.allSettled(generalFeeds.map(async ({ url, name }) => {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; FactSentinelBot/2.0)" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return;
+      const xml = await res.text();
+      // Handle both RSS <item> and Atom <entry>
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) ||
+                    xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+
+      for (const item of items.slice(0, 30)) {
+        try {
+          const title = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
+          const desc  = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] ||
+                                  item.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1] || "");
+          const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] ||
+                         item.match(/<published>([\s\S]*?)<\/published>/)?.[1] ||
+                         item.match(/<updated>([\s\S]*?)<\/updated>/)?.[1] || "";
+
+          // Real URL extraction for Atom and RSS
+          let link = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] ||
+                      item.match(/<link href="([^"]+)"/)?.[1] || "").trim();
+          link = xmlDecode(link);
+
+          if (!link || blocked(link)) continue;
+
+          const combined = (title + " " + desc).toLowerCase();
+          // Only include if item mentions one of our keywords
+          if (!kwLower.some(kw => combined.includes(kw))) continue;
+
+          const content = clean([title, desc].filter(Boolean).join(". "));
+          if (content.length < 30) continue;
+
+          let posted_at: string | null = null;
+          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+
+          results.push({
+            source: src(link), content, title, url: link,
+            author_name: name,
+            posted_at, date_verified: !!posted_at,
+          });
+        } catch { /* skip */ }
+      }
+    } catch (e: any) { console.warn(`[rss:${name}] failed:`, e.message); }
+  }));
   return results;
 }
 
@@ -617,6 +724,12 @@ Deno.serve(async (req) => {
     })());
 
     crawlPromises.push((async () => {
+      const r = await crawlDirectRSS(keywords);
+      allRaw.push(...r);
+      scanLog.push({ source: "direct-rss", found: r.length });
+    })());
+
+    crawlPromises.push((async () => {
       const r = await crawlHackerNews(keywords, date_from);
       allRaw.push(...r);
       scanLog.push({ source: "hackernews", found: r.length });
@@ -661,7 +774,6 @@ Deno.serve(async (req) => {
     // ── 6. Filter & deduplicate ────────────────────────────────────────────
     const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
     const dateToMs = date_to ? new Date(date_to).getTime() : 0;
-    const SKIP = new Set(["news.google.com", "bing.com", "google.com"]);
 
     const filtered = dedup(allRaw).filter(r => {
       if (!r.content || r.content.length < 25) return false;
@@ -670,7 +782,7 @@ Deno.serve(async (req) => {
       if (isJunk(r.content)) return false;
       try {
         const host = new URL(r.url).hostname.replace("www.", "").toLowerCase();
-        if (SKIP.has(host)) return false;
+        // Block self-published content
         if (orgDomain && host === orgDomain) return false;
         if (ignoredDomains.has(host)) return false;
       } catch { return false; }
