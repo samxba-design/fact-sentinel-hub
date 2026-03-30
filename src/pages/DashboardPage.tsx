@@ -28,7 +28,7 @@ import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import SentimentSparklines from "@/components/dashboard/SentimentSparklines";
 import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
-import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget";
+import NarrativeNow from "@/components/dashboard/NarrativeNow";
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
@@ -323,6 +323,9 @@ export default function DashboardPage() {
       <OnboardingTour />
       <GettingStartedChecklist />
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
+
+      {/* ── Narrative Now — hero widget ── */}
+      <NarrativeNow />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
