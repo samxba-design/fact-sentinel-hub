@@ -1,0 +1,1 @@
+ALTER TABLE mentions ALTER COLUMN sentiment_confidence TYPE NUMERIC(5,2);

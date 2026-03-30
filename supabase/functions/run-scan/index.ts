@@ -903,7 +903,7 @@ Deno.serve(async (req) => {
         sentiment_label,
         sentiment_score,
         sentiment_confidence: a.sentiment_confidence != null
-          ? Math.round(a.sentiment_confidence * 100)
+          ? Math.min(Math.round(a.sentiment_confidence * 100), 999.99)
           : 65,
         severity,
         language: "en",
