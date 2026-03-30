@@ -7,7 +7,7 @@ import {
   Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
   ChevronDown, Building2, ShieldCheck, CreditCard, Plus, BookOpen, Target, Contact, Bell, Link2, Radio,
-  Globe, Share2, Brain
+  Globe, Share2, Brain, Newspaper
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import {
@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { to: "/approved-templates", icon: FileText, label: "Templates" },
   { to: "/escalations", icon: TicketCheck, label: "Escalations", access: "write" },
   { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
+  { to: "/competitors/intel-feed", icon: Newspaper, label: "Intel Feed", access: "edit" },
   { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
   { to: "/exports", icon: Download, label: "Exports", access: "write" },
   { to: "/pricing", icon: CreditCard, label: "Pricing" },

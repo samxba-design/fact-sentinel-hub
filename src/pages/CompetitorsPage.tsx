@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye, Loader2, User } from "lucide-react";
+import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye, Loader2, User, Zap, Newspaper } from "lucide-react";
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import CompetitorIntelSheet from "@/components/competitors/CompetitorIntelSheet";
 import PageGuide from "@/components/PageGuide";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -53,6 +55,8 @@ export default function CompetitorsPage() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [intelTarget, setIntelTarget] = useState<Competitor | null>(null);
+  const [intelOpen, setIntelOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Competitor | null>(null);
   const [editTarget, setEditTarget] = useState<Competitor | null>(null);
   const [newName, setNewName] = useState("");
@@ -237,6 +241,9 @@ export default function CompetitorsPage() {
           <p className="text-sm text-muted-foreground mt-1">Track competitors across your monitored landscape</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate("/competitors/intel-feed")}>
+            <Newspaper className="h-4 w-4 mr-2" /> Intel Feed
+          </Button>
           {competitors.length >= 2 && (
             <>
               <Button variant={compareMode ? "default" : "outline"} onClick={() => setCompareMode(!compareMode)}>
@@ -335,6 +342,59 @@ export default function CompetitorsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Threat Matrix */}
+      {competitors.length >= 2 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="mb-4">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Zap className="h-4 w-4 text-[hsl(var(--sentinel-amber))]" /> Threat Matrix
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Volume vs negativity — top-right quadrant needs immediate attention</p>
+            </div>
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="x" type="number" name="Mentions" label={{ value: "Mention Volume", position: "insideBottom", offset: -10, fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis dataKey="y" type="number" name="Negative %" domain={[0, 100]} label={{ value: "Negative %", angle: -90, position: "insideLeft", fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                  <Tooltip cursor={{ strokeDasharray: "3 3" }} content={({ payload }) => {
+                    if (!payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2 shadow text-xs">
+                        <p className="font-semibold text-foreground">{d.name}</p>
+                        <p className="text-muted-foreground">{d.x} mentions · {d.y}% negative</p>
+                      </div>
+                    );
+                  }} />
+                  <ReferenceLine x={maxMentions / 2} stroke="hsl(var(--border))" strokeDasharray="4 4" />
+                  <ReferenceLine y={50} stroke="hsl(var(--border))" strokeDasharray="4 4" />
+                  <Scatter
+                    data={competitors.map(c => ({ name: c.name, x: c.mentionCount, y: c.negPct }))}
+                    fill="hsl(var(--primary))"
+                    shape={(props: any) => {
+                      const { cx, cy, payload } = props;
+                      const isHighRisk = payload.y > 50 && payload.x > maxMentions / 2;
+                      return (
+                        <g>
+                          <circle cx={cx} cy={cy} r={8} fill={isHighRisk ? "hsl(0,84%,60%)" : "hsl(var(--primary))"} fillOpacity={0.8} />
+                          <text x={cx} y={cy - 12} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground))">{payload.name}</text>
+                        </g>
+                      );
+                    }}
+                  />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-muted-foreground">
+              <span className="text-left">← Low Profile</span>
+              <span className="text-right">High Profile →</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -454,6 +514,14 @@ export default function CompetitorsPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={(e) => { e.stopPropagation(); setIntelTarget(comp); setIntelOpen(true); }}
+                      className="hidden sm:flex"
+                    >
+                      <Eye className="h-3.5 w-3.5 mr-1.5" /> Intel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => scanCompetitor(comp)}
                       disabled={scanningId === comp.id}
                       className="hidden sm:flex"
@@ -537,6 +605,13 @@ export default function CompetitorsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CompetitorIntelSheet
+        competitor={intelTarget}
+        orgId={currentOrg?.id || ""}
+        open={intelOpen}
+        onOpenChange={setIntelOpen}
+      />
     </div>
   );
 }

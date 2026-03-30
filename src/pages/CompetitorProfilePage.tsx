@@ -9,11 +9,15 @@ import { Separator } from "@/components/ui/separator";
 import {
   Target, ArrowLeft, TrendingUp, TrendingDown, Minus,
   MessageSquareWarning, Network, ExternalLink, Scan, Loader2,
-  BarChart3, Calendar, Globe
+  BarChart3, Calendar, Globe, Lightbulb, AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import CompetitorDeepDive from "@/components/competitors/CompetitorDeepDive";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
+import { format, subWeeks, startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns";
 
 interface MentionRow {
   id: string;
@@ -217,6 +221,125 @@ export default function CompetitorProfilePage() {
         orgMentionCount={orgMentionCount}
         orgNarratives={orgNarratives}
       />
+
+      {/* ── Sentiment Timeline ── */}
+      {(() => {
+        const weeks = Array.from({ length: 8 }, (_, i) => {
+          const weekStart = startOfWeek(subWeeks(new Date(), 7 - i));
+          const weekEnd = endOfWeek(weekStart);
+          const compAvg = (() => {
+            const m = mentions.filter(x => x.posted_at && isWithinInterval(parseISO(x.posted_at), { start: weekStart, end: weekEnd }) && (x as any).sentiment_score != null);
+            return m.length ? m.reduce((s: number, x: any) => s + (x.sentiment_score || 0), 0) / m.length : null;
+          })();
+          return { label: format(weekStart, "MMM d"), comp: compAvg };
+        });
+        const hasData = weeks.filter(w => w.comp !== null).length >= 2;
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" /> Sentiment Timeline
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Average weekly sentiment score (–1 negative → +1 positive)</p>
+            </CardHeader>
+            <CardContent>
+              {!hasData ? (
+                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                  Run more scans to see sentiment trends over time
+                </div>
+              ) : (
+                <div className="h-[180px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeks} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                      <YAxis domain={[-1, 1]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                      <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [typeof v === "number" ? v.toFixed(2) : "N/A", "Sentiment"]} />
+                      <Line type="monotone" dataKey="comp" name={competitorName} stroke="hsl(0,84%,60%)" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* ── Narrative Gap Analysis ── */}
+      {(() => {
+        const orgNarrativeNames = new Set(orgNarratives.map(n => n.name.toLowerCase()));
+        const gaps = narratives.filter(n => !orgNarrativeNames.has(n.name.toLowerCase())).slice(0, 6);
+        if (gaps.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-[hsl(var(--sentinel-amber))]" /> Narrative Gap Analysis
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Topics {competitorName} owns that your brand doesn't — opportunities to establish your position</p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {gaps.map(n => (
+                  <div key={n.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-border bg-muted/20">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{n.name}</p>
+                      {n.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.description}</p>}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => navigate(`/respond?context=${encodeURIComponent(n.name)}`)}>
+                      Claim this narrative
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* ── Top Threats from Competitor ── */}
+      {(() => {
+        const threats = mentions.filter(m => m.severity === "high" || m.severity === "critical").slice(0, 8);
+        if (threats.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-4 w-4" /> Top Threats from {competitorName}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">High and critical severity mentions — monitor and respond</p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {threats.map(m => (
+                  <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-border/70 transition-colors">
+                    <Badge className={`shrink-0 text-[10px] mt-0.5 ${m.severity === "critical" ? "bg-red-500/15 text-red-400" : "bg-orange-500/15 text-orange-400"}`}>
+                      {m.severity}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-foreground line-clamp-2">{m.content?.slice(0, 160)}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-[10px]">{m.source}</Badge>
+                        {m.posted_at && <span className="text-[10px] text-muted-foreground">{format(parseISO(m.posted_at), "MMM d")}</span>}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex gap-1">
+                      {m.url && (
+                        <a href={m.url} target="_blank" rel="noopener noreferrer" className="p-1 text-muted-foreground hover:text-foreground">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => navigate(`/respond?context=${encodeURIComponent(m.content?.slice(0, 200) || "")}`)}>
+                        Respond
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Mentions */}
