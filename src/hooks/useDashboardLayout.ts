@@ -8,17 +8,20 @@ export interface DashboardWidget {
 }
 
 const DEFAULT_WIDGETS: DashboardWidget[] = [
-  { id: "metrics", label: "Key Metrics", visible: true, order: 0 },
-  { id: "sparklines", label: "Sentiment Sparklines", visible: true, order: 1 },
-  { id: "forecast", label: "Sentiment Forecast", visible: true, order: 2 },
-  { id: "risk-sentiment", label: "Risk Index & Sentiment", visible: true, order: 3 },
-  { id: "timeline-volume", label: "Activity & Volume", visible: true, order: 4 },
-  { id: "narrative-monitoring-feed", label: "Narratives, Monitoring & Feed", visible: true, order: 5 },
-  { id: "watchlist-threats", label: "Top Tracked Threats", visible: true, order: 6 },
-  { id: "sources", label: "Source Breakdown", visible: true, order: 7 },
+  { id: "narrative-now",            label: "Narrative Now (Brand Overview)",   visible: true,  order: 0 },
+  { id: "metrics",                  label: "Key Metrics",                       visible: true,  order: 1 },
+  { id: "sparklines",               label: "Sentiment Sparklines",              visible: true,  order: 2 },
+  { id: "forecast",                 label: "Sentiment Forecast",                visible: true,  order: 3 },
+  { id: "risk-sentiment",           label: "Risk Index & Sentiment",            visible: true,  order: 4 },
+  { id: "timeline-volume",          label: "Activity & Volume",                 visible: true,  order: 5 },
+  { id: "narrative-monitoring-feed",label: "Narratives, Monitoring & Feed",     visible: true,  order: 6 },
+  { id: "active-threats",           label: "Active Threats",                    visible: true,  order: 7 },
+  { id: "watchlist-threats",        label: "Top Tracked Threats",               visible: true,  order: 8 },
+  { id: "competitor-feed",          label: "Competitor Activity Feed",          visible: false, order: 9 },
+  { id: "sources",                  label: "Source Breakdown",                  visible: true,  order: 10 },
 ];
 
-const STORAGE_KEY = "sentiwatch_dashboard_layout";
+const STORAGE_KEY = "sentiwatch_dashboard_layout_v2"; // bumped version to clear old layout
 
 function loadLayout(): DashboardWidget[] {
   try {

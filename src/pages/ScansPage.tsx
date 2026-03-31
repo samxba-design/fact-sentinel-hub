@@ -139,12 +139,15 @@ export default function ScansPage() {
     setScanProgress("Preparing intelligent auto-scan...");
     try {
       const [kwRes, provRes, customSourcesRes] = await Promise.all([
-        supabase.from("keywords").select("value").eq("org_id", currentOrg.id).limit(50),
+        supabase.from("keywords").select("value, type").eq("org_id", currentOrg.id).limit(50),
         supabase.from("org_api_keys").select("provider").eq("org_id", currentOrg.id),
         supabase.from("sources").select("type").eq("org_id", currentOrg.id).eq("enabled", true),
       ]);
 
-      const autoKeywords = (kwRes.data || []).map(k => k.value);
+      // Only use brand/risk/product keywords for auto-scan — competitor keywords are scanned separately
+      const autoKeywords = (kwRes.data || [])
+        .filter((k: any) => k.type !== "competitor")
+        .map((k: any) => k.value as string);
       if (autoKeywords.length === 0) {
         toast({ title: "No keywords configured", description: "Add keywords in Settings first so the scan knows what to look for.", variant: "destructive" });
         setAutoScanning(false);

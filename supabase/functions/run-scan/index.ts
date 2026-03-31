@@ -667,19 +667,51 @@ Deno.serve(async (req) => {
 
     const orgName = orgRes.data?.name || "";
     const orgDomain = (orgRes.data?.domain || "").toLowerCase();
-    const dbKeywords = (kwRes.data || []).map((k: any) => k.value);
-    const keywords = (rawKws?.length ? rawKws : dbKeywords).filter(Boolean).slice(0, 10) as string[];
     const ignoredDomains = new Set((ignoredRes.data || []).map((r: any) => r.domain?.toLowerCase() || ""));
+
+    // Separate competitor keywords from brand/risk/product keywords
+    // Competitor scans are always separate — they don't belong in brand health metrics
+    const allDbKeywords = kwRes.data || [];
+    const competitorKeywords = allDbKeywords
+      .filter((k: any) => k.type === "competitor")
+      .map((k: any) => k.value as string);
+    const brandDbKeywords = allDbKeywords
+      .filter((k: any) => k.type !== "competitor")
+      .map((k: any) => k.value as string);
+
+    // Determine scan mode:
+    // - If rawKws passed AND scan_context="competitor": this is a targeted competitor scan
+    // - Otherwise: brand scan using only brand/risk/product keywords (never competitor keywords)
+    const isCompetitorScan = body.scan_context === "competitor";
+    let keywords: string[];
+    let scanMentionType: "brand" | "competitor";
+    let scanCompetitorName: string | null = null;
+
+    if (isCompetitorScan && rawKws?.length) {
+      // Targeted competitor scan — use passed keywords
+      keywords = (rawKws as string[]).filter(Boolean).slice(0, 5);
+      scanMentionType = "competitor";
+      scanCompetitorName = keywords[0] || null;
+    } else {
+      // Brand scan — exclude competitor keywords entirely
+      const brandKeywords = rawKws?.length
+        ? (rawKws as string[]).filter((kw: string) => !competitorKeywords.includes(kw))
+        : brandDbKeywords;
+      keywords = brandKeywords.filter(Boolean).slice(0, 10);
+      scanMentionType = "brand";
+    }
 
     if (keywords.length === 0) {
       return json({
         scan_run_id: null,
         mentions_created: 0,
         total_found: 0,
-        zero_results_reason: "No keywords configured. Add keywords in Settings → Keywords.",
+        zero_results_reason: isCompetitorScan
+          ? "No competitor keywords provided."
+          : "No brand keywords configured. Add keywords in Settings → Keywords (exclude competitor keywords — those are scanned separately).",
         scan_log: [],
-        keyword_groups: { brand: [], risk: [], product: [] },
-        errors: ["No active keywords found for this organization."],
+        keyword_groups: { brand: brandDbKeywords.slice(0, 5), risk: [], product: [], competitor: competitorKeywords.slice(0, 5) },
+        errors: ["No active keywords found for this scan type."],
       });
     }
 
@@ -913,6 +945,8 @@ Deno.serve(async (req) => {
         flags: { ...(a.flags || {}), date_verified: r.date_verified || false },
         status: "new",
         owner_user_id: userId, // null for scheduled/system scans — this is valid (nullable UUID)
+        mention_type: scanMentionType,
+        competitor_name: scanCompetitorName,
       };
     });
 

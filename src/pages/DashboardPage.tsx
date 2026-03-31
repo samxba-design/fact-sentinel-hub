@@ -29,6 +29,7 @@ import SentimentSparklines from "@/components/dashboard/SentimentSparklines";
 import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import NarrativeNow from "@/components/dashboard/NarrativeNow";
+import CompetitorFeedWidget from "@/components/dashboard/CompetitorFeedWidget";
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
@@ -221,12 +222,12 @@ export default function DashboardPage() {
     const prevRangeAgo = subDays(now, rangeDays * 2).toISOString();
 
     Promise.all([
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`and(posted_at.gte.${prevRangeAgo},posted_at.lt.${rangeAgo}),and(posted_at.is.null,created_at.gte.${prevRangeAgo},created_at.lt.${rangeAgo})`),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`and(posted_at.gte.${prevRangeAgo},posted_at.lt.${rangeAgo}),and(posted_at.is.null,created_at.gte.${prevRangeAgo},created_at.lt.${rangeAgo})`),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
-      supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+      supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
       supabase.from("escalations").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).in("status", ["open", "in_progress"]),
       supabase.from("scan_runs").select("finished_at").eq("org_id", currentOrg.id).eq("status", "completed").order("finished_at", { ascending: false }).limit(1),
     ]).then(async ([total, neg, emg, prev, incidents, mentionsRaw, escalations, lastScan]) => {
@@ -255,10 +256,10 @@ export default function DashboardPage() {
       const now = new Date();
       const rangeAgo = subDays(now, rangeDays).toISOString();
       Promise.all([
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
       ]).then(([total, neg, emg, mentionsRaw]) => {
         setTotalMentions(total.count ?? 0);
         setNegativeMentions(neg.count ?? 0);
@@ -291,10 +292,10 @@ export default function DashboardPage() {
         const rangeAgo = subDays(now, rangeDays).toISOString();
         
         Promise.all([
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+          supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
         ]).then(([total, neg, emg, mentionsRaw]) => {
           setTotalMentions(total.count ?? 0);
           setNegativeMentions(neg.count ?? 0);
@@ -323,9 +324,6 @@ export default function DashboardPage() {
       <OnboardingTour />
       <GettingStartedChecklist />
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
-
-      {/* ── Narrative Now — hero widget ── */}
-      <NarrativeNow />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
@@ -398,6 +396,9 @@ export default function DashboardPage() {
           </TooltipProvider>
         </div>
       </div>
+
+      {/* ── Narrative Now — brand-only overview, togglable ── */}
+      {isVisible("narrative-now") && <NarrativeNow />}
 
       {isVisible("metrics") && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -543,6 +544,10 @@ export default function DashboardPage() {
         )}
       </Card>
       )}
+
+      {/* ── Competitor Feed — optional widget, off by default ── */}
+      {isVisible("competitor-feed") && <CompetitorFeedWidget />}
+
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>
   );
