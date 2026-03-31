@@ -15,9 +15,6 @@ const NAV_LINKS = [
   { to: "/features", label: "Features" },
   { to: "/pricing", label: "Pricing" },
 ];
-  { to: "/features", label: "Features" },
-  { to: "/pricing", label: "Pricing" },
-];
 
 const HOW_IT_WORKS = [
   {
