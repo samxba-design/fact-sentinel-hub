@@ -193,6 +193,9 @@ export default function CompetitorBenchmarkPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <Breadcrumbs items={[
+        { label: "Competitors", href: "/competitors" },
+        { label: "Benchmark" },
+      ]} />
       <PageGuide
         title="Competitor Benchmark — Side-by-side comparison"
         subtitle="Compare your brand against competitors by mention volume, sentiment, and narrative count."
@@ -203,9 +206,6 @@ export default function CompetitorBenchmarkPage() {
         ]}
         tip="Run competitor scans first — benchmark needs data for each tracked competitor."
       />
-        { label: "Competitors", href: "/competitors" },
-        { label: "Benchmark" },
-      ]} />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
