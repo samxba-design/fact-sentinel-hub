@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import {
   Shield, BarChart3, AlertTriangle, Zap, Users, FileText, Menu, X,
   ArrowRight, CheckCircle2, TrendingDown, TrendingUp, Minus,
-  Newspaper, Target, Brain, Siren, ChevronRight, Star, Globe, Lock,
+  Newspaper, Target, Brain, Siren, ChevronRight, Star, Globe, Lock, Play,
 } from "lucide-react";
 
 const NAV_LINKS = [
+  { to: "/how-it-works", label: "How It Works" },
+  { to: "/features", label: "Features" },
+  { to: "/pricing", label: "Pricing" },
+];
   { to: "/features", label: "Features" },
   { to: "/pricing", label: "Pricing" },
 ];
@@ -109,6 +114,7 @@ const BADGE_COLORS: Record<string, string> = {
 };
 
 export default function Index() {
+  const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -132,12 +138,22 @@ export default function Index() {
               </Link>
             ))}
             <div className="w-px h-5 bg-border mx-1" />
-            <Link to="/auth">
-              <Button variant="ghost" size="sm">Sign in</Button>
-            </Link>
-            <Link to="/auth?mode=signup">
-              <Button size="sm" className="ml-1">Start free →</Button>
-            </Link>
+            {user ? (
+              <Link to="/dashboard">
+                <Button size="sm" className="ml-1 gap-1.5">
+                  <BarChart3 className="h-3.5 w-3.5" /> Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="ghost" size="sm">Sign in</Button>
+                </Link>
+                <Link to="/auth?mode=signup">
+                  <Button size="sm" className="ml-1">Start free →</Button>
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="flex md:hidden items-center gap-2">
@@ -192,16 +208,31 @@ export default function Index() {
               AI detects narratives forming in real time and helps you respond with confidence.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
-              <Link to="/auth?mode=signup">
-                <Button size="lg" className="text-base px-8 gap-2">
-                  Start monitoring free <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to="/auth">
-                <Button size="lg" variant="outline" className="text-base px-8">
-                  Sign in to dashboard
-                </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+              {user ? (
+                <Link to="/dashboard">
+                  <Button size="lg" className="text-base px-8 gap-2">
+                    <BarChart3 className="h-4 w-4" /> Go to your dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/auth?mode=signup">
+                    <Button size="lg" className="text-base px-8 gap-2">
+                      Start monitoring free <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link to="/auth">
+                    <Button size="lg" variant="outline" className="text-base px-8">
+                      Sign in
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+            <div className="flex justify-center mb-10">
+              <Link to="/how-it-works" className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
+                <Play className="h-3.5 w-3.5" /> See how it works — full visual walkthrough
               </Link>
             </div>
 

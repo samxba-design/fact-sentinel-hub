@@ -314,6 +314,16 @@ export default function AppSidebar() {
         />
       </div>
 
+      {/* ── Marketing site links ── */}
+      <div className="px-3 py-2 border-t border-sidebar-border space-y-0.5">
+        <a
+          href="/home"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <Globe className="h-3.5 w-3.5 shrink-0" /> Marketing site &amp; How It Works
+        </a>
+      </div>
+
       {/* ── Sign out ── */}
       <div className="p-3 border-t border-sidebar-border">
         <button
