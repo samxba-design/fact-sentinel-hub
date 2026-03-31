@@ -86,7 +86,7 @@ export default function ExportsPage() {
         .eq("org_id", currentOrg.id).order("last_exported_at", { ascending: false }).limit(50),
       supabase.from("user_google_tokens").select("id, google_email, token_expires_at")
         .eq("user_id", user.id).eq("org_id", currentOrg.id).maybeSingle(),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type","brand"),
+      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
       supabase.from("narratives").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),
       supabase.from("escalations").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id),

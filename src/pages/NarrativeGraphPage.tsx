@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Network, Users, MessageSquareWarning, Maximize2, Minimize2, Share2 } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,7 +55,7 @@ export default function NarrativeGraphPage() {
       supabase.from("mention_narratives").select("mention_id, narrative_id"),
       supabase.from("mention_people").select("mention_id, person_id"),
       supabase.from("people").select("id, name").limit(50),
-      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).eq("mention_type","brand").limit(200),
+      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).limit(200),
     ]).then(([narrativesRes, mnRes, mpRes, peopleRes, mentionsRes]) => {
       const narratives = narrativesRes.data || [];
       const mentionNarratives = mnRes.data || [];

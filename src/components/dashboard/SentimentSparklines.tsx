@@ -30,7 +30,6 @@ export default function SentimentSparklines() {
       .from("mentions")
       .select("sentiment_label, posted_at")
       .eq("org_id", currentOrg.id)
-      .eq("mention_type", "brand")
       .gte("posted_at", thirtyDaysAgo)
       .order("posted_at")
       .then(({ data }) => {

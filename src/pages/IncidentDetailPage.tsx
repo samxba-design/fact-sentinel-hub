@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Pencil, Plus, Siren, Clock, User2, MessageSquare,
-  Link2, Loader2, X, Network, ChevronDown, Check,
+  Link2, Loader2, X, Network, ChevronDown, Check, Radio,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -112,7 +112,7 @@ export default function IncidentDetailPage() {
     const linkedNarrativeIds = new Set(narratives.map(n => n.narrative_id));
 
     const [mRes, nRes] = await Promise.all([
-      supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).eq("mention_type","brand").order("created_at", { ascending: false }).limit(100),
+      supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
     ]);
 

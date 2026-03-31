@@ -101,7 +101,7 @@ export default function BriefingPage() {
     Promise.all([
       supabase.from("mentions").select("posted_at, created_at, sentiment_label, severity, source")
         .eq("org_id", currentOrg.id)
-        .eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
       supabase.from("narratives").select("name, status, confidence").eq("org_id", currentOrg.id).order("last_seen", { ascending: false }).limit(5),
       supabase.from("incidents").select("name, status").eq("org_id", currentOrg.id).eq("status", "active"),
       supabase.from("escalations").select("title, status, priority").eq("org_id", currentOrg.id).in("status", ["open", "in_progress"]),

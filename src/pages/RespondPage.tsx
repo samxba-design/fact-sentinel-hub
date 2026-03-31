@@ -71,7 +71,7 @@ export default function RespondPage() {
       const [narr, inc, men] = await Promise.all([
         supabase.from("narratives").select("id, name").eq("org_id", currentOrg.id).ilike("name", `%${tagSearch}%`).limit(3),
         supabase.from("incidents").select("id, name").eq("org_id", currentOrg.id).ilike("name", `%${tagSearch}%`).limit(3),
-        supabase.from("mentions").select("id, content, source").eq("org_id", currentOrg.id).eq("mention_type","brand").textSearch("content", tagSearch, { type: "plain" }).limit(3),
+        supabase.from("mentions").select("id, content, source").eq("org_id", currentOrg.id).textSearch("content", tagSearch, { type: "plain" }).limit(3),
       ]);
       setTagResults([
         ...(narr.data || []).map(n => ({ id: n.id, label: n.name, type: "narrative" as const })),

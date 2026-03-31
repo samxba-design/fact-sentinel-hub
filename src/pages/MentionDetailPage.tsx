@@ -140,7 +140,7 @@ export default function MentionDetailPage() {
     setLoading(true);
 
     Promise.all([
-      supabase.from("mentions").select("*").eq("id", id).eq("org_id", currentOrg.id).eq("mention_type","brand").single(),
+      supabase.from("mentions").select("*").eq("id", id).eq("org_id", currentOrg.id).single(),
       supabase.from("claim_extractions").select("id, claim_text, category, confidence").eq("mention_id", id),
       supabase.from("mention_topics").select("topic_id, topics(name)").eq("mention_id", id),
       supabase.from("mention_narratives").select("narrative_id, narratives(name, status)").eq("mention_id", id),
