@@ -143,7 +143,7 @@ export default function MentionsPage() {
       .from("mentions")
       .select("id, source, author_name, author_handle, content, sentiment_label, severity, posted_at, created_at, author_follower_count, flags, status, scan_run_id, url")
       .eq("org_id", currentOrg.id)
-      .eq("mention_type", "brand")   // ← brand only by default; competitor feed is separate
+         // ← brand only by default; competitor feed is separate
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
 
