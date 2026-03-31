@@ -2,7 +2,7 @@ import { Shield } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function PrivacyPolicyPage() {
-  const appName = "Fact Sentinel";
+  const appName = "SentiWatch";
   const contactEmail = "privacy@sentiwatch.com";
 
   return (

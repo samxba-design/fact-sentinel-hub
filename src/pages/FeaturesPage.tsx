@@ -15,7 +15,7 @@ const sections = [
     icon: Scan,
     title: "Automated Scanning",
     subtitle: "Monitor every corner of the internet",
-    description: "Fact Sentinel continuously scans social media, news sites, forums, review platforms, and the broader web for mentions of your brand, products, and key personnel. Scans run on your schedule or on-demand.",
+    description: "SentiWatch continuously scans social media, news sites, forums, review platforms, and the broader web for mentions of your brand, products, and key personnel. Scans run on your schedule or on-demand.",
     highlights: [
       "Multi-source scanning: Twitter/X, Reddit, YouTube, Google Reviews, web articles",
       "Custom keyword tracking with brand terms, competitor names, and industry phrases",
@@ -28,7 +28,7 @@ const sections = [
     icon: Eye,
     title: "Mention Intelligence",
     subtitle: "Every mention, analyzed and actionable",
-    description: "Each mention captured by Fact Sentinel is automatically enriched with AI-powered sentiment analysis, severity scoring, engagement metrics, and content extraction. Filter, sort, and drill into any mention for full context.",
+    description: "Each mention captured by SentiWatch is automatically enriched with AI-powered sentiment analysis, severity scoring, engagement metrics, and content extraction. Filter, sort, and drill into any mention for full context.",
     highlights: [
       "AI-generated summaries replace raw scraped text for clarity",
       "Sentiment scoring with confidence levels (positive, negative, neutral, mixed)",
@@ -43,7 +43,7 @@ const sections = [
     icon: Network,
     title: "Narrative Tracking",
     subtitle: "See the stories forming around your brand",
-    description: "Mentions don't exist in isolation — they form narratives. Fact Sentinel clusters related mentions into narrative threads so you can track how stories evolve, spread across platforms, and assess their threat level.",
+    description: "Mentions don't exist in isolation — they form narratives. SentiWatch clusters related mentions into narrative threads so you can track how stories evolve, spread across platforms, and assess their threat level.",
     highlights: [
       "AI-powered narrative clustering from mention patterns",
       "Confidence scoring for each identified narrative",
@@ -84,7 +84,7 @@ const sections = [
     icon: MessageCircleReply,
     title: "AI Response Drafting",
     subtitle: "Respond faster with fact-checked messaging",
-    description: "When a mention requires a response, Fact Sentinel's AI drafts platform-appropriate replies grounded in your approved facts and messaging templates. Every response is traceable back to verified company positions.",
+    description: "When a mention requires a response, SentiWatch's AI drafts platform-appropriate replies grounded in your approved facts and messaging templates. Every response is traceable back to verified company positions.",
     highlights: [
       "AI-generated drafts based on your approved fact library",
       "Template-guided responses for consistent brand voice",
@@ -110,7 +110,7 @@ const sections = [
     icon: TicketCheck,
     title: "Escalation Workflows",
     subtitle: "Route issues to the right people",
-    description: "Not every mention needs the same level of attention. Fact Sentinel's escalation system lets you create tickets, assign them to team members or departments, track priority levels, and add internal comments.",
+    description: "Not every mention needs the same level of attention. SentiWatch's escalation system lets you create tickets, assign them to team members or departments, track priority levels, and add internal comments.",
     highlights: [
       "Priority levels: Low, Medium, High, Critical",
       "Department routing for cross-team coordination",
@@ -123,7 +123,7 @@ const sections = [
     icon: Lock,
     title: "Governance & Compliance",
     subtitle: "Approved facts, templates, and audit trails",
-    description: "Maintain a library of verified company facts and pre-approved response templates. Every action in Fact Sentinel is logged in a full audit trail for compliance and accountability.",
+    description: "Maintain a library of verified company facts and pre-approved response templates. Every action in SentiWatch is logged in a full audit trail for compliance and accountability.",
     highlights: [
       "Approved fact library with versioning and review dates",
       "Response templates with tone, platform, and scenario matching",
@@ -156,7 +156,7 @@ export default function FeaturesPage() {
             <div className="p-1.5 rounded-lg bg-primary/10">
               <Shield className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-lg font-bold tracking-tight">Fact Sentinel</span>
+            <span className="text-lg font-bold tracking-tight">SentiWatch</span>
           </Link>
           <div className="flex items-center gap-3">
             <ThemeSwitcher />
@@ -183,7 +183,7 @@ export default function FeaturesPage() {
               <span className="text-primary">protect your reputation</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              A comprehensive walkthrough of every feature in Fact Sentinel — from automated scanning to crisis management.
+              A comprehensive walkthrough of every feature in SentiWatch — from automated scanning to crisis management.
             </p>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function FeaturesPage() {
         <div className="max-w-6xl mx-auto px-6 py-16 text-center space-y-6">
           <h2 className="text-3xl font-bold tracking-tight">Ready to see it in action?</h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
-            Get in touch to schedule a demo or discuss how Fact Sentinel can fit your organization's needs.
+            Get in touch to schedule a demo or discuss how SentiWatch can fit your organization's needs.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link to="/contact">
@@ -270,9 +270,9 @@ export default function FeaturesPage() {
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            <span>Fact Sentinel</span>
+            <span>SentiWatch</span>
           </div>
-          <p>© {new Date().getFullYear()} Fact Sentinel. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} SentiWatch. All rights reserved.</p>
         </div>
       </footer>
     </div>

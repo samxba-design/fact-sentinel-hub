@@ -30,7 +30,7 @@ const STEPS: TourStep[] = [
     id: "welcome",
     icon: Shield,
     color: "hsl(var(--primary))",
-    title: "Welcome to Fact Sentinel",
+    title: "Welcome to SentiWatch",
     description: "Your AI-powered reputation intelligence platform. We monitor news, social media, and forums for mentions of your brand — detecting threats before they become crises.",
     tip: "This tour takes about 60 seconds.",
   },

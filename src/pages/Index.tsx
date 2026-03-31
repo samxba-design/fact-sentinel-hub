@@ -121,7 +121,7 @@ export default function Index() {
             <div className="p-1.5 rounded-lg bg-primary/10">
               <Shield className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-lg font-bold tracking-tight">Fact Sentinel</span>
+            <span className="text-lg font-bold tracking-tight">SentiWatch</span>
           </div>
 
           <div className="hidden md:flex items-center gap-1">
@@ -188,7 +188,7 @@ export default function Index() {
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-center leading-relaxed mb-8">
-              Fact Sentinel monitors news, social media, and forums for your brand, competitors, and risk keywords.
+              SentiWatch monitors news, social media, and forums for your brand, competitors, and risk keywords.
               AI detects narratives forming in real time and helps you respond with confidence.
             </p>
 
@@ -221,7 +221,7 @@ export default function Index() {
       <section className="border-b border-border bg-card/20">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest text-center mb-10">
-            What Fact Sentinel gives you
+            What SentiWatch gives you
           </p>
           <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {OUTCOMES.map(o => (
@@ -307,7 +307,7 @@ export default function Index() {
                 <span className="text-primary">right now</span>
               </h2>
               <p className="text-muted-foreground leading-relaxed">
-                Most monitoring tools tell you what happened. Fact Sentinel tells you what story is forming
+                Most monitoring tools tell you what happened. SentiWatch tells you what story is forming
                 before it takes hold. AI clusters mentions into narratives, scores their momentum,
                 and shows you the gap between what you're saying and what people believe.
               </p>
@@ -388,7 +388,7 @@ export default function Index() {
         <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground">Fact Sentinel</span>
+            <span className="font-medium text-foreground">SentiWatch</span>
           </div>
           <div className="flex items-center gap-6">
             <Link to="/features" className="hover:text-foreground transition-colors">Features</Link>
@@ -396,7 +396,7 @@ export default function Index() {
             <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
           </div>
-          <p>© {new Date().getFullYear()} Fact Sentinel</p>
+          <p>© {new Date().getFullYear()} SentiWatch</p>
         </div>
       </footer>
     </div>

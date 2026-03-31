@@ -157,7 +157,7 @@ export default function AppSidebar() {
         <div className="p-1.5 rounded-lg bg-sidebar-primary/10">
           <Shield className="h-5 w-5 text-sidebar-primary" />
         </div>
-        <span className="text-base font-bold text-sidebar-accent-foreground tracking-tight">Fact Sentinel</span>
+        <span className="text-base font-bold text-sidebar-accent-foreground tracking-tight">SentiWatch</span>
       </div>
 
       {/* ── Org Switcher ── */}
