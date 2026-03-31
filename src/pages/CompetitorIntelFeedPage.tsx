@@ -172,6 +172,16 @@ export default function CompetitorIntelFeedPage() {
 
   return (
     <div className="space-y-6">
+      <PageGuide
+        title="Competitive Intelligence Feed"
+        subtitle="Chronological feed of all competitor mentions — completely separate from your brand data."
+        steps={[
+          { icon: <Newspaper className="h-4 w-4 text-primary" />, title: "Filter by competitor", description: "Click the colored competitor pills to filter to one competitor. Or view all together." },
+          { icon: <Zap className="h-4 w-4 text-primary" />, title: "Scan all competitors", description: "The 'Scan All' button runs a fresh scan for every tracked competitor in sequence." },
+          { icon: <TrendingDown className="h-4 w-4 text-primary" />, title: "Sentiment badges", description: "Each mention shows sentiment and severity — quickly spot negative coverage about competitors." },
+        ]}
+        tip="Competitor mentions are stored separately and never mix with your brand health metrics."
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

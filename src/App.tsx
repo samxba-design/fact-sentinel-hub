@@ -162,6 +162,7 @@ function AppRoutes() {
           <Route path="/settings" element={<RoleGate require="manage"><ErrorBoundary><SettingsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/guide" element={<ErrorBoundary><GuidePage /></ErrorBoundary>} />
+          <Route path="/getting-started" element={<ErrorBoundary><GuidePage /></ErrorBoundary>} />
           <Route path="/admin" element={<ErrorBoundary><AdminPage /></ErrorBoundary>} />
         </Route>
         {/* Allow onboarding for creating additional orgs */}

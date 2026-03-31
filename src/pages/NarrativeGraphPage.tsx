@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Network, Users, MessageSquareWarning, Maximize2, Minimize2 } from "lucide-react";
+import { Network, Users, MessageSquareWarning, Maximize2, Minimize2, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,7 +54,7 @@ export default function NarrativeGraphPage() {
       supabase.from("mention_narratives").select("mention_id, narrative_id"),
       supabase.from("mention_people").select("mention_id, person_id"),
       supabase.from("people").select("id, name").limit(50),
-      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).limit(200),
+      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).eq("mention_type","brand").limit(200),
     ]).then(([narrativesRes, mnRes, mpRes, peopleRes, mentionsRes]) => {
       const narratives = narrativesRes.data || [];
       const mentionNarratives = mnRes.data || [];
@@ -302,6 +302,15 @@ export default function NarrativeGraphPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
+      <PageGuide
+        title="Narrative Network — Visual relationship map"
+        subtitle="A force-directed graph of how narratives and mentions connect across your brand."
+        steps={[
+          { icon: <Network className="h-4 w-4 text-primary" />, title: "Nodes = narratives", description: "Each circle is a narrative. Larger = more mentions. Lines show shared mentions between narratives." },
+          { icon: <Share2 className="h-4 w-4 text-primary" />, title: "Drag to explore", description: "Drag nodes to rearrange. Click a narrative node to see its linked mentions." },
+        ]}
+        tip="Run a scan and detect narratives first — the graph needs data to show connections."
+      />
         <div>
           <h1 className="text-2xl font-bold text-foreground">Narrative Network</h1>
           <p className="text-sm text-muted-foreground mt-1">Interactive graph revealing connections between narratives, people, and sources</p>

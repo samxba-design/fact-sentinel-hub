@@ -114,6 +114,15 @@ export default function ThreatMapPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
+      <PageGuide
+        title="Threat Map — Geographic distribution"
+        subtitle="See where brand mentions are coming from geographically. Competitor mentions excluded."
+        steps={[
+          { icon: <Globe className="h-4 w-4 text-primary" />, title: "Region hotspots", description: "Larger dots = more mentions from that region. Red tint = higher negative sentiment." },
+          { icon: <AlertTriangle className="h-4 w-4 text-primary" />, title: "Regional risk", description: "Identify if a negative narrative is concentrated in a specific market or geography." },
+        ]}
+        tip="Region is inferred from mention content — exact geolocation is an approximation."
+      />
         <div>
           <h1 className="text-2xl font-bold text-foreground">Threat Geography</h1>
           <p className="text-sm text-muted-foreground mt-1">Geographic heatmap of mention origins and emerging threats</p>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import PageGuide from "@/components/PageGuide";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,6 +144,16 @@ export default function CompetitorProfilePage() {
 
   return (
     <div className="space-y-6">
+      <PageGuide
+        title="Competitor Profile — Deep dive"
+        subtitle="Detailed intelligence on this competitor: sentiment timeline, narrative gaps, and top threats."
+        steps={[
+          { icon: <Target className="h-4 w-4 text-primary" />, title: "Sentiment timeline", description: "Weekly average sentiment over 8 weeks — see if their reputation is improving or declining." },
+          { icon: <Lightbulb className="h-4 w-4 text-primary" />, title: "Narrative gap analysis", description: "Topics this competitor owns that your brand doesn't — opportunities to claim first." },
+          { icon: <AlertTriangle className="h-4 w-4 text-primary" />, title: "Top threats", description: "Their high/critical severity mentions — content you may need to respond to or monitor." },
+        ]}
+        tip="Competitor data never affects your brand risk score or narrative health metrics."
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">

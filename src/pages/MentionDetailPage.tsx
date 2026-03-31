@@ -19,6 +19,7 @@ import {
   Network, Link2, Lock, Share2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import PageGuide from "@/components/PageGuide";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -139,7 +140,7 @@ export default function MentionDetailPage() {
     setLoading(true);
 
     Promise.all([
-      supabase.from("mentions").select("*").eq("id", id).eq("org_id", currentOrg.id).single(),
+      supabase.from("mentions").select("*").eq("id", id).eq("org_id", currentOrg.id).eq("mention_type","brand").single(),
       supabase.from("claim_extractions").select("id, claim_text, category, confidence").eq("mention_id", id),
       supabase.from("mention_topics").select("topic_id, topics(name)").eq("mention_id", id),
       supabase.from("mention_narratives").select("narrative_id, narratives(name, status)").eq("mention_id", id),
@@ -331,6 +332,16 @@ export default function MentionDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
+      <PageGuide
+        title="Mention Detail"
+        subtitle="Full context for this detected mention — sentiment, flags, narratives, and response options."
+        steps={[
+          { icon: <BarChart3 className="h-4 w-4 text-primary" />, title: "Sentiment & severity", description: "AI-scored from -1 to +1. Critical/high severity = immediate attention needed." },
+          { icon: <Network className="h-4 w-4 text-primary" />, title: "Linked narratives", description: "Which narrative threads this mention contributes to. Click to see the full narrative." },
+          { icon: <MessageCircleReply className="h-4 w-4 text-primary" />, title: "Draft a response", description: "Click 'Draft Response' to generate a fact-checked reply using your Approved Facts library." },
+        ]}
+        tip="Use 'Escalate' to create a ticket if this mention needs human review or team coordination."
+      />
       {/* Back button - prominent */}
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={goBack} className="gap-1.5">

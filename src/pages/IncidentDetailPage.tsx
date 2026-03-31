@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import PageGuide from "@/components/PageGuide";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +112,7 @@ export default function IncidentDetailPage() {
     const linkedNarrativeIds = new Set(narratives.map(n => n.narrative_id));
 
     const [mRes, nRes] = await Promise.all([
-      supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).eq("mention_type","brand").order("created_at", { ascending: false }).limit(100),
       supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
     ]);
 
@@ -230,6 +231,16 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-5xl">
+      <PageGuide
+        title="Incident — Crisis record"
+        subtitle="Track everything related to this incident: mentions, narratives, timeline, and stakeholders."
+        steps={[
+          { icon: <Siren className="h-4 w-4 text-primary" />, title: "Link mentions", description: "Add relevant mentions to consolidate all evidence in one place for the incident record." },
+          { icon: <Clock className="h-4 w-4 text-primary" />, title: "Timeline tracking", description: "Every status change and action is logged automatically as a timeline event." },
+          { icon: <Radio className="h-4 w-4 text-primary" />, title: "War Room", description: "Click 'Open War Room' to coordinate your team's real-time crisis response." },
+        ]}
+        tip="Set a post-incident review date to ensure learnings are captured after resolution."
+      />
       <Breadcrumbs items={[{ label: "Incidents", href: "/incidents" }, { label: incident.name }]} />
 
       <div className="flex items-center justify-end">

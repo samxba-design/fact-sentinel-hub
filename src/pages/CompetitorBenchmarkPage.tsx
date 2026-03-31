@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import PageGuide from "@/components/PageGuide";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -192,6 +193,16 @@ export default function CompetitorBenchmarkPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <Breadcrumbs items={[
+      <PageGuide
+        title="Competitor Benchmark — Side-by-side comparison"
+        subtitle="Compare your brand against competitors by mention volume, sentiment, and narrative count."
+        steps={[
+          { icon: <BarChart3 className="h-4 w-4 text-primary" />, title: "Radar chart", description: "Normalised 0–100 across volume, negativity, source diversity, narrative count, and high-severity mentions." },
+          { icon: <Target className="h-4 w-4 text-primary" />, title: "Share of voice", description: "Donut shows your brand vs each competitor by total mention count." },
+          { icon: <TrendingUp className="h-4 w-4 text-primary" />, title: "Sortable table", description: "Sort by any metric. Trend arrows show week-on-week change." },
+        ]}
+        tip="Run competitor scans first — benchmark needs data for each tracked competitor."
+      />
         { label: "Competitors", href: "/competitors" },
         { label: "Benchmark" },
       ]} />

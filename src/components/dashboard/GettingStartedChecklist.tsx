@@ -92,6 +92,9 @@ export default function GettingStartedChecklist() {
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-xs">{completed}/{steps.length} done</Badge>
+          <Button size="sm" variant="ghost" className="text-xs h-6 gap-1" onClick={() => navigate("/guide")}>
+            Full guide
+          </Button>
           <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => setDismissed(true)}>
             Dismiss
           </Button>
