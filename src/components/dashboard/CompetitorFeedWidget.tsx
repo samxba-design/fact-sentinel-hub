@@ -46,22 +46,35 @@ export default function CompetitorFeedWidget() {
     if (!currentOrg) return;
     (async () => {
       setLoading(true);
-      const [mentionsRes, compRes] = await Promise.all([
-        supabase
-          .from("mentions")
-          .select("id,competitor_name,content,source,sentiment_label,severity,posted_at,url")
-          .eq("org_id", currentOrg.id)
-          .eq("mention_type", "competitor")
-          .order("posted_at", { ascending: false, nullsFirst: false })
-          .limit(15),
-        supabase
-          .from("keywords")
-          .select("value")
-          .eq("org_id", currentOrg.id)
-          .eq("type", "competitor")
-          .eq("status", "active"),
-      ]);
-      setMentions(mentionsRes.data || []);
+      const compRes = await supabase
+        .from("keywords")
+        .select("value")
+        .eq("org_id", currentOrg.id)
+        .eq("type", "competitor")
+        .eq("status", "active");
+      const compNames = (compRes.data || []).map((k: any) => k.value as string);
+      setCompetitorNames(compNames);
+
+      if (compNames.length === 0) { setLoading(false); return; }
+
+      const { data: mentionsData } = await supabase
+        .from("mentions")
+        .select("id,content,source,sentiment_label,severity,posted_at,url")
+        .eq("org_id", currentOrg.id)
+        .order("posted_at", { ascending: false, nullsFirst: false })
+        .limit(200);
+
+      // Filter to mentions that reference a competitor keyword
+      const matched = (mentionsData || [])
+        .map(m => {
+          const c = (m.content || "").toLowerCase();
+          const matchedComp = compNames.find(n => c.includes(n.toLowerCase()));
+          return matchedComp ? { ...m, competitor_name: matchedComp } as CompetitorMention : null;
+        })
+        .filter(Boolean)
+        .slice(0, 15) as CompetitorMention[];
+
+      setMentions(matched);
       setCompetitorNames((compRes.data || []).map((k: any) => k.value));
       setLoading(false);
     })();
