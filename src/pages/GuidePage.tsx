@@ -262,7 +262,7 @@ export default function GuidePage() {
             Getting Started Guide
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Learn how to use SentiWatch — your AI-powered brand monitoring and response platform
+            Learn how to use Fact Sentinel — your AI-powered brand monitoring and response platform
           </p>
         </div>
       </div>
@@ -298,10 +298,10 @@ export default function GuidePage() {
       {/* Concept Overview */}
       <Card className="bg-card border-border p-6 space-y-3">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Shield className="h-4 w-4 text-primary" /> What is SentiWatch?
+          <Shield className="h-4 w-4 text-primary" /> What is Fact Sentinel?
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          SentiWatch is an AI-powered brand monitoring and crisis response platform. It continuously scans social media, news, forums, and blogs for mentions of your organization, analyzes sentiment and severity, detects misinformation and emerging narratives, and helps you draft <strong className="text-foreground">fact-checked, on-brand responses</strong> using only your Approved Facts library.
+          Fact Sentinel is an AI-powered brand monitoring and crisis response platform. It continuously scans social media, news, forums, and blogs for mentions of your organization, analyzes sentiment and severity, detects misinformation and emerging narratives, and helps you draft <strong className="text-foreground">fact-checked, on-brand responses</strong> using only your Approved Facts library.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
           <div className="p-3 rounded-lg bg-muted/30 border border-border">

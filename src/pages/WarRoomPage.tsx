@@ -15,6 +15,7 @@ import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from "date-fns";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageGuide from "@/components/PageGuide";
 
 interface LiveMention {
   id: string;
@@ -161,6 +162,16 @@ export default function WarRoomPage() {
 
   return (
     <div className="space-y-5 animate-fade-up">
+      <PageGuide
+        title="War Room — Crisis coordination"
+        subtitle="Real-time space for your team to coordinate during active incidents."
+        steps={[
+          { icon: <Radio className="h-4 w-4 text-primary" />, title: "Live feed", description: "Messages visible to all team members. Share intel, assign tasks, track decisions in real time." },
+          { icon: <Siren className="h-4 w-4 text-primary" />, title: "Link an incident", description: "Attach the session to an active incident to consolidate all context in one place." },
+          { icon: <Shield className="h-4 w-4 text-primary" />, title: "Situation panel", description: "Left panel shows live brand mentions and active incidents updating automatically." },
+        ]}
+        tip="Create an Incident record first, then activate the War Room for coordinated team response."
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

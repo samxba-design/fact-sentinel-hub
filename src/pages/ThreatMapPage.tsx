@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Globe, Zap, AlertTriangle, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
+import PageGuide from "@/components/PageGuide";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 

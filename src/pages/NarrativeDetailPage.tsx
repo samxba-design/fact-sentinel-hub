@@ -173,7 +173,7 @@ export default function NarrativeDetailPage() {
                 <Quote className="h-3.5 w-3.5" /> Trigger Phrases
               </h3>
               <p className="text-xs text-muted-foreground mb-3">
-                These are phrases detected in mentions that signal this narrative is present. When SentiWatch finds content containing these patterns, it links the mention to this narrative thread.
+                These are phrases detected in mentions that signal this narrative is present. When Fact Sentinel finds content containing these patterns, it links the mention to this narrative thread.
               </p>
               <div className="space-y-2">
                 {narrative.example_phrases!.map((phrase, i) => (

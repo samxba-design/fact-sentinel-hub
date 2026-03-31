@@ -25,6 +25,7 @@ import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import { format } from "date-fns";
 import { useMentionClusters } from "@/hooks/useMentionClusters";
+import PageGuide from "@/components/PageGuide";
 
 interface Mention {
   id: string;
@@ -748,6 +749,16 @@ export default function MentionsPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <PageGuide
+        title="Mentions — Brand mentions only"
+        subtitle="AI-analyzed brand mentions. Competitor activity is in Competitors → Intel Feed."
+        steps={[
+          { icon: <MessageSquareWarning className="h-4 w-4 text-primary" />, title: "Filter & triage", description: "Use sentiment, severity, and source filters. Saved Filters let you reuse combinations." },
+          { icon: <Layers className="h-4 w-4 text-primary" />, title: "Bulk actions", description: "Select multiple mentions to resolve, ignore, or escalate in one click." },
+          { icon: <Sparkles className="h-4 w-4 text-primary" />, title: "Draft a response", description: "Click '...' → Draft Response to generate a fact-checked reply for any mention." },
+        ]}
+        tip="This page shows brand-only data. Severity: critical = immediate action, high = review today."
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mentions</h1>

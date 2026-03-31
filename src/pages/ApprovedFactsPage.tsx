@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import FactFormDialog from "@/components/facts/FactFormDialog";
+import PageGuide from "@/components/PageGuide";
 import { useNavigate } from "react-router-dom";
 
 interface Fact {
@@ -157,6 +158,16 @@ export default function ApprovedFactsPage() {
   return (
     <TooltipProvider>
       <div className="space-y-6 animate-fade-up">
+        <PageGuide
+          title="Approved Facts — Your governance library"
+          subtitle="The ONLY facts the response engine can use. Zero hallucination possible."
+          steps={[
+            { icon: <BookCheck className="h-4 w-4 text-primary" />, title: "Active facts = usable", description: "Only 'Active' status facts are used in responses. 'Under Review' facts are excluded." },
+            { icon: <Link2 className="h-4 w-4 text-primary" />, title: "Add source links", description: "Link each fact to official docs or filings for a complete audit trail." },
+            { icon: <ShieldCheck className="h-4 w-4 text-primary" />, title: "More facts = better coverage", description: "When a response topic has no matching fact, the engine creates an escalation ticket." },
+          ]}
+          tip="Tip: Use the 'Auto-Generate' feature to create templates that reference your facts using {FACT_1} placeholders."
+        />
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

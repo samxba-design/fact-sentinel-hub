@@ -22,6 +22,7 @@ import {
   CheckCircle2, MessageSquare, Building2, Zap, Upload, ExternalLink, ChevronDown, ChevronUp, Clock
 } from "lucide-react";
 import NotificationPreferencesTab from "@/components/settings/NotificationPreferencesTab";
+import PageGuide from "@/components/PageGuide";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -322,6 +323,16 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      <PageGuide
+        title="Settings — Monitoring configuration"
+        subtitle="Configure keywords, sources, alerts, and team access."
+        steps={[
+          { icon: <Key className="h-4 w-4 text-primary" />, title: "Keywords by type", description: "Brand/risk/product keywords drive auto-scans. Competitor keywords are scanned separately via the Competitors page." },
+          { icon: <Bell className="h-4 w-4 text-primary" />, title: "Alert thresholds", description: "Set severity thresholds and quiet hours so you only get notified when it matters." },
+          { icon: <Users className="h-4 w-4 text-primary" />, title: "Team members", description: "Invite team members with roles: View (read-only), Write, Edit, or Manage (full admin)." },
+        ]}
+        tip="Competitor keywords won't appear in brand scans — they're always kept separate to protect your metrics."
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Settings</h1>

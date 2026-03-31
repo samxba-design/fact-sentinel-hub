@@ -108,7 +108,7 @@ export default function AuthPage() {
             <div className="p-2.5 rounded-xl bg-primary/10 sentinel-glow">
               <Shield className="h-8 w-8 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">SentiWatch</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">Fact Sentinel</h1>
           </div>
           <p className="text-muted-foreground text-sm">
             Enterprise Sentiment & Risk Monitoring
@@ -266,7 +266,7 @@ export default function AuthPage() {
 
         {/* Links to features/about for non-logged in users */}
         <div className="text-center text-xs text-muted-foreground space-x-3">
-          <Link to="/features" className="text-primary hover:underline">Learn about SentiWatch</Link>
+          <Link to="/features" className="text-primary hover:underline">Learn about Fact Sentinel</Link>
           <span>·</span>
           <Link to="/pricing" className="text-primary hover:underline">Pricing</Link>
           <span>·</span>

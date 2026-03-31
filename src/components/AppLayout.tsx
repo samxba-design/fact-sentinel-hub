@@ -7,6 +7,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import FloatingReportButton from "@/components/reports/FloatingReportButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
+import HelpButton from "@/components/HelpButton";
 
 export default function AppLayout() {
   useKeyboardShortcuts();
@@ -36,6 +37,8 @@ export default function AppLayout() {
       </main>
 
       <FloatingReportButton />
+      {/* Persistent help button — bottom-right, available on every page */}
+      <HelpButton />
     </div>
   );
 }

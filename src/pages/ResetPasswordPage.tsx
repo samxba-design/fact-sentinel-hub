@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
             <div className="p-2.5 rounded-xl bg-primary/10">
               <Shield className="h-8 w-8 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">SentiWatch</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">Fact Sentinel</h1>
           </div>
         </div>
 
