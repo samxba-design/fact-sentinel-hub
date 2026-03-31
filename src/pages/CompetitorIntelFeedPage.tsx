@@ -8,7 +8,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   Newspaper, ExternalLink, Loader2, ChevronLeft, ChevronRight,
   TrendingUp, AlertTriangle, MessageCircle,
+  Zap, TrendingDown,
 } from "lucide-react";
+import PageGuide from "@/components/PageGuide";
 import { useToast } from "@/hooks/use-toast";
 import EmptyState from "@/components/EmptyState";
 import { formatDistanceToNow } from "date-fns";

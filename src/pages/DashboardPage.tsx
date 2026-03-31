@@ -38,6 +38,7 @@ import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 import SentimentForecastWidget from "@/components/dashboard/SentimentForecastWidget";
 import WatchlistThreatsWidget from "@/components/dashboard/WatchlistThreatsWidget";
 import ActiveThreatsWidget from "@/components/dashboard/ActiveThreatsWidget";
+import NarrativeHealthWidget from "@/components/dashboard/NarrativeHealthWidget";
 // Animated counter hook
 function useCountUp(target: number, duration = 800) {
   const [current, setCurrent] = useState(0);

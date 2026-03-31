@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Pencil, Plus, Siren, Clock, User2, MessageSquare,
-  Link2, Loader2, X, Network, ChevronDown, Check,
+  Link2, Loader2, X, Network, ChevronDown, Check, Radio,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";

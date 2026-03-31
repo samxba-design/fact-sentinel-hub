@@ -75,7 +75,7 @@ export default function CompetitorFeedWidget() {
         .slice(0, 15) as CompetitorMention[];
 
       setMentions(matched);
-      setCompetitorNames((compRes.data || []).map((k: any) => k.value));
+      
       setLoading(false);
     })();
   }, [currentOrg]);
