@@ -45,8 +45,6 @@ const ResetPasswordPage = React.lazy(() => import("@/pages/ResetPasswordPage"));
 const ContactPage = React.lazy(() => import("@/pages/ContactPage"));
 const FeaturesPage = React.lazy(() => import("@/pages/FeaturesPage"));
 const HowItWorksPage = React.lazy(() => import("@/pages/HowItWorksPage"));
-const ExplorePage = React.lazy(() => import("@/pages/Explore"));
-const TestimonialRequestPage = React.lazy(() => import("@/pages/TestimonialRequest"));
 const AlertsPage = React.lazy(() => import("@/pages/AlertsPage"));
 const SharedViewPage = React.lazy(() => import("@/pages/SharedViewPage"));
 const PrivacyPolicyPage = React.lazy(() => import("@/pages/PrivacyPolicyPage"));
