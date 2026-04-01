@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       .gte("created_at", sevenDaysAgo)
       .not("content", "is", null)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .eq("mention_type", "brand").limit(500);
 
     if (mentionErr) throw mentionErr;
     if (!mentions || mentions.length < 3) {
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     const existingNames = new Set((existingNarratives || []).map((n: any) => n.name.toLowerCase()));
 
     // Prepare mention summaries for AI
-    const mentionSummaries = mentions.slice(0, 100).map((m, i) => 
+    const mentionSummaries = mentions.slice(0, 200).map((m, i) => 
       `[${i + 1}] ${m.source} | ${m.sentiment_label || "neutral"} | ${m.severity || "low"} | ${(m.content || "").slice(0, 300)}`
     ).join("\n");
 

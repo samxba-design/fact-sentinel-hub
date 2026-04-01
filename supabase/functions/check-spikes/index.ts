@@ -35,13 +35,13 @@ Deno.serve(async (req) => {
       // posted_at (publication date) is unreliable for velocity since old articles can be discovered
       const [recentRes, prevRes, dailyNegRes, criticalRes] = await Promise.all([
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).gte("created_at", oneHourAgo),
+          .eq("org_id", org.id).eq("mention_type", "brand").gte("created_at", oneHourAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).gte("created_at", twoHoursAgo).lt("created_at", oneHourAgo),
+          .eq("org_id", org.id).eq("mention_type", "brand").gte("created_at", twoHoursAgo).lt("created_at", oneHourAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).eq("sentiment_label", "negative").gte("created_at", twentyFourHoursAgo),
+          .eq("org_id", org.id).eq("mention_type", "brand").eq("sentiment_label", "negative").gte("created_at", twentyFourHoursAgo),
         supabase.from("mentions").select("id", { count: "exact", head: true })
-          .eq("org_id", org.id).eq("severity", "critical").gte("created_at", twentyFourHoursAgo),
+          .eq("org_id", org.id).eq("mention_type", "brand").eq("severity", "critical").gte("created_at", twentyFourHoursAgo),
       ]);
 
       const recentCount = recentRes.count ?? 0;

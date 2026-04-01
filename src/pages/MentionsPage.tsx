@@ -12,7 +12,7 @@ import {
   Search, AlertTriangle, Flag, MoreVertical, EyeOff, Clock, CheckCircle2, ArrowLeft,
   MessageCircleReply, ExternalLink, Siren, Scan, MessageSquareWarning, Plus, Trash2,
   Network, ChevronDown, ChevronRight, CalendarClock, Eye, AlertCircle, Link2, User2,
-  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2, Loader2, Layers
+  Ban, Globe, BarChart3, X, Sparkles, ArrowUpDown, Lock, Share2, Loader2, Layers, RefreshCw
 } from "lucide-react";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import { supabase } from "@/integrations/supabase/client";
@@ -209,6 +209,31 @@ export default function MentionsPage() {
       .select("id, domain, reason")
       .eq("org_id", currentOrg.id)
       .then(({ data }) => setIgnoredSources(data || []));
+  }, [currentOrg]);
+
+  // Realtime: surface new brand mentions as a banner (don't auto-refresh to avoid jarring UX)
+  const [newMentionsCount, setNewMentionsCount] = useState(0);
+  useEffect(() => {
+    if (!currentOrg) return;
+    const channel = supabase
+      .channel(`mentions-realtime-${currentOrg.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "mentions",
+          filter: `org_id=eq.${currentOrg.id}`,
+        },
+        (payload) => {
+          const m = payload.new as any;
+          if (m.mention_type === "brand") {
+            setNewMentionsCount(c => c + 1);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [currentOrg]);
 
   // Extract domain from URL
@@ -705,7 +730,7 @@ export default function MentionsPage() {
                   size="sm"
                   variant="outline"
                   className="h-7 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
-                  onClick={(e) => { e.stopPropagation(); navigate(`/respond?mention=${m.id}`); }}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/respond`, { state: { prefillText: m.content || "", sourceMentionId: m.id } }); }}
                 >
                   <MessageCircleReply className="h-3 w-3 mr-1" /> Draft Reply
                 </Button>
@@ -718,7 +743,7 @@ export default function MentionsPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => navigate(`/mentions/${m.id}`)}>View Details</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(`/respond`)}>
+                  <DropdownMenuItem onClick={() => navigate(`/respond`, { state: { prefillText: m.content || "", sourceMentionId: m.id } })}>
                     <MessageCircleReply className="h-3.5 w-3.5 mr-2" /> Draft Response
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate(`/people?search=${encodeURIComponent(m.author_name || m.author_handle || "")}`)}>
@@ -768,6 +793,17 @@ export default function MentionsPage() {
           <Plus className="h-4 w-4 mr-2" /> Add Mention
         </Button>
       </div>
+
+      {/* Realtime new-mentions banner */}
+      {newMentionsCount > 0 && (
+        <button
+          onClick={() => { setNewMentionsCount(0); refetchMentions(); }}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-primary/10 border border-primary/20 text-primary text-sm font-medium hover:bg-primary/15 transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          {newMentionsCount} new mention{newMentionsCount !== 1 ? "s" : ""} — click to refresh
+        </button>
+      )}
 
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} onCreated={refetchMentions} />
       <SourceIntelSheet

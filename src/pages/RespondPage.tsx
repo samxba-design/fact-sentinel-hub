@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,18 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, MessageCircleReply, AlertTriangle, CheckCircle2, Ban, Loader2,
-  ExternalLink, BookCheck, FileText, Copy, Link2, Search, X,
+  ExternalLink, BookCheck, FileText, Copy, Link2, Search, X, Save, History,
+  ChevronDown, ChevronUp, Clock, RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import UpgradeBanner from "@/components/UpgradeBanner";
 import ResponseCopilot from "@/components/respond/ResponseCopilot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 interface Claim { claim_text: string; category: string; }
 interface MatchedFact { id: string; title: string; statement: string; }
@@ -39,6 +42,7 @@ interface TagItem { id: string; label: string; type: "narrative" | "incident" | 
 
 export default function RespondPage() {
   const { currentOrg } = useOrg();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +52,10 @@ export default function RespondPage() {
   const [intent, setIntent] = useState("");
   const [result, setResult] = useState<ResponseResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draftHistory, setDraftHistory] = useState<any[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [factsCount, setFactsCount] = useState<number | null>(null);
 
   // Internal linking
@@ -114,6 +122,43 @@ export default function RespondPage() {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
   };
+
+  const saveDraft = async () => {
+    if (!currentOrg || !result || result.status !== "draft") return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("response_drafts").insert({
+        org_id: currentOrg.id,
+        source_type: prefill.sourceMentionId ? "mention" : "paste",
+        source_mention_id: prefill.sourceMentionId || null,
+        input_text: inputText,
+        output_text: result.message,
+        status: "draft",
+        facts_used: result.matched_facts.map(f => ({ id: f.id, title: f.title, statement: f.statement })),
+        claims_extracted: result.claims,
+        created_by: user?.id || null,
+      });
+      if (error) throw error;
+      toast({ title: "Draft saved", description: "Saved to your response drafts." });
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadHistory = useCallback(async () => {
+    if (!currentOrg) return;
+    setLoadingHistory(true);
+    const { data } = await supabase
+      .from("response_drafts")
+      .select("id, input_text, output_text, status, created_at, source_type")
+      .eq("org_id", currentOrg.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setDraftHistory(data || []);
+    setLoadingHistory(false);
+  }, [currentOrg]);
 
   const typeIcons: Record<string, string> = { narrative: "🧵", incident: "🚨", mention: "📌" };
 
@@ -325,9 +370,15 @@ export default function RespondPage() {
                 <CheckCircle2 className="h-5 w-5 text-sentinel-emerald" />
                 <span className="text-sm font-medium text-sentinel-emerald">Draft Generated</span>
               </div>
-              <Button size="sm" variant="outline" onClick={() => copyToClipboard(result.message)}>
-                <Copy className="h-3.5 w-3.5 mr-1.5" />Copy
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(result.message)}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5" />Copy
+                </Button>
+                <Button size="sm" variant="outline" onClick={saveDraft} disabled={saving} className="border-sentinel-emerald/40 text-sentinel-emerald hover:bg-sentinel-emerald/10">
+                  {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  Save Draft
+                </Button>
+              </div>
             </div>
             <div className="text-sm text-card-foreground whitespace-pre-wrap leading-relaxed bg-muted/50 rounded-lg p-4 border border-border">
               {result.message}
@@ -369,6 +420,70 @@ export default function RespondPage() {
           )}
         </div>
       )}
+
+      {/* Draft history */}
+      <Card className="bg-card border-border">
+        <button
+          onClick={() => { setHistoryOpen(!historyOpen); if (!historyOpen) loadHistory(); }}
+          className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
+            <History className="h-4 w-4 text-muted-foreground" /> Draft History
+            <span className="text-xs text-muted-foreground font-normal">— your saved response drafts</span>
+          </div>
+          {historyOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {historyOpen && (
+          <div className="border-t border-border p-4 space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground">Last 10 saved drafts</p>
+              <Button variant="ghost" size="sm" onClick={loadHistory} disabled={loadingHistory} className="h-6 text-xs">
+                <RefreshCw className={`h-3 w-3 mr-1 ${loadingHistory ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+            </div>
+            {loadingHistory ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+              </div>
+            ) : draftHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No saved drafts yet. Generate a response and click Save Draft.</p>
+            ) : (
+              draftHistory.map(d => (
+                <div key={d.id} className="border border-border rounded-lg p-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground mb-1.5 truncate italic">
+                        Input: {(d.input_text || "").slice(0, 100)}{(d.input_text || "").length > 100 ? "…" : ""}
+                      </p>
+                      <p className="text-sm text-card-foreground line-clamp-2">
+                        {(d.output_text || "").slice(0, 200)}{(d.output_text || "").length > 200 ? "…" : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <Badge variant="outline" className={`text-[9px] capitalize ${d.status === "draft" ? "border-primary/30 text-primary" : d.status === "approved" ? "border-emerald-500/30 text-emerald-400" : "border-muted-foreground/30 text-muted-foreground"}`}>
+                        {d.status}
+                      </Badge>
+                      <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                        <Clock className="h-2.5 w-2.5" />
+                        {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 text-primary hover:bg-primary/10"
+                        onClick={() => { setInputText(d.input_text || ""); setResult(null); toast({ title: "Loaded into editor" }); }}
+                      >
+                        Re-use
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </Card>
+
         </TabsContent>
       </Tabs>
     </div>
