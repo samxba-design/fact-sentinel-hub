@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check } from "lucide-react";
+import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -170,7 +170,30 @@ export default function BriefingPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <div className="space-y-6 animate-fade-up max-w-5xl mx-auto">
+      <PageGuide
+        title="Briefing Mode — Executive summary"
+        subtitle="Brand-only risk overview. Use this for daily standups and leadership updates."
+        steps={[
+          { icon: <Shield className="h-4 w-4 text-primary" />, title: "Risk gauge (0–100)", description: "Calculated from brand mention negative % and critical/high severity count." },
+          { icon: <Network className="h-4 w-4 text-primary" />, title: "Active narratives", description: "AI-clustered stories forming around your brand." },
+          { icon: <Copy className="h-4 w-4 text-primary" />, title: "Copy & share", description: "Paste the full briefing into Slack, email, or a PDF export." },
+        ]}
+        tip="Run your first scan to populate this page. The briefing updates automatically after each scan."
+      />
+      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+        <Brain className="h-12 w-12 text-muted-foreground/40" />
+        <h3 className="text-lg font-semibold text-foreground">No briefing data yet</h3>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Run your first scan to start detecting mentions and narratives. The briefing generates automatically.
+        </p>
+        <Button onClick={() => window.location.href = "/scans"} className="mt-2">
+          Go to Scans
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-fade-up max-w-5xl mx-auto">

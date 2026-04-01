@@ -76,20 +76,20 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Respond",
     icon: Zap,
-    defaultOpen: false,
+    defaultOpen: true,
     items: [
-      { to: "/respond", icon: MessageCircleReply, label: "How To Respond" },
+      { to: "/respond", icon: MessageCircleReply, label: "Respond" },
+      { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
+      { to: "/approved-templates", icon: FileText, label: "Templates" },
       { to: "/incidents", icon: Siren, label: "Incidents" },
       { to: "/war-room", icon: Radio, label: "War Room" },
       { to: "/escalations", icon: TicketCheck, label: "Escalations", access: "write" },
-      { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
-      { to: "/approved-templates", icon: FileText, label: "Templates" },
     ],
   },
   {
     label: "Intelligence",
     icon: Target,
-    defaultOpen: false,
+    defaultOpen: true,
     items: [
       { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
       { to: "/competitors/intel-feed", icon: Newspaper, label: "Intel Feed", access: "edit" },
@@ -101,10 +101,10 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Settings,
     defaultOpen: false,
     items: [
-      { to: "/exports", icon: Download, label: "Exports", access: "write" },
-      { to: "/pricing", icon: CreditCard, label: "Pricing" },
-      { to: "/guide", icon: BookOpen, label: "Getting Started" },
       { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
+      { to: "/exports", icon: Download, label: "Exports", access: "write" },
+      { to: "/guide", icon: BookOpen, label: "Getting Started" },
+      { to: "/pricing", icon: CreditCard, label: "Pricing" },
     ],
   },
 ];
@@ -203,7 +203,7 @@ export default function AppSidebar() {
           }`}
         >
           {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {focusMode ? "Focus Mode — show all" : "Switch to Focus Mode"}
+          {focusMode ? "Exit Focus Mode" : "Focus Mode (core only)"}
           {focusMode && (
             <Badge className="ml-auto text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0">On</Badge>
           )}
