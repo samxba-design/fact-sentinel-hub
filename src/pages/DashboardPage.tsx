@@ -9,7 +9,7 @@ import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
-  Clock, FileWarning, Plus,
+  Clock, FileWarning, Plus, Zap,
 } from "lucide-react";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import { Switch } from "@/components/ui/switch";
@@ -341,6 +341,9 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setAddMentionOpen(true)} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Add Mention
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => navigate("/triage")} className="gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-primary" /> Quick Triage
           </Button>
           <ReportGeneratorDialog />
           <DashboardCustomizer widgets={widgets} onToggle={toggleWidget} onReorder={reorderWidgets} onReset={resetLayout} />

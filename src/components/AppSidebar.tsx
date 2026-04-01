@@ -56,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/", icon: LayoutDashboard, label: "Dashboard" },
       { to: "/scans", icon: Scan, label: "Scans", access: "edit" },
       { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
+      { to: "/triage", icon: Zap, label: "Quick Triage", badge: "New" },
       { to: "/alerts", icon: Bell, label: "Alerts" },
     ],
   },
@@ -93,6 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
       { to: "/competitors/intel-feed", icon: Newspaper, label: "Intel Feed", access: "edit" },
+      { to: "/noise-filters", icon: EyeOff, label: "Noise Filters", access: "edit" },
       { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
     ],
   },

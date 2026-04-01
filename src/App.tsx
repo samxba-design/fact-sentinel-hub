@@ -54,6 +54,8 @@ const WarRoomPage = React.lazy(() => import("@/pages/WarRoomPage"));
 const ThreatMapPage = React.lazy(() => import("@/pages/ThreatMapPage"));
 const NarrativeGraphPage = React.lazy(() => import("@/pages/NarrativeGraphPage"));
 const BriefingPage = React.lazy(() => import("@/pages/BriefingPage"));
+const QuickTriagePage = React.lazy(() => import("@/pages/QuickTriagePage"));
+const NoiseFiltersPage = React.lazy(() => import("@/pages/NoiseFiltersPage"));
 
 const queryClient = new QueryClient();
 
@@ -156,6 +158,8 @@ function AppRoutes() {
           <Route path="/threat-map" element={<ErrorBoundary><ThreatMapPage /></ErrorBoundary>} />
           <Route path="/narrative-graph" element={<ErrorBoundary><NarrativeGraphPage /></ErrorBoundary>} />
           <Route path="/briefing" element={<ErrorBoundary><BriefingPage /></ErrorBoundary>} />
+          <Route path="/triage" element={<ErrorBoundary><QuickTriagePage /></ErrorBoundary>} />
+          <Route path="/noise-filters" element={<RoleGate require="edit"><ErrorBoundary><NoiseFiltersPage /></ErrorBoundary></RoleGate>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
           <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
