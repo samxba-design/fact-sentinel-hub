@@ -43,13 +43,16 @@ export default function LiveThreatFeed() {
   // Load initial recent mentions
   useEffect(() => {
     if (!currentOrg) return;
-    supabase
-      .from("mentions")
-      .select("id, content, source, severity, sentiment_label, posted_at, author_name, created_at")
-      .eq("org_id", currentOrg.id)
-      .order("created_at", { ascending: false })
-      .limit(8)
-      .then(({ data }) => setFeed(data || []));
+    (async () => {
+      const { data } = await supabase
+        .from("mentions")
+        .select("id, content, source, severity, sentiment_label, posted_at, author_name, created_at")
+        .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
+        .order("created_at", { ascending: false })
+        .limit(8);
+      setFeed((data as LiveMention[]) || []);
+    })();
   }, [currentOrg]);
 
   // Subscribe to realtime inserts

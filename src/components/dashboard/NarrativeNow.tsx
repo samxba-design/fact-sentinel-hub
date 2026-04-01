@@ -80,6 +80,7 @@ export default function NarrativeNow() {
         .from("mentions")
         .select("id,content,source,sentiment_label,severity,posted_at,url")
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(100),
       supabase

@@ -23,56 +23,57 @@ export default function SentimentSparklines() {
   useEffect(() => {
     if (!currentOrg) return;
 
-    const now = new Date();
-    const thirtyDaysAgo = subDays(now, 30).toISOString();
+    (async () => {
+      const now = new Date();
+      const thirtyDaysAgo = subDays(now, 30).toISOString();
 
-    supabase
-      .from("mentions")
-      .select("sentiment_label, posted_at")
-      .eq("org_id", currentOrg.id)
-      .gte("posted_at", thirtyDaysAgo)
-      .order("posted_at")
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
+      const { data } = await supabase
+        .from("mentions")
+        .select("sentiment_label, posted_at")
+        .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
+        .gte("posted_at", thirtyDaysAgo)
+        .order("posted_at");
 
-        const buckets: Record<string, Record<string, number>> = {
-          negative: {},
-          neutral: {},
-          positive: {},
-        };
+      if (!data || data.length === 0) return;
 
-        // Init 30 days
-        for (let i = 29; i >= 0; i--) {
-          const day = format(subDays(now, i), "MM-dd");
-          buckets.negative[day] = 0;
-          buckets.neutral[day] = 0;
-          buckets.positive[day] = 0;
+      const buckets: Record<string, Record<string, number>> = {
+        negative: {},
+        neutral: {},
+        positive: {},
+      };
+
+      for (let i = 29; i >= 0; i--) {
+        const day = format(subDays(now, i), "MM-dd");
+        buckets.negative[day] = 0;
+        buckets.neutral[day] = 0;
+        buckets.positive[day] = 0;
+      }
+
+      data.forEach((m: any) => {
+        if (!m.posted_at) return;
+        const day = format(new Date(m.posted_at), "MM-dd");
+        const label = m.sentiment_label || "neutral";
+        if (buckets[label] && day in buckets[label]) {
+          buckets[label][day]++;
         }
-
-        data.forEach((m: any) => {
-          if (!m.posted_at) return;
-          const day = format(new Date(m.posted_at), "MM-dd");
-          const label = m.sentiment_label || "neutral";
-          if (buckets[label] && day in buckets[label]) {
-            buckets[label][day]++;
-          }
-        });
-
-        const toSparkData = (label: string, color: string): SparkData => {
-          const entries = Object.entries(buckets[label]).map(([day, count]) => ({ day, count }));
-          const total = entries.reduce((s, e) => s + e.count, 0);
-          const firstHalf = entries.slice(0, 15).reduce((s, e) => s + e.count, 0);
-          const secondHalf = entries.slice(15).reduce((s, e) => s + e.count, 0);
-          const trend = secondHalf > firstHalf * 1.1 ? "up" : secondHalf < firstHalf * 0.9 ? "down" : "flat";
-          return { label, data: entries, total, trend, color };
-        };
-
-        setSparks([
-          toSparkData("negative", "hsl(0, 84%, 60%)"),
-          toSparkData("neutral", "hsl(220, 9%, 46%)"),
-          toSparkData("positive", "hsl(142, 71%, 45%)"),
-        ]);
       });
+
+      const toSparkData = (label: string, color: string): SparkData => {
+        const entries = Object.entries(buckets[label]).map(([day, count]) => ({ day, count }));
+        const total = entries.reduce((s, e) => s + e.count, 0);
+        const firstHalf = entries.slice(0, 15).reduce((s, e) => s + e.count, 0);
+        const secondHalf = entries.slice(15).reduce((s, e) => s + e.count, 0);
+        const trend = secondHalf > firstHalf * 1.1 ? "up" : secondHalf < firstHalf * 0.9 ? "down" : "flat";
+        return { label, data: entries, total, trend, color };
+      };
+
+      setSparks([
+        toSparkData("negative", "hsl(0, 84%, 60%)"),
+        toSparkData("neutral", "hsl(220, 9%, 46%)"),
+        toSparkData("positive", "hsl(142, 71%, 45%)"),
+      ]);
+    })();
   }, [currentOrg]);
 
   if (sparks.length === 0) return null;

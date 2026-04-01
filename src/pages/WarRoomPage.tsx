@@ -76,6 +76,7 @@ export default function WarRoomPage() {
     Promise.all([
       supabase.from("mentions").select("id, content, source, severity, sentiment_label, author_name, created_at")
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .gte("created_at", since24h)
         .order("created_at", { ascending: false }).limit(50),
       supabase.from("incidents").select("id, name, status, started_at")

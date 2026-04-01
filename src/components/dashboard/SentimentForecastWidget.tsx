@@ -55,6 +55,7 @@ export default function SentimentForecastWidget() {
       .from("mentions")
       .select("posted_at, created_at, sentiment_label")
       .eq("org_id", currentOrg.id)
+      .eq("mention_type", "brand")
       .or(`posted_at.gte.${ago},and(posted_at.is.null,created_at.gte.${ago})`)
       .order("created_at")
       .then(({ data }) => {
