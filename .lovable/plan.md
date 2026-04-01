@@ -1,66 +1,55 @@
 
 
-## Diagnosis: Scans Fail Due to Numeric Overflow
+## Long-term cleanup: Add `mention_type` + `competitor_name` columns and fix all build errors
 
-### Root Cause
+### Why this keeps breaking
 
-The edge function logs show this error killing every scan:
+The `run-scan` edge function already writes `mention_type` and `competitor_name` into every insert, but these columns do not exist in the live database. Supabase silently ignores unknown columns on insert (no error), but the generated `types.ts` doesn't include them, so any TypeScript code that tries to `.eq("mention_type", ...)` or `.select("competitor_name")` fails at build time. The external editor keeps adding those filters, the build breaks, I remove them, the cycle repeats.
 
-```text
-run-scan error: {
-  code: "22003",
-  details: "A field with precision 3, scale 2 must round to an absolute value less than 10^1.",
-  message: "numeric field overflow"
-}
-```
+### Fix — three steps
 
-The `mentions.sentiment_confidence` column is defined as `NUMERIC(3,2)`, which only accepts values from **-9.99 to 9.99**.
+**Step 1: Run the migration to add the columns**
 
-But the code does this on line 906:
+Apply the existing migration file `supabase/migrations/20260331000001_add_mention_type_competitor_separation.sql` using the migration tool. This will:
+- Add `mention_type text NOT NULL DEFAULT 'brand'` to `mentions`
+- Add `competitor_name text DEFAULT NULL` to `mentions`
+- Create indexes for fast filtering
+- After applying, `types.ts` will auto-regenerate with both columns
+
+**Step 2: Fix the 4 TS2589 "excessively deep type" build errors**
+
+These occur in files where Supabase query builders are used inside `.then()` chains or `Promise.all()` tuples, causing TypeScript to blow up on deep generic inference. The fix for each:
+
+| File | Fix |
+|------|-----|
+| `LiveThreatFeed.tsx` (line 46) | Extract query into an `async` function, `await` it, cast result |
+| `NarrativeNow.tsx` (line 79) | Same — extract `Promise.all` items into separate `await` calls with typed results |
+| `SentimentSparklines.tsx` (line 29) | Same — break `.then()` chain into `async/await` with explicit typing |
+| `CompetitorProfilePage.tsx` (line 59) | Same — extract the 4-query `Promise.all` into individually awaited calls |
+
+Pattern for each fix:
 ```typescript
-sentiment_confidence: a.sentiment_confidence != null
-  ? Math.round(a.sentiment_confidence * 100)  // AI returns 0.85 → becomes 85 → OVERFLOW
-  : 65,  // default 65 → OVERFLOW
+// Before (causes TS2589):
+supabase.from("mentions").select("...").eq(...).then(({ data }) => { ... });
+
+// After:
+const { data } = await supabase.from("mentions").select("...").eq(...);
+// process data...
 ```
 
-Values like `65` or `85` overflow the column, causing the **entire batch insert to fail** — so zero mentions are ever saved.
+**Step 3: Add `mention_type` filters to brand-only queries**
 
-The same issue exists for `narratives.confidence` (also `NUMERIC(3,2)`) where values like `0.5` are fine, but the column is fragile.
+Once the columns exist and `types.ts` is regenerated, add `.eq("mention_type", "brand")` to all dashboard/brand queries so competitor mentions are properly excluded. This covers ~15 files:
 
-### Fix Plan
+- Dashboard widgets: `ActiveThreatsWidget`, `LiveThreatFeed`, `NarrativeNow`, `SentimentSparklines`, `SentimentForecastWidget`, `WatchlistDiscoveryWidget`, `NarrativeHealthWidget`, `MonitoringWidget`
+- Pages: `BriefingPage`, `DashboardPage`, `MentionsPage`, `WarRoomPage`, `RiskConsolePage`, `NarrativeDetailPage`, `NarrativeGraphPage`
+- Competitor pages already use content-based keyword matching; optionally add `.eq("mention_type", "competitor")` to `CompetitorFeedWidget`, `CompetitorIntelFeedPage`, `CompetitorProfilePage` for cleaner filtering
 
-**1. Database migration — widen the column**
+**Step 4: Fix `sentiment_confidence` value in `run-scan`**
 
-Alter `mentions.sentiment_confidence` from `NUMERIC(3,2)` to `NUMERIC(5,2)` so it can hold 0–100 values:
+Line 937-939 of `run-scan/index.ts` multiplies confidence by 100 then caps at 999.99 — but the column is `NUMERIC(5,2)` which maxes at 999.99. The default fallback of `65` is fine for the widened column. No change needed here since the earlier migration already widened it.
 
-```sql
-ALTER TABLE mentions ALTER COLUMN sentiment_confidence TYPE NUMERIC(5,2);
-```
+### Result
 
-**2. Fix the default in run-scan code**
-
-Change line 905-907 to clamp the value properly:
-
-```typescript
-sentiment_confidence: a.sentiment_confidence != null
-  ? Math.min(Math.round(a.sentiment_confidence * 100), 999.99)
-  : 0.65,
-```
-
-Actually, the better fix is to keep values in 0–1 range (matching the column's original intent) OR widen the column. Widening is simpler and doesn't break existing UI code that may expect 0-100 scale.
-
-**3. Verify no other overflow-prone columns**
-
-- `narratives.confidence` — code passes `0.5` directly, which fits `NUMERIC(3,2)`. Safe.
-- `mentions.sentiment_score` — `NUMERIC(4,3)`, holds -1 to 1. Safe.
-- `claim_extractions.confidence` — check if normalized similarly.
-
-### Summary of Changes
-
-| File | Change |
-|------|--------|
-| New migration SQL | `ALTER TABLE mentions ALTER COLUMN sentiment_confidence TYPE NUMERIC(5,2)` |
-| `supabase/functions/run-scan/index.ts` | Clamp `sentiment_confidence` to valid range, fix default from `65` to `0.65` or keep `65` with widened column |
-
-This single numeric overflow is why every scan ends with an edge error and zero results.
+After this, the external editor can safely add `mention_type` filters without breaking the build, scans will properly tag brand vs competitor mentions, and dashboard metrics will correctly exclude competitor data.
 
