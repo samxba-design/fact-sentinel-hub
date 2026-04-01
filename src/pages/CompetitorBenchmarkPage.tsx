@@ -15,7 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Radar, Legend, LineChart, Line,
+  PolarRadiusAxis, Radar, Legend, LineChart, Line, AreaChart, Area,
 } from "recharts";
 import { format, subDays } from "date-fns";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -177,6 +177,37 @@ export default function CompetitorBenchmarkPage() {
     ];
   }, [orgData, competitors]);
 
+  // Share of Voice — normalise each day's mention count to % of total conversation
+  const sovChartData = useMemo(() => {
+    if (!orgData || allNames.length === 0) return [];
+    return Object.keys(orgData.volumeByDay).map(day => {
+      const row: any = { date: day };
+      const dayTotal = allNames.reduce((sum, name) => {
+        const d = name === orgData.name ? orgData : competitors.find(c => c.name === name);
+        return sum + (d?.volumeByDay[day] || 0);
+      }, 0) || 1;
+      allNames.forEach(name => {
+        const d = name === orgData.name ? orgData : competitors.find(c => c.name === name);
+        row[name] = dayTotal > 0 ? Math.round(((d?.volumeByDay[day] || 0) / dayTotal) * 100) : 0;
+      });
+      return row;
+    });
+  }, [orgData, competitors, allNames]);
+
+  // Overall share of voice (pie-style summary)
+  const sovSummary = useMemo(() => {
+    if (!orgData) return [];
+    const all = [orgData, ...competitors];
+    const total = all.reduce((s, d) => s + d.mentionCount, 0) || 1;
+    return all.map((d, i) => ({
+      name: d.name,
+      count: d.mentionCount,
+      pct: Math.round((d.mentionCount / total) * 100),
+      color: COLORS[i % COLORS.length],
+      isOwn: i === 0,
+    }));
+  }, [orgData, competitors]);
+
   const allNames = orgData ? [orgData.name, ...competitors.map(c => c.name)] : [];
 
   if (loading) {
@@ -273,6 +304,72 @@ export default function CompetitorBenchmarkPage() {
                   />
                 ))}
               </LineChart>
+            </ResponsiveContainer>
+          </Card>
+
+          {/* Share of Voice */}
+          <Card className="p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-card-foreground flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" /> Share of Voice (30 days)
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Your % of total conversation vs competitors each day</p>
+            </div>
+
+            {/* Summary row */}
+            <div className="flex flex-wrap gap-3">
+              {sovSummary.map(s => (
+                <div key={s.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${s.isOwn ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"}`}>
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                  <div>
+                    <p className="text-xs font-medium text-foreground">{s.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{s.pct}% · {s.count} mentions</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={sovChartData} stackOffset="expand">
+                <defs>
+                  {allNames.map((name, i) => (
+                    <linearGradient key={name} id={`sovGrad${i}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.6} />
+                      <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.2} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tickFormatter={(v) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-popover border border-border rounded-lg p-2.5 shadow-lg text-xs space-y-1">
+                        <p className="text-muted-foreground font-medium">{label}</p>
+                        {payload.map((p: any) => (
+                          <p key={p.name} style={{ color: p.color }} className="font-medium">
+                            {p.name}: {Math.round(p.value * 100)}%
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+                {allNames.map((name, i) => (
+                  <Area
+                    key={name}
+                    type="monotone"
+                    dataKey={name}
+                    stackId="1"
+                    stroke={COLORS[i % COLORS.length]}
+                    fill={`url(#sovGrad${i})`}
+                    strokeWidth={i === 0 ? 2 : 1}
+                  />
+                ))}
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </AreaChart>
             </ResponsiveContainer>
           </Card>
 

@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import PersonTrendChart from "@/components/people/PersonTrendChart";
+import WatchlistAlertToggle from "@/components/people/WatchlistAlertToggle";
 
 interface Person {
   id: string;
@@ -276,6 +277,9 @@ export default function PersonDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Watchlist Alert toggle */}
+          {person && <WatchlistAlertToggle personId={person.id} personName={person.name} />}
 
           {/* Notes / Evidence */}
           <div>

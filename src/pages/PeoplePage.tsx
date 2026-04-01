@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User2, Plus, Eye, Layers, TrendingUp } from "lucide-react";
+import { User2, Plus, Eye, Layers, TrendingUp, Bell, BellOff, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +36,13 @@ export default function PeoplePage() {
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [watchlistIds, setWatchlistIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle()
+      .then(({ data }) => setWatchlistIds((data?.settings as any)?.watchlist_alerts || []));
+  }, [currentOrg]);
 
   const fetchPeople = () => {
     if (!currentOrg) return;
@@ -114,6 +121,36 @@ export default function PeoplePage() {
         <InfluencerLeaderboard people={leaderboardPeople} />
       )}
 
+      {/* Watchlist Alerts strip */}
+      {watchlistIds.length > 0 && !loading && (
+        <Card className="bg-primary/5 border-primary/20 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">Watchlist — {watchlistIds.length} person{watchlistIds.length !== 1 ? "s" : ""} monitored</h3>
+            <span className="text-xs text-muted-foreground">Alerts fire when new mentions appear</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {people
+              .filter(p => watchlistIds.includes(p.person_id))
+              .map(p => (
+                <button
+                  key={p.person_id}
+                  onClick={() => navigate(`/people/${p.person_id}`)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card border border-primary/20 text-xs font-medium text-foreground hover:border-primary/40 transition-colors"
+                >
+                  <Bell className="h-3 w-3 text-primary" />
+                  {p.people?.name}
+                  {p.mention_count ? <span className="text-muted-foreground font-mono">({p.mention_count})</span> : null}
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                </button>
+              ))}
+            {people.filter(p => watchlistIds.includes(p.person_id)).length === 0 && (
+              <p className="text-xs text-muted-foreground">None of your tracked people are currently on the watchlist. Open a person's profile to enable alerts.</p>
+            )}
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)
@@ -129,11 +166,16 @@ export default function PeoplePage() {
           </div>
         ) : (
           people.map(p => (
-            <Card key={p.person_id} className="bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer space-y-4" onClick={() => navigate(`/people/${p.person_id}`)}>
+            <Card key={p.person_id} className={`bg-card border-border p-5 hover:border-primary/30 transition-colors cursor-pointer space-y-4 ${watchlistIds.includes(p.person_id) ? "border-l-2 border-l-primary" : ""}`} onClick={() => navigate(`/people/${p.person_id}`)}>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center relative">
                     <User2 className="h-5 w-5 text-primary" />
+                    {watchlistIds.includes(p.person_id) && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <Bell className="h-2.5 w-2.5 text-primary-foreground" />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm font-medium text-card-foreground">{p.people?.name}</div>

@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain } from "lucide-react";
+import SmartDigestDialog from "@/components/briefing/SmartDigestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -220,11 +221,12 @@ export default function BriefingPage() {
         </div>
         <p className="text-lg text-muted-foreground">Executive Intelligence Briefing</p>
         <p className="text-sm text-muted-foreground mt-1">{data.generatedAt} · Last 7 days</p>
-        <div className="mt-4">
+        <div className="mt-4 flex items-center justify-center gap-2">
           <Button variant="outline" size="sm" onClick={copyLink} className="gap-2">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Share Briefing Link"}
           </Button>
+          <SmartDigestDialog />
         </div>
       </motion.div>
 

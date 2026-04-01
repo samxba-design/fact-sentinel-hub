@@ -69,9 +69,9 @@ export default function NoiseFiltersPage() {
     setLoading(true);
 
     const { data } = await supabase
-      .from("organizations")
+      .from("tracking_profiles")
       .select("settings")
-      .eq("id", currentOrg.id)
+      .eq("org_id", currentOrg.id)
       .maybeSingle();
 
     const settings = (data?.settings as any) || {};
@@ -88,17 +88,22 @@ export default function NoiseFiltersPage() {
 
     // Load current settings to merge
     const { data } = await supabase
-      .from("organizations")
+      .from("tracking_profiles")
       .select("settings")
-      .eq("id", currentOrg.id)
+      .eq("org_id", currentOrg.id)
       .maybeSingle();
     const currentSettings = (data?.settings as any) || {};
     const merged = { ...currentSettings, noise_rules: updatedRules };
 
-    const { error } = await supabase
-      .from("organizations")
-      .update({ settings: merged })
-      .eq("id", currentOrg.id);
+    // Upsert tracking_profiles with new settings
+    const { data: existing } = await supabase
+      .from("tracking_profiles")
+      .select("id")
+      .eq("org_id", currentOrg.id)
+      .maybeSingle();
+    const { error } = existing
+      ? await supabase.from("tracking_profiles").update({ settings: merged }).eq("org_id", currentOrg.id)
+      : await supabase.from("tracking_profiles").insert({ org_id: currentOrg.id, settings: merged });
 
     setSaving(false);
     if (error) {
