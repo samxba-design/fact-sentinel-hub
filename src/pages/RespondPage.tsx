@@ -127,17 +127,18 @@ export default function RespondPage() {
     if (!currentOrg || !result || result.status !== "draft") return;
     setSaving(true);
     try {
-      const { error } = await supabase.from("response_drafts").insert({
+      const insertData = {
         org_id: currentOrg.id,
         source_type: prefill.sourceMentionId ? "mention" : "paste",
         source_mention_id: prefill.sourceMentionId || null,
         input_text: inputText,
         output_text: result.message,
         status: "draft",
-        facts_used: result.matched_facts.map(f => ({ id: f.id, title: f.title, statement: f.statement })),
-        claims_extracted: result.claims,
+        facts_used: result.matched_facts.map(f => ({ id: f.id, title: f.title, statement: f.statement })) as any,
+        claims_extracted: result.claims as any,
         created_by: user?.id || null,
-      });
+      };
+      const { error } = await supabase.from("response_drafts").insert(insertData);
       if (error) throw error;
       toast({ title: "Draft saved", description: "Saved to your response drafts." });
     } catch (err: any) {

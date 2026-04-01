@@ -90,6 +90,8 @@ export default function ReportGeneratorDialog({ trigger }: Props) {
     }
   };
 
+  const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
   const printReport = () => {
     if (!report) return;
     const printWindow = window.open("", "_blank");
@@ -102,11 +104,14 @@ export default function ReportGeneratorDialog({ trigger }: Props) {
       .replace(/^- (.*$)/gm, '<li style="margin-left:20px;margin-bottom:4px;">$1</li>')
       .replace(/\n/g, '<br/>');
 
+    const safeTitle = escHtml(report.title);
+    const safeOrgName = escHtml(report.org_name);
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${report.title} - ${report.org_name}</title>
+        <title>${safeTitle} - ${safeOrgName}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #1a1a1a; line-height: 1.6; }
           .header { border-bottom: 3px solid #e87720; padding-bottom: 16px; margin-bottom: 24px; }
@@ -121,8 +126,8 @@ export default function ReportGeneratorDialog({ trigger }: Props) {
       </head>
       <body>
         <div class="header">
-          <h1>${report.title}</h1>
-          <div class="meta">${report.org_name} • Last ${report.period_days} days • Generated ${new Date(report.generated_at).toLocaleDateString()}</div>
+          <h1>${safeTitle}</h1>
+          <div class="meta">${safeOrgName} • Last ${report.period_days} days • Generated ${new Date(report.generated_at).toLocaleDateString()}</div>
         </div>
         <div class="stats">
           <div class="stat"><div class="stat-value">${report.stats.total_mentions}</div><div class="stat-label">Mentions</div></div>
