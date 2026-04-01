@@ -816,11 +816,13 @@ export type Database = {
           author_handle: string | null
           author_name: string | null
           author_verified: boolean | null
+          competitor_name: string | null
           content: string | null
           created_at: string | null
           flags: Json | null
           id: string
           language: string | null
+          mention_type: string
           metrics: Json | null
           org_id: string
           owner_user_id: string | null
@@ -839,11 +841,13 @@ export type Database = {
           author_handle?: string | null
           author_name?: string | null
           author_verified?: boolean | null
+          competitor_name?: string | null
           content?: string | null
           created_at?: string | null
           flags?: Json | null
           id?: string
           language?: string | null
+          mention_type?: string
           metrics?: Json | null
           org_id: string
           owner_user_id?: string | null
@@ -862,11 +866,13 @@ export type Database = {
           author_handle?: string | null
           author_name?: string | null
           author_verified?: boolean | null
+          competitor_name?: string | null
           content?: string | null
           created_at?: string | null
           flags?: Json | null
           id?: string
           language?: string | null
+          mention_type?: string
           metrics?: Json | null
           org_id?: string
           owner_user_id?: string | null
