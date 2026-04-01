@@ -833,8 +833,6 @@ export type Database = {
           source: string
           status: string | null
           url: string | null
-          mention_type: string
-          competitor_name: string | null
         }
         Insert: {
           author_follower_count?: number | null
@@ -858,8 +856,6 @@ export type Database = {
           source: string
           status?: string | null
           url?: string | null
-          mention_type?: string
-          competitor_name?: string | null
         }
         Update: {
           author_follower_count?: number | null
@@ -883,8 +879,6 @@ export type Database = {
           source?: string
           status?: string | null
           url?: string | null
-          mention_type?: string
-          competitor_name?: string | null
         }
         Relationships: [
           {
