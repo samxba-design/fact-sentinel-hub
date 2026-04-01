@@ -90,8 +90,6 @@ function AppRoutes() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/home" element={<IndexPage />} />
-          <Route path="/explore" element={<ExplorePage />} />
-          <Route path="/t/:slug" element={<TestimonialRequestPage />} />
           <Route path="/shared/:token/*" element={<SharedViewPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
