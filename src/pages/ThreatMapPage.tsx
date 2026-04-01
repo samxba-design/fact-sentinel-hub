@@ -1,36 +1,45 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Globe, Zap, AlertTriangle, TrendingUp } from "lucide-react";
+import { Globe, Zap, AlertTriangle, TrendingUp, ZoomIn, ZoomOut, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import PageGuide from "@/components/PageGuide";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  ComposableMap, Geographies, Geography, ZoomableGroup, Marker, Sphere, Graticule,
+} from "react-simple-maps";
 
-// Rough lat/lng to SVG coordinate mapping for a 800x400 equirectangular projection
-const REGION_COORDS: Record<string, { x: number; y: number; label: string }> = {
-  "us": { x: 180, y: 160, label: "United States" },
-  "uk": { x: 380, y: 120, label: "United Kingdom" },
-  "eu": { x: 400, y: 135, label: "Europe" },
-  "india": { x: 530, y: 195, label: "India" },
-  "china": { x: 580, y: 160, label: "China" },
-  "japan": { x: 640, y: 155, label: "Japan" },
-  "australia": { x: 630, y: 310, label: "Australia" },
-  "brazil": { x: 260, y: 280, label: "Brazil" },
-  "canada": { x: 190, y: 110, label: "Canada" },
-  "africa": { x: 410, y: 240, label: "Africa" },
-  "middle_east": { x: 460, y: 185, label: "Middle East" },
-  "southeast_asia": { x: 590, y: 220, label: "SE Asia" },
-  "russia": { x: 500, y: 100, label: "Russia" },
-  "mexico": { x: 160, y: 200, label: "Mexico" },
-  "south_america": { x: 240, y: 310, label: "South America" },
+// World atlas from CDN — lightweight 110m resolution
+const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+
+// Region definitions: lat/lng centroid for each tracked region
+const REGION_COORDS: Record<string, { lat: number; lng: number; label: string }> = {
+  us:             { lng: -97,   lat: 38,   label: "United States" },
+  canada:         { lng: -95,   lat: 57,   label: "Canada" },
+  mexico:         { lng: -102,  lat: 24,   label: "Mexico" },
+  brazil:         { lng: -53,   lat: -10,  label: "Brazil" },
+  south_america:  { lng: -64,   lat: -30,  label: "South America" },
+  uk:             { lng: -2,    lat: 54,   label: "United Kingdom" },
+  eu:             { lng: 10,    lat: 51,   label: "Europe" },
+  russia:         { lng: 90,    lat: 61,   label: "Russia" },
+  africa:         { lng: 22,    lat: 5,    label: "Africa" },
+  middle_east:    { lng: 44,    lat: 29,   label: "Middle East" },
+  india:          { lng: 78,    lat: 20,   label: "India" },
+  china:          { lng: 104,   lat: 36,   label: "China" },
+  japan:          { lng: 138,   lat: 37,   label: "Japan" },
+  southeast_asia: { lng: 110,   lat: 5,    label: "SE Asia" },
+  australia:      { lng: 133,   lat: -25,  label: "Australia" },
 };
 
-// Infer region from mention content/source heuristics
 function inferRegion(mention: any): string {
-  const text = ((mention.content || "") + " " + (mention.source || "") + " " + (mention.author_name || "")).toLowerCase();
+  const text = (
+    (mention.content || "") + " " +
+    (mention.source || "") + " " +
+    (mention.author_name || "")
+  ).toLowerCase();
   if (/india|mumbai|delhi|bangalore/i.test(text)) return "india";
   if (/china|beijing|shanghai/i.test(text)) return "china";
   if (/japan|tokyo/i.test(text)) return "japan";
@@ -45,7 +54,6 @@ function inferRegion(mention: any): string {
   if (/nigeria|kenya|south africa|africa/i.test(text)) return "africa";
   if (/thailand|vietnam|philippines|indonesia|malaysia/i.test(text)) return "southeast_asia";
   if (/argentina|chile|colombia|peru/i.test(text)) return "south_america";
-  // Default to US for English sources
   return "us";
 }
 
@@ -54,7 +62,7 @@ interface RegionData {
   total: number;
   negative: number;
   critical: number;
-  coords: { x: number; y: number; label: string };
+  coords: { lat: number; lng: number; label: string };
 }
 
 export default function ThreatMapPage() {
@@ -62,7 +70,9 @@ export default function ThreatMapPage() {
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState<RegionData[]>([]);
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
-  const [pulseKeys, setPulseKeys] = useState<number>(0);
+  const [selectedRegion, setSelectedRegion] = useState<RegionData | null>(null);
+  const [zoom, setZoom] = useState(1.4);
+  const [center, setCenter] = useState<[number, number]>([10, 20]);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -101,33 +111,39 @@ export default function ThreatMapPage() {
       });
   }, [currentOrg]);
 
-  // Pulse animation cycle
-  useEffect(() => {
-    const interval = setInterval(() => setPulseKeys(k => k + 1), 3000);
-    return () => clearInterval(interval);
-  }, []);
-
   const maxTotal = Math.max(...regions.map(r => r.total), 1);
   const totalThreats = regions.reduce((s, r) => s + r.critical, 0);
   const totalNegative = regions.reduce((s, r) => s + r.negative, 0);
   const topRegion = regions[0];
 
+  const getThreatLevel = (r: RegionData) =>
+    r.critical > 0 ? "critical" : r.negative > r.total * 0.3 ? "high" : "normal";
+
+  const getColor = (level: string) =>
+    level === "critical" ? "#ef4444" : level === "high" ? "#f59e0b" : "#3b82f6";
+
+  const hoveredData = hoveredRegion ? regions.find(r => r.region === hoveredRegion) : null;
+
   return (
     <div className="space-y-6 animate-fade-up">
-      <div className="flex items-center justify-between">
       <PageGuide
         title="Threat Map — Geographic distribution"
-        subtitle="See where brand mentions are coming from geographically. Competitor mentions excluded."
+        subtitle="Real-world map showing where brand mentions originate. Larger, brighter dots = more activity."
         steps={[
-          { icon: <Globe className="h-4 w-4 text-primary" />, title: "Region hotspots", description: "Larger dots = more mentions from that region. Red tint = higher negative sentiment." },
-          { icon: <AlertTriangle className="h-4 w-4 text-primary" />, title: "Regional risk", description: "Identify if a negative narrative is concentrated in a specific market or geography." },
+          { icon: <Globe className="h-4 w-4 text-primary" />, title: "Hotspot dots", description: "Size = volume. Red = critical threats. Orange = high negativity. Blue = normal activity." },
+          { icon: <AlertTriangle className="h-4 w-4 text-primary" />, title: "Pan & zoom", description: "Use the +/− buttons or scroll to zoom. Click and drag to pan the map." },
         ]}
-        tip="Region is inferred from mention content — exact geolocation is an approximation."
+        tip="Region is inferred from mention text and source — geolocation is approximate."
       />
+
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Threat Geography</h1>
           <p className="text-sm text-muted-foreground mt-1">Geographic heatmap of mention origins and emerging threats</p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => { setZoom(1.4); setCenter([10, 20]); }}>
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reset View
+        </Button>
       </div>
 
       {/* Stats bar */}
@@ -140,203 +156,297 @@ export default function ThreatMapPage() {
         </Card>
         <Card className="bg-card border-border p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <AlertTriangle className="h-4 w-4 text-sentinel-red" /> Critical Threats
+            <AlertTriangle className="h-4 w-4 text-red-500" /> Critical Threats
           </div>
-          <div className="text-2xl font-bold text-sentinel-red">{loading ? "—" : totalThreats}</div>
+          <div className="text-2xl font-bold text-red-500">{loading ? "—" : totalThreats}</div>
         </Card>
         <Card className="bg-card border-border p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <TrendingUp className="h-4 w-4 text-sentinel-amber" /> Negative Mentions
+            <TrendingUp className="h-4 w-4 text-amber-500" /> Negative Mentions
           </div>
-          <div className="text-2xl font-bold text-sentinel-amber">{loading ? "—" : totalNegative}</div>
+          <div className="text-2xl font-bold text-amber-500">{loading ? "—" : totalNegative}</div>
         </Card>
         <Card className="bg-card border-border p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Zap className="h-4 w-4 text-primary" /> Hotspot
+            <Zap className="h-4 w-4 text-primary" /> Top Hotspot
           </div>
           <div className="text-lg font-bold text-card-foreground truncate">
-            {loading ? "—" : topRegion?.coords.label || "None"}
+            {loading ? "—" : topRegion?.coords.label || "None yet"}
           </div>
         </Card>
       </div>
 
       {/* Map */}
-      <Card className="bg-card border-border p-6 overflow-hidden">
+      <Card className="bg-[#0d1117] border-border overflow-hidden relative">
         {loading ? (
-          <Skeleton className="w-full h-[400px] rounded-lg" />
+          <Skeleton className="w-full h-[500px] rounded-none" />
         ) : (
           <div className="relative">
-            <svg viewBox="0 0 800 400" className="w-full h-auto" style={{ minHeight: 300 }}>
-              {/* Dark background */}
-              <rect width="800" height="400" rx="8" fill="hsl(var(--card))" />
+            {/* Zoom controls */}
+            <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+              <Button size="icon" variant="ghost" className="h-7 w-7 bg-black/40 hover:bg-black/60 text-white" onClick={() => setZoom(z => Math.min(z * 1.5, 8))}>
+                <ZoomIn className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 bg-black/40 hover:bg-black/60 text-white" onClick={() => setZoom(z => Math.max(z / 1.5, 1))}>
+                <ZoomOut className="h-3.5 w-3.5" />
+              </Button>
+            </div>
 
-              {/* Grid lines */}
-              {Array.from({ length: 9 }).map((_, i) => (
-                <line key={`h${i}`} x1="0" y1={i * 50} x2="800" y2={i * 50} stroke="hsl(var(--border))" strokeWidth="0.5" opacity="0.3" />
+            {/* Legend */}
+            <div className="absolute bottom-3 left-3 z-10 bg-black/50 backdrop-blur-sm rounded-lg p-2.5 flex flex-col gap-1.5">
+              {[["critical", "#ef4444", "Critical"], ["high", "#f59e0b", "High Risk"], ["normal", "#3b82f6", "Normal"]].map(([, color, label]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: color as string }} />
+                  <span className="text-[10px] text-white/70">{label}</span>
+                </div>
               ))}
-              {Array.from({ length: 17 }).map((_, i) => (
-                <line key={`v${i}`} x1={i * 50} y1="0" x2={i * 50} y2="400" stroke="hsl(var(--border))" strokeWidth="0.5" opacity="0.3" />
-              ))}
+            </div>
 
-              {/* Simplified continent outlines */}
-              {/* North America */}
-              <path d="M100,80 L220,70 L250,100 L240,150 L210,180 L180,210 L140,200 L120,170 L90,130 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
-              {/* South America */}
-              <path d="M200,220 L280,210 L300,250 L290,310 L260,340 L230,350 L210,320 L200,270 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
-              {/* Europe */}
-              <path d="M350,80 L430,70 L450,100 L440,150 L410,160 L370,150 L360,120 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
-              {/* Africa */}
-              <path d="M370,170 L440,170 L460,220 L450,280 L420,320 L390,310 L370,270 L360,220 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
-              {/* Asia */}
-              <path d="M450,70 L650,60 L680,100 L670,170 L620,200 L550,210 L500,190 L460,150 L450,100 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
-              {/* Australia */}
-              <path d="M590,270 L660,260 L680,290 L670,330 L630,340 L590,320 Z" 
-                fill="hsl(var(--muted))" opacity="0.15" stroke="hsl(var(--border))" strokeWidth="0.5" />
+            <ComposableMap
+              projection="geoNaturalEarth1"
+              style={{ width: "100%", height: "500px" }}
+            >
+              <ZoomableGroup center={center} zoom={zoom} onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number,number]); setZoom(z); }}>
+                {/* Ocean background */}
+                <Sphere id="ocean" fill="#111827" stroke="#1f2937" strokeWidth={0.5} />
+                {/* Graticule (lat/lng grid) */}
+                <Graticule stroke="#1f2937" strokeWidth={0.3} />
 
-              {/* Threat dots */}
-              {regions.map(r => {
-                const size = Math.max(8, (r.total / maxTotal) * 40);
-                const threatLevel = r.critical > 0 ? "critical" : r.negative > r.total * 0.3 ? "high" : "normal";
-                const color = threatLevel === "critical" 
-                  ? "hsl(var(--sentinel-red))" 
-                  : threatLevel === "high" 
-                    ? "hsl(var(--sentinel-amber))" 
-                    : "hsl(var(--primary))";
-
-                return (
-                  <g key={r.region}
-                    onMouseEnter={() => setHoveredRegion(r.region)}
-                    onMouseLeave={() => setHoveredRegion(null)}
-                    className="cursor-pointer"
-                  >
-                    {/* Pulse ring for critical threats */}
-                    {threatLevel === "critical" && (
-                      <motion.circle
-                        key={`pulse-${r.region}-${pulseKeys}`}
-                        cx={r.coords.x} cy={r.coords.y}
-                        r={size * 0.5}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="2"
-                        initial={{ r: size * 0.5, opacity: 0.8 }}
-                        animate={{ r: size * 1.5, opacity: 0 }}
-                        transition={{ duration: 2, ease: "easeOut" }}
+                {/* Countries */}
+                <Geographies geography={GEO_URL}>
+                  {({ geographies }) =>
+                    geographies.map(geo => (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        fill="#1e2d3d"
+                        stroke="#263548"
+                        strokeWidth={0.4}
+                        style={{
+                          default: { outline: "none" },
+                          hover: { fill: "#243447", outline: "none" },
+                          pressed: { outline: "none" },
+                        }}
                       />
-                    )}
-                    {/* Glow */}
-                    <circle cx={r.coords.x} cy={r.coords.y} r={size * 0.8} fill={color} opacity={0.15} />
-                    {/* Main dot */}
-                    <motion.circle
-                      cx={r.coords.x} cy={r.coords.y} r={size * 0.4}
-                      fill={color}
-                      opacity={hoveredRegion === r.region ? 1 : 0.8}
-                      whileHover={{ scale: 1.3 }}
-                      transition={{ type: "spring", stiffness: 300 }}
-                    />
-                    {/* Label */}
-                    <text
-                      x={r.coords.x} y={r.coords.y - size * 0.6 - 4}
-                      textAnchor="middle"
-                      className="text-[10px] fill-muted-foreground font-medium"
-                      opacity={hoveredRegion === r.region ? 1 : 0.7}
+                    ))
+                  }
+                </Geographies>
+
+                {/* Region threat markers */}
+                {regions.map(r => {
+                  const level = getThreatLevel(r);
+                  const color = getColor(level);
+                  const radius = Math.max(4, (r.total / maxTotal) * 22);
+                  const isHovered = hoveredRegion === r.region;
+                  const isSelected = selectedRegion?.region === r.region;
+
+                  return (
+                    <Marker
+                      key={r.region}
+                      coordinates={[r.coords.lng, r.coords.lat]}
+                      onMouseEnter={() => setHoveredRegion(r.region)}
+                      onMouseLeave={() => setHoveredRegion(null)}
+                      onClick={() => setSelectedRegion(prev => prev?.region === r.region ? null : r)}
                     >
-                      {r.coords.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+                      {/* Outer pulse for critical */}
+                      {level === "critical" && (
+                        <motion.circle
+                          r={radius * 1.8}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={1}
+                          initial={{ r: radius, opacity: 0.8 }}
+                          animate={{ r: radius * 2.5, opacity: 0 }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                        />
+                      )}
+                      {/* Glow halo */}
+                      <circle
+                        r={radius * 1.6}
+                        fill={color}
+                        fillOpacity={isHovered || isSelected ? 0.25 : 0.1}
+                      />
+                      {/* Main dot */}
+                      <motion.circle
+                        r={radius * (isHovered || isSelected ? 0.85 : 0.65)}
+                        fill={color}
+                        fillOpacity={isHovered || isSelected ? 1 : 0.85}
+                        animate={{ scale: isSelected ? 1.2 : 1 }}
+                        style={{ cursor: "pointer" }}
+                      />
+                      {/* Count label inside dot if big enough */}
+                      {radius > 10 && (
+                        <text
+                          textAnchor="middle"
+                          dy="0.35em"
+                          style={{
+                            fontSize: Math.max(6, radius * 0.5),
+                            fill: "#fff",
+                            fontWeight: 700,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {r.total}
+                        </text>
+                      )}
+                      {/* Region label */}
+                      <text
+                        textAnchor="middle"
+                        dy={-(radius + 5)}
+                        style={{
+                          fontSize: isHovered || isSelected ? 9 : 7.5,
+                          fill: isHovered || isSelected ? "#fff" : "rgba(255,255,255,0.55)",
+                          fontWeight: isHovered || isSelected ? 600 : 400,
+                          pointerEvents: "none",
+                          textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+                        }}
+                      >
+                        {r.coords.label}
+                      </text>
+                    </Marker>
+                  );
+                })}
+              </ZoomableGroup>
+            </ComposableMap>
 
             {/* Hover tooltip */}
             <AnimatePresence>
-              {hoveredRegion && (() => {
-                const r = regions.find(r => r.region === hoveredRegion);
-                if (!r) return null;
-                return (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute top-4 right-4 bg-popover border border-border rounded-lg p-4 shadow-xl min-w-[200px]"
-                  >
-                    <h4 className="text-sm font-semibold text-popover-foreground">{r.coords.label}</h4>
-                    <div className="mt-2 space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Mentions</span>
-                        <span className="font-mono text-popover-foreground">{r.total}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Negative</span>
-                        <span className="font-mono text-sentinel-amber">{r.negative}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Critical</span>
-                        <span className="font-mono text-sentinel-red">{r.critical}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Threat Level</span>
-                        <Badge variant="outline" className={`text-[9px] ${
-                          r.critical > 0 ? "border-sentinel-red/30 text-sentinel-red" :
-                          r.negative > r.total * 0.3 ? "border-sentinel-amber/30 text-sentinel-amber" :
-                          "border-primary/30 text-primary"
-                        }`}>
-                          {r.critical > 0 ? "Critical" : r.negative > r.total * 0.3 ? "High" : "Normal"}
-                        </Badge>
-                      </div>
+              {hoveredData && (
+                <motion.div
+                  key={hoveredData.region}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute top-4 left-4 bg-popover/95 backdrop-blur-sm border border-border rounded-lg p-3.5 shadow-xl pointer-events-none min-w-[180px]"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: getColor(getThreatLevel(hoveredData)) }} />
+                    <span className="text-sm font-semibold text-popover-foreground">{hoveredData.coords.label}</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Mentions</span>
+                      <span className="font-mono font-medium text-popover-foreground">{hoveredData.total}</span>
                     </div>
-                  </motion.div>
-                );
-              })()}
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Negative</span>
+                      <span className="font-mono text-amber-400">{hoveredData.negative}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Critical</span>
+                      <span className="font-mono text-red-400">{hoveredData.critical}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 pt-1 border-t border-border">
+                      <span className="text-muted-foreground">Threat</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] ${hoveredData.critical > 0 ? "border-red-500/30 text-red-400" : hoveredData.negative > hoveredData.total * 0.3 ? "border-amber-500/30 text-amber-400" : "border-blue-500/30 text-blue-400"}`}
+                      >
+                        {getThreatLevel(hoveredData).charAt(0).toUpperCase() + getThreatLevel(hoveredData).slice(1)}
+                      </Badge>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         )}
       </Card>
 
+      {/* Selected region detail */}
+      <AnimatePresence>
+        {selectedRegion && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+          >
+            <Card className="bg-card border-border p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full" style={{ background: getColor(getThreatLevel(selectedRegion)) }} />
+                  <div>
+                    <h3 className="text-base font-semibold text-card-foreground">{selectedRegion.coords.label}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedRegion.total} mentions · {selectedRegion.negative} negative · {selectedRegion.critical} critical
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${selectedRegion.critical > 0 ? "border-red-500/30 text-red-400 bg-red-500/5" : selectedRegion.negative > selectedRegion.total * 0.3 ? "border-amber-500/30 text-amber-400 bg-amber-500/5" : "border-blue-500/30 text-blue-400 bg-blue-500/5"}`}
+                  >
+                    {getThreatLevel(selectedRegion).charAt(0).toUpperCase() + getThreatLevel(selectedRegion).slice(1)} Threat
+                  </Badge>
+                </div>
+                <button onClick={() => setSelectedRegion(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-muted/40 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-card-foreground">{selectedRegion.total}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Total Mentions</div>
+                </div>
+                <div className="bg-muted/40 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-amber-500">
+                    {selectedRegion.total > 0 ? Math.round((selectedRegion.negative / selectedRegion.total) * 100) : 0}%
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Negative Rate</div>
+                </div>
+                <div className="bg-muted/40 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-red-500">{selectedRegion.critical}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Critical</div>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Region breakdown table */}
-      <Card className="bg-card border-border p-5">
-        <h3 className="text-sm font-medium text-card-foreground mb-4">Region Breakdown</h3>
-        <div className="space-y-2">
-          {regions.map(r => {
-            const negPct = r.total > 0 ? Math.round((r.negative / r.total) * 100) : 0;
-            return (
-              <div key={r.region} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="w-32 text-sm text-card-foreground font-medium">{r.coords.label}</div>
-                <div className="flex-1">
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+      {regions.length > 0 && (
+        <Card className="bg-card border-border p-5">
+          <h3 className="text-sm font-semibold text-card-foreground mb-4">All Active Regions</h3>
+          <div className="space-y-2">
+            {regions.map(r => {
+              const negPct = r.total > 0 ? Math.round((r.negative / r.total) * 100) : 0;
+              const level = getThreatLevel(r);
+              const color = getColor(level);
+              return (
+                <div
+                  key={r.region}
+                  onClick={() => setSelectedRegion(prev => prev?.region === r.region ? null : r)}
+                  className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${selectedRegion?.region === r.region ? "bg-muted" : "hover:bg-muted/50"}`}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <div className="w-36 text-sm text-card-foreground font-medium">{r.coords.label}</div>
+                  <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${(r.total / maxTotal) * 100}%`,
-                        background: r.critical > 0
-                          ? "hsl(var(--sentinel-red))"
-                          : negPct > 30
-                            ? "hsl(var(--sentinel-amber))"
-                            : "hsl(var(--primary))",
-                      }}
+                      style={{ width: `${(r.total / maxTotal) * 100}%`, background: color }}
                     />
                   </div>
+                  <span className="text-xs font-mono text-card-foreground w-10 text-right">{r.total}</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] w-16 justify-center ${negPct > 50 ? "border-red-500/30 text-red-400" : negPct > 25 ? "border-amber-500/30 text-amber-400" : "border-green-500/30 text-green-400"}`}
+                  >
+                    {negPct}% neg
+                  </Badge>
                 </div>
-                <div className="text-xs font-mono text-card-foreground w-12 text-right">{r.total}</div>
-                <Badge variant="outline" className={`text-[9px] w-16 justify-center ${
-                  negPct > 50 ? "border-sentinel-red/30 text-sentinel-red" :
-                  negPct > 25 ? "border-sentinel-amber/30 text-sentinel-amber" :
-                  "border-sentinel-emerald/30 text-sentinel-emerald"
-                }`}>
-                  {negPct}% neg
-                </Badge>
-              </div>
-            );
-          })}
-          {regions.length === 0 && !loading && (
-            <p className="text-sm text-muted-foreground text-center py-4">No mention data to map. Run a scan first.</p>
-          )}
-        </div>
-      </Card>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {!loading && regions.length === 0 && (
+        <Card className="bg-card border-border p-10 text-center">
+          <Globe className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-foreground">No geographic data yet</h3>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+            Run your first scan to start mapping where brand mentions are coming from.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }
