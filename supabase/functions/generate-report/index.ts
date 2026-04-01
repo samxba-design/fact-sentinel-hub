@@ -14,15 +14,41 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub;
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { org_id, report_type, sections, days = 7 } = await req.json();
     if (!org_id) throw new Error("Missing org_id");
 
+    // Verify org membership
+    const { data: isMember } = await supabase.rpc("is_org_member", { _user_id: userId, _org_id: org_id });
+    if (!isMember) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const now = new Date();
     const rangeAgo = new Date(now.getTime() - days * 86400000).toISOString();
 
-    // Gather data based on sections requested
     const allSections = sections || ["overview", "sentiment", "narratives", "competitors", "incidents", "escalations", "risks"];
     
     const [orgRes, mentionsRes, narrativesRes, incidentsRes, escalationsRes, competitorKwRes] = await Promise.all([
@@ -43,7 +69,6 @@ Deno.serve(async (req) => {
     const escalations = escalationsRes.data || [];
     const competitors = (competitorKwRes.data || []).map(k => k.value);
 
-    // Compute stats
     const totalMentions = mentions.length;
     const sentimentCounts: Record<string, number> = {};
     const sourceCounts: Record<string, number> = {};
@@ -62,7 +87,6 @@ Deno.serve(async (req) => {
     const emergencies = severityCounts["critical"] || 0;
     const riskScore = Math.min(100, Math.round(negPct + emergencies * 10));
 
-    // Build report title based on type
     const reportTitles: Record<string, string> = {
       executive: "Executive Summary",
       competitor: "Competitor Intelligence Report", 
@@ -74,7 +98,6 @@ Deno.serve(async (req) => {
 
     const reportTitle = reportTitles[report_type] || reportTitles.full;
 
-    // Use AI to generate executive summary and insights
     const aiPrompt = `Generate a professional ${reportTitle} for ${org.name}.
 
 Period: Last ${days} days

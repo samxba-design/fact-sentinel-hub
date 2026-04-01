@@ -14,10 +14,37 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub;
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { domain, org_id } = await req.json();
     if (!domain || !org_id) throw new Error("Missing domain or org_id");
+
+    // Verify org membership
+    const { data: isMember } = await supabase.rpc("is_org_member", { _user_id: userId, _org_id: org_id });
+    if (!isMember) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Gather internal data about this source
     const [orgRes, mentionsRes, keywordsRes] = await Promise.all([
@@ -34,7 +61,6 @@ Deno.serve(async (req) => {
     const mentions = mentionsRes.data || [];
     const competitors = (keywordsRes.data || []).map(k => k.value);
 
-    // Build stats from internal data
     const sentimentCounts: Record<string, number> = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
     const severityCounts: Record<string, number> = { low: 0, medium: 0, high: 0, critical: 0 };
     const authors = new Set<string>();
@@ -66,30 +92,25 @@ Deno.serve(async (req) => {
             parameters: {
               type: "object",
               properties: {
-                identity: { type: "string", description: "1-2 sentence summary of what this source/outlet is (news site, blog, social platform, trade pub, etc.)" },
-                audience: { type: "string", description: "Who reads/follows this source — their typical audience" },
-                credibility: { type: "string", enum: ["high", "medium", "low", "unknown"], description: "General credibility/reliability assessment" },
-                reach_estimate: { type: "string", description: "Rough estimate of reach/influence (e.g. 'Major outlet, millions of monthly visitors' or 'Niche blog, small audience')" },
-                bias_tendency: { type: "string", description: "Any known editorial bias or tendency — 'neutral', 'industry-friendly', 'consumer-advocacy', etc." },
+                identity: { type: "string", description: "1-2 sentence summary of what this source/outlet is" },
+                audience: { type: "string", description: "Who reads/follows this source" },
+                credibility: { type: "string", enum: ["high", "medium", "low", "unknown"] },
+                reach_estimate: { type: "string", description: "Rough estimate of reach/influence" },
+                bias_tendency: { type: "string", description: "Any known editorial bias or tendency" },
                 competitor_connections: {
                   type: "array",
                   items: {
                     type: "object",
                     properties: {
                       competitor: { type: "string" },
-                      relationship: { type: "string", description: "How this source relates to the competitor — covers them, is owned by them, etc." },
+                      relationship: { type: "string" },
                     },
                     required: ["competitor", "relationship"],
                   },
-                  description: "Known connections between this source and tracked competitors",
                 },
-                key_topics: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Main topics this source typically covers",
-                },
-                risk_assessment: { type: "string", description: "1-2 sentence assessment of reputational risk this source poses based on its coverage patterns and internal data" },
-                recommendation: { type: "string", description: "What should the monitoring team do about this source — monitor closely, deprioritize, engage, etc." },
+                key_topics: { type: "array", items: { type: "string" } },
+                risk_assessment: { type: "string" },
+                recommendation: { type: "string" },
               },
               required: ["identity", "audience", "credibility", "reach_estimate", "key_topics", "risk_assessment", "recommendation"],
               additionalProperties: false,
@@ -100,7 +121,7 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a media intelligence analyst. Given a domain/source and internal monitoring data, produce a concise intelligence profile. Use your knowledge about the source AND the internal data provided. Be specific and actionable.`,
+            content: `You are a media intelligence analyst. Given a domain/source and internal monitoring data, produce a concise intelligence profile.`,
           },
           {
             role: "user",
@@ -143,7 +164,6 @@ ${contentSamples.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`,
 
     const profile = JSON.parse(toolCall.function.arguments);
 
-    // Attach internal stats to the response
     const result = {
       ...profile,
       internal_stats: {

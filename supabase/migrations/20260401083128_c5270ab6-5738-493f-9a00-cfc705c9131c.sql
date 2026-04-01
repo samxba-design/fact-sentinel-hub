@@ -1,0 +1,1 @@
+DROP POLICY "Service can read all preferences" ON public.notification_preferences;

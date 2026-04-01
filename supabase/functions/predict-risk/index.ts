@@ -14,16 +14,42 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Authenticate the caller
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub;
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { org_id } = await req.json();
     if (!org_id) throw new Error("Missing org_id");
 
+    // Verify org membership
+    const { data: isMember } = await supabase.rpc("is_org_member", { _user_id: userId, _org_id: org_id });
+    if (!isMember) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 86400000).toISOString();
 
-    // Get recent mentions and narratives
     const [recentMentions, olderMentions, narrativesRes] = await Promise.all([
       supabase.from("mentions")
         .select("id, sentiment_label, severity, source, posted_at, content, author_follower_count, metrics")
@@ -49,14 +75,12 @@ Deno.serve(async (req) => {
     const older = olderMentions.data || [];
     const narratives = narrativesRes.data || [];
 
-    // Compute trajectory metrics
     const recentNeg = recent.filter(m => m.sentiment_label === "negative").length;
     const olderNeg = older.filter(m => m.sentiment_label === "negative").length;
     const recentCrit = recent.filter(m => m.severity === "critical").length;
     const volumeChange = older.length > 0 ? ((recent.length - older.length) / older.length * 100) : 0;
     const negChange = olderNeg > 0 ? ((recentNeg - olderNeg) / olderNeg * 100) : 0;
 
-    // High-reach mentions
     const highReach = recent.filter(m => (m.author_follower_count || 0) > 10000);
 
     const prompt = `Analyze these reputation intelligence metrics and predict risk for the next 48 hours.
@@ -120,8 +144,6 @@ Return a JSON object with this exact structure (no markdown, just JSON):
 
     const aiData = await aiResponse.json();
     let content = aiData.choices?.[0]?.message?.content || "{}";
-    
-    // Strip markdown code fences if present
     content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     
     let prediction;
