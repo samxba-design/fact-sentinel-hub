@@ -400,7 +400,6 @@ export default function ScansPage() {
         await supabase.from("mentions").delete().in("scan_run_id", scanIds);
       }
       await supabase.from("scan_runs").delete().eq("org_id", currentOrg.id);
-      .eq("mention_type", "brand")
       setRuns([]);
       toast({ title: "All scans deleted", description: "All scan data has been reset." });
     } catch (err: any) {

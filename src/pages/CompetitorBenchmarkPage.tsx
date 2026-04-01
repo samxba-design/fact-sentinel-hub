@@ -95,7 +95,6 @@ export default function CompetitorBenchmarkPage() {
       .from("mentions")
       .select("content, sentiment_label, severity, source, posted_at, created_at")
       .eq("org_id", currentOrg.id)
-      .eq("mention_type", "competitor")
       .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`)
       .limit(1000);
 

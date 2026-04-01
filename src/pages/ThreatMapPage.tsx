@@ -72,7 +72,6 @@ export default function ThreatMapPage() {
       .from("mentions")
       .select("content, source, author_name, sentiment_label, severity")
       .eq("org_id", currentOrg.id)
-      .eq("mention_type", "brand")
       .order("created_at", { ascending: false })
       .limit(500)
       .then(({ data }) => {

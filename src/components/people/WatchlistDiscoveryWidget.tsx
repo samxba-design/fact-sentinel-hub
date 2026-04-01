@@ -46,7 +46,6 @@ export default function WatchlistDiscoveryWidget() {
       .from("mentions")
       .select("author_name, author_handle, source, sentiment_label")
       .eq("org_id", currentOrg.id)
-      .eq("mention_type", "brand")
       .not("author_name", "is", null)
       .order("created_at", { ascending: false })
       .limit(500);

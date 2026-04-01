@@ -87,7 +87,6 @@ export default function CompetitorIntelSheet({ competitor, orgId, open, onOpenCh
       .from("mentions")
       .select("id, content, source, sentiment_label, posted_at, url")
       .eq("org_id", orgId)
-      .eq("mention_type", "competitor")
       .ilike("content", `%${competitor.name}%`)
       .order("posted_at", { ascending: false, nullsFirst: false })
       .limit(20);

@@ -84,7 +84,6 @@ export default function CompetitorIntelFeedPage() {
       .from("mentions")
       .select("id, content, source, sentiment_label, severity, posted_at, url, author_name")
       .eq("org_id", currentOrg.id);
-      .eq("mention_type", "competitor")
 
     // Filter by competitor keywords
     if (keywords.length > 0) {

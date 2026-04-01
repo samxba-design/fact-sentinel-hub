@@ -69,7 +69,6 @@ export default function NarrativeDetailPage() {
         .from("mentions")
         .select("id, content, source, sentiment_label, severity, posted_at, author_name")
         .in("id", mentionIds)
-        .eq("mention_type", "brand")
         .order("posted_at", { ascending: false })
         .limit(50);
       setMentions(data || []);

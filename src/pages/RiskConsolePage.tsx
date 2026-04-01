@@ -76,7 +76,6 @@ export default function RiskConsolePage() {
         .from("mentions")
         .select("id, content, source, severity, posted_at, flags")
         .eq("org_id", currentOrg.id)
-        .eq("mention_type", "brand")
         
         .in("severity", ["high", "critical"])
         .order("posted_at", { ascending: false })

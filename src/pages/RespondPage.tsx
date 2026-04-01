@@ -72,7 +72,6 @@ export default function RespondPage() {
         supabase.from("narratives").select("id, name").eq("org_id", currentOrg.id).ilike("name", `%${tagSearch}%`).limit(3),
         supabase.from("incidents").select("id, name").eq("org_id", currentOrg.id).ilike("name", `%${tagSearch}%`).limit(3),
         supabase.from("mentions").select("id, content, source").eq("org_id", currentOrg.id).textSearch("content", tagSearch, { type: "plain" }).limit(3),
-        .eq("mention_type", "brand")
       ]);
       setTagResults([
         ...(narr.data || []).map(n => ({ id: n.id, label: n.name, type: "narrative" as const })),

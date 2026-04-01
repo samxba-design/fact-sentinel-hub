@@ -113,7 +113,6 @@ export default function IncidentDetailPage() {
 
     const [mRes, nRes] = await Promise.all([
       supabase.from("mentions").select("id, content, source, author_name").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
-      .eq("mention_type", "brand")
       supabase.from("narratives").select("id, name, status").eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
     ]);
 

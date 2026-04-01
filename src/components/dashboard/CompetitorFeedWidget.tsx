@@ -61,7 +61,6 @@ export default function CompetitorFeedWidget() {
         .from("mentions")
         .select("id,content,source,sentiment_label,severity,posted_at,url")
         .eq("org_id", currentOrg.id)
-        .eq("mention_type", "competitor")
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(200);
 
