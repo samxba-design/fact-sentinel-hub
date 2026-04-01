@@ -83,12 +83,15 @@ export default function WarRoomPage() {
         .eq("org_id", currentOrg.id).eq("status", "active"),
       supabase.from("mentions").select("id", { count: "exact", head: true })
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .gte("created_at", since24h),
       supabase.from("mentions").select("id", { count: "exact", head: true })
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .eq("sentiment_label", "negative").gte("created_at", since24h),
       supabase.from("mentions").select("id", { count: "exact", head: true })
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .eq("severity", "critical").gte("created_at", since24h),
       supabase.from("org_memberships").select("user_id, invited_email")
         .eq("org_id", currentOrg.id).not("accepted_at", "is", null),
