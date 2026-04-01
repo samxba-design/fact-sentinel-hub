@@ -1780,6 +1780,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_shared_link_by_token: {
+        Args: { _token: string }
+        Returns: {
+          is_active: boolean
+          org_id: string
+          permissions: Json
+        }[]
+      }
       has_org_role: {
         Args: {
           _org_id: string
