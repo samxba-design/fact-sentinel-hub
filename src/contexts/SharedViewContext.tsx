@@ -65,10 +65,7 @@ export function SharedViewProvider({ token, children }: { token: string; childre
     async function validateToken() {
       try {
         const { data, error } = await supabase
-          .from("shared_links")
-          .select("org_id, permissions, is_active")
-          .eq("token", token)
-          .eq("is_active", true)
+          .rpc("get_shared_link_by_token", { _token: token })
           .single();
 
         if (error || !data) {
