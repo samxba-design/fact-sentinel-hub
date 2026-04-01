@@ -33,7 +33,7 @@ export default function ActiveThreatsWidget() {
     supabase
       .from("mentions")
       .select("id, content, source, severity, sentiment_label, posted_at, author_name, author_follower_count, url")
-      .eq("org_id", currentOrg.id)
+      .eq("org_id", currentOrg.id).eq("mention_type", "brand")
       
       .in("severity", ["critical", "high"])
       .eq("sentiment_label", "negative")

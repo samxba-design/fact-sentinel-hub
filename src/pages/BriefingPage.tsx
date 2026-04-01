@@ -100,7 +100,7 @@ export default function BriefingPage() {
 
     Promise.all([
       supabase.from("mentions").select("posted_at, created_at, sentiment_label, severity, source")
-        .eq("org_id", currentOrg.id)
+        .eq("org_id", currentOrg.id).eq("mention_type", "brand")
         .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
       supabase.from("narratives").select("name, status, confidence").eq("org_id", currentOrg.id).order("last_seen", { ascending: false }).limit(5),
       supabase.from("incidents").select("name, status").eq("org_id", currentOrg.id).eq("status", "active"),
@@ -114,17 +114,23 @@ export default function BriefingPage() {
       }
 
       let criticals = 0;
+      let highs = 0;
       mentions.forEach(m => {
         const s = m.sentiment_label || "neutral";
         if (s in sentCounts) sentCounts[s]++;
         const d = format(new Date(m.posted_at || m.created_at), "MMM dd");
         if (d in dayMap) dayMap[d]++;
         if (m.severity === "critical") criticals++;
+        if (m.severity === "high") highs++;
       });
 
       const total = mentions.length;
       const negPct = total > 0 ? Math.round((sentCounts.negative / total) * 100) : 0;
-      const riskScore = Math.min(100, Math.round(negPct + criticals * 10));
+      // Weighted risk score: 60% negative sentiment, 30% critical severity, 10% volume spike indicator
+      const normalizedNeg = Math.min(negPct, 100);
+      const criticalWeight = Math.min(criticals * 5, 30);
+      const highWeight = Math.min(highs * 2, 10);
+      const riskScore = Math.min(100, Math.round((normalizedNeg * 0.6) + criticalWeight + highWeight));
 
       setData({
         total,

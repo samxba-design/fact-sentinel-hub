@@ -46,7 +46,7 @@ export default function LiveThreatFeed() {
     supabase
       .from("mentions")
       .select("id, content, source, severity, sentiment_label, posted_at, author_name, created_at")
-      .eq("org_id", currentOrg.id)
+      .eq("org_id", currentOrg.id).eq("mention_type", "brand")
       .order("created_at", { ascending: false })
       .limit(8)
       .then(({ data }) => setFeed(data || []));

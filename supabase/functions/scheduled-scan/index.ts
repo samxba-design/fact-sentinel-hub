@@ -112,6 +112,21 @@ Deno.serve(async (req) => {
           }),
         });
         const data = await res.json();
+
+        // After each scan completes, run spike detection for this org
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/check-spikes`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${supabaseKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ org_id: profile.org_id }),
+          });
+        } catch (spikeErr: any) {
+          console.warn(`check-spikes failed for ${profile.org_id}:`, spikeErr.message);
+        }
+
         results.push({
           org_id: profile.org_id,
           status: data.error ? `error: ${data.error}` : `completed: ${data.mentions_created || 0} mentions`,

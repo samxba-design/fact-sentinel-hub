@@ -59,7 +59,7 @@ export default function CompetitorProfilePage() {
       supabase
         .from("mentions")
         .select("id, content, source, url, sentiment_label, severity, posted_at, created_at, author_name")
-        .eq("org_id", currentOrg.id)
+        .eq("org_id", currentOrg.id).eq("mention_type", "competitor")
         .textSearch("content", competitorName, { type: "plain" })
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(100),
@@ -73,7 +73,7 @@ export default function CompetitorProfilePage() {
       supabase
         .from("mentions")
         .select("id", { count: "exact", head: true })
-        .eq("org_id", currentOrg.id),
+        .eq("org_id", currentOrg.id).eq("mention_type", "competitor"),
       supabase
         .from("narratives")
         .select("id, name, description, confidence, status")
