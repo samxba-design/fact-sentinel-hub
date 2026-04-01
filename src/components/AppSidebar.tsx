@@ -57,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/scans", icon: Scan, label: "Scans", access: "edit" },
       { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
       { to: "/alerts", icon: Bell, label: "Alerts" },
+      { to: "/explore", icon: Globe, label: "Explore Profiles", badge: "New" },
     ],
   },
   {

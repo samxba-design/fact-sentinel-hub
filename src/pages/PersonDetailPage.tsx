@@ -90,6 +90,7 @@ export default function PersonDetailPage() {
         .select("id, content, source, sentiment_label, severity, posted_at")
         .in("id", mentionIds)
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "brand")
         .order("posted_at", { ascending: false })
         .limit(50);
       setMentions(data || []);

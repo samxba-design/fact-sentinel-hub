@@ -136,7 +136,7 @@ export default function Index() {
             ))}
             <div className="w-px h-5 bg-border mx-1" />
             {user ? (
-              <Link to="/dashboard">
+              <Link to="/">
                 <Button size="sm" className="ml-1 gap-1.5">
                   <BarChart3 className="h-3.5 w-3.5" /> Go to Dashboard
                 </Button>
@@ -169,12 +169,22 @@ export default function Index() {
               </Link>
             ))}
             <div className="border-t border-border pt-2 space-y-2">
-              <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" size="sm" className="w-full justify-start">Sign in</Button>
-              </Link>
-              <Link to="/auth?mode=signup" onClick={() => setMobileMenuOpen(false)}>
-                <Button size="sm" className="w-full">Start free →</Button>
-              </Link>
+              {user ? (
+                <Link to="/" onClick={() => setMobileMenuOpen(false)}>
+                  <Button size="sm" className="w-full gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5" /> Go to Dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" size="sm" className="w-full justify-start">Sign in</Button>
+                  </Link>
+                  <Link to="/auth?mode=signup" onClick={() => setMobileMenuOpen(false)}>
+                    <Button size="sm" className="w-full">Start free →</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -207,7 +217,7 @@ export default function Index() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
               {user ? (
-                <Link to="/dashboard">
+                <Link to="/">
                   <Button size="lg" className="text-base px-8 gap-2">
                     <BarChart3 className="h-4 w-4" /> Go to your dashboard
                   </Button>
