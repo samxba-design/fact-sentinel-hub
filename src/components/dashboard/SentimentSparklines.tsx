@@ -29,7 +29,7 @@ export default function SentimentSparklines() {
     supabase
       .from("mentions")
       .select("sentiment_label, posted_at")
-      .eq("org_id", currentOrg.id).eq("mention_type", "brand")
+      .eq("org_id", currentOrg.id)
       .gte("posted_at", thirtyDaysAgo)
       .order("posted_at")
       .then(({ data }) => {
