@@ -56,6 +56,7 @@ export default function TestimonialRequest() {
         author_name: form.author_name,
         sentiment_label: "positive",
         sentiment_score: rating > 0 ? (rating - 3) / 2 : 0.5,
+        mention_type: "brand",
         status: "pending",
       });
 

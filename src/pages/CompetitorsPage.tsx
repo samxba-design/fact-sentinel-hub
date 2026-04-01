@@ -88,7 +88,7 @@ export default function CompetitorsPage() {
 
     // Batch load all mentions and narratives for this org once
     const [mentionRes, narrativeRes] = await Promise.all([
-      supabase.from("mentions").select("id, content, sentiment_label").eq("org_id", currentOrg.id).limit(1000),
+      supabase.from("mentions").select("id, content, sentiment_label, competitor_name").eq("org_id", currentOrg.id).eq("mention_type", "competitor").limit(1000),
       supabase.from("narratives").select("id, name, description").eq("org_id", currentOrg.id).limit(500),
     ]);
 

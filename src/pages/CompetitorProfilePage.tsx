@@ -74,7 +74,8 @@ export default function CompetitorProfilePage() {
       supabase
         .from("mentions")
         .select("id", { count: "exact", head: true })
-        .eq("org_id", currentOrg.id),
+        .eq("org_id", currentOrg.id)
+        .eq("mention_type", "competitor"),
       supabase
         .from("narratives")
         .select("id, name, description, confidence, status")

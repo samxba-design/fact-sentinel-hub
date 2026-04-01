@@ -55,7 +55,7 @@ export default function NarrativeGraphPage() {
       supabase.from("mention_narratives").select("mention_id, narrative_id"),
       supabase.from("mention_people").select("mention_id, person_id"),
       supabase.from("people").select("id, name").limit(50),
-      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).limit(200),
+      supabase.from("mentions").select("id, source, author_name").eq("org_id", currentOrg.id).eq("mention_type", "brand").limit(200),
     ]).then(([narrativesRes, mnRes, mpRes, peopleRes, mentionsRes]) => {
       const narratives = narrativesRes.data || [];
       const mentionNarratives = mnRes.data || [];

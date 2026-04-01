@@ -93,8 +93,9 @@ export default function CompetitorBenchmarkPage() {
     // Get all recent mentions
     const { data: mentions } = await supabase
       .from("mentions")
-      .select("content, sentiment_label, severity, source, posted_at, created_at")
+      .select("content, sentiment_label, severity, source, posted_at, created_at, competitor_name")
       .eq("org_id", currentOrg.id)
+      .eq("mention_type", "competitor")
       .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`)
       .limit(1000);
 

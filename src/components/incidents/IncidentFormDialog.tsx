@@ -69,7 +69,7 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
       setLoadingOptions(true);
       Promise.all([
         supabase.from("mentions").select("id, content, source, author_name, severity")
-          .eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(100),
+          .eq("org_id", currentOrg.id).eq("mention_type", "brand").order("created_at", { ascending: false }).limit(100),
         supabase.from("narratives").select("id, name, status")
           .eq("org_id", currentOrg.id).order("created_at", { ascending: false }).limit(50),
       ]).then(([mentionsRes, narrativesRes]) => {

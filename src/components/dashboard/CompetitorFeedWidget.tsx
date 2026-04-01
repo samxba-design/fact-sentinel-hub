@@ -59,8 +59,9 @@ export default function CompetitorFeedWidget() {
 
       const { data: mentionsData } = await supabase
         .from("mentions")
-        .select("id,content,source,sentiment_label,severity,posted_at,url")
+        .select("id,content,source,sentiment_label,severity,posted_at,url,competitor_name")
         .eq("org_id", currentOrg.id)
+        .eq("mention_type", "competitor")
         .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(200);
 

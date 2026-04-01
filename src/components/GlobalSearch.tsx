@@ -70,7 +70,7 @@ export default function GlobalSearch() {
     const term = `%${q}%`;
 
     const [mentions, narratives, incidents, people, escalations] = await Promise.all([
-      supabase.from("mentions").select("id, content, source").eq("org_id", orgId).ilike("content", term).limit(5),
+      supabase.from("mentions").select("id, content, source").eq("org_id", orgId).eq("mention_type", "brand").ilike("content", term).limit(5),
       supabase.from("narratives").select("id, name").eq("org_id", orgId).ilike("name", term).limit(5),
       supabase.from("incidents").select("id, name").eq("org_id", orgId).ilike("name", term).limit(5),
       supabase.from("people").select("id, name").ilike("name", term).limit(5),

@@ -197,6 +197,7 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
         severity,
         language: "en",
         posted_at: postedAt ? new Date(postedAt).toISOString() : new Date().toISOString(),
+        mention_type: "brand",
         status: "new",
         owner_user_id: user?.id || null,
         flags: { manual_entry: true },

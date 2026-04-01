@@ -170,6 +170,7 @@ export default function MentionDetailPage() {
       .from("mentions")
       .select("id, source, content, url, posted_at, sentiment_label, severity, author_name, flags, created_at, author_handle, author_verified, author_follower_count, sentiment_score, sentiment_confidence, language, metrics, scan_run_id, status")
       .eq("org_id", currentOrg.id)
+      .eq("mention_type", "brand")
       .neq("id", mention.id)
       .textSearch("content", searchWords, { type: "plain" })
       .limit(20)
