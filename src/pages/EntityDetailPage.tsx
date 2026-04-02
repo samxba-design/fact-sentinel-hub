@@ -17,16 +17,15 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, RefreshCw, Shield, CheckCircle2, AlertTriangle, Globe,
-  ExternalLink, Plus, X, Loader2, Brain, Tag, Info, Clock, Eye,
-  User2, MapPin, Link2, Hash, StickyNote, FileText, Bell, Save,
-  ChevronRight,
+  ExternalLink, Plus, X, Loader2, Brain, Info, Clock,
+  MapPin, Link2, Hash, Bell, Save, FileText,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import PageGuide from "@/components/PageGuide";
 import {
   PLATFORMS, SOURCE_TYPES, RISK_TYPES, SEVERITIES, STATUSES,
   MONITORING_INTENTS, CREDIBILITY, RELATIONSHIP, ACTION_RECOMMENDATIONS,
-  OWNERSHIP_TYPES, SUGGESTED_TAGS, RISK_FLAG_LABELS,
+  SUGGESTED_TAGS, RISK_FLAG_LABELS,
 } from "@/lib/entityConstants";
 
 function toLabel(s: string | null | undefined) {

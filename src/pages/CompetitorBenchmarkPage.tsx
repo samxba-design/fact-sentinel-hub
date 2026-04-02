@@ -177,20 +177,14 @@ export default function CompetitorBenchmarkPage() {
     ];
   }, [orgData, competitors]);
 
-  const allNames = orgData ? [orgData.name, ...competitors.map(c => c.name)] : [];
-
-  // Share of Voice — normalise each day's mention count to % of total conversation
+  // Share of Voice — use RAW counts per day; stackOffset="expand" normalises to % itself
   const sovChartData = useMemo(() => {
     if (!orgData || allNames.length === 0) return [];
     return Object.keys(orgData.volumeByDay).map(day => {
       const row: any = { date: day };
-      const dayTotal = allNames.reduce((sum, name) => {
-        const d = name === orgData.name ? orgData : competitors.find(c => c.name === name);
-        return sum + (d?.volumeByDay[day] || 0);
-      }, 0) || 1;
       allNames.forEach(name => {
         const d = name === orgData.name ? orgData : competitors.find(c => c.name === name);
-        row[name] = dayTotal > 0 ? Math.round(((d?.volumeByDay[day] || 0) / dayTotal) * 100) : 0;
+        row[name] = d?.volumeByDay[day] || 0;
       });
       return row;
     });

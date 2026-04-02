@@ -171,9 +171,12 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
-    const { entity_id, url, platform: inputPlatform, handle: inputHandle } = body;
+    const { entity_id, url, platform: inputPlatform, handle: inputHandle, preview } = body;
 
     if (!entity_id) throw new Error("entity_id required");
+
+    // Preview mode — scrape + analyse but skip DB write (used by AddEntityDialog step 1)
+    const isPreview = preview === true || entity_id === "preview";
 
     // Detect platform from URL
     const detected = detectPlatform(url || "");
@@ -229,16 +232,31 @@ Deno.serve(async (req) => {
     if (enriched.detected_topics?.length) patch.detected_topics = enriched.detected_topics;
     if (enriched.engagement_pattern) patch.engagement_pattern = enriched.engagement_pattern;
     if (enriched.recent_posts?.length) patch.recent_posts = enriched.recent_posts.slice(0, 5);
-    if (enriched.suggested_tags?.length) {
+    if (enriched.suggested_tags?.length && !isPreview) {
       // Merge with existing tags
       const { data: existing } = await supabase.from("entity_records").select("tags").eq("id", entity_id).maybeSingle();
       const currentTags: string[] = existing?.tags || [];
       patch.tags = [...new Set([...currentTags, ...enriched.suggested_tags])];
     }
 
-    // Audit entry
-    patch.audit_log = supabase.rpc ? undefined : undefined; // handled via separate call
+    // In preview mode, return analysis without writing to DB
+    if (isPreview) {
+      return new Response(JSON.stringify({
+        enriched: false,
+        preview: true,
+        platform,
+        handle,
+        fields_found: Object.keys(patch),
+        ai_confidence: enriched.ai_confidence,
+        risk_flags: enriched.risk_flags,
+        suggested_tags: enriched.suggested_tags || [],
+        why_flagged: enriched.why_flagged || [],
+        source_type_suggestion: enriched.source_type,
+        risk_type_suggestion: enriched.risk_type,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
+    // Persist to DB (delete the no-op audit_log line before patching)
     const { error } = await supabase
       .from("entity_records")
       .update(patch)

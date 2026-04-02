@@ -213,6 +213,62 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Person Watchlist Alerts (from WatchlistAlertToggle) ──────────────────
+    // Check tracking_profiles.settings.watchlist_alerts for per-person alert IDs
+    for (const org of orgs) {
+      const { data: tp } = await supabase
+        .from("tracking_profiles")
+        .select("settings")
+        .eq("org_id", org.id)
+        .maybeSingle();
+
+      const watchlistPersonIds: string[] = (tp?.settings as any)?.watchlist_alerts || [];
+      if (watchlistPersonIds.length === 0) continue;
+
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      for (const personId of watchlistPersonIds) {
+        // Get person name
+        const { data: person } = await supabase
+          .from("people")
+          .select("name")
+          .eq("id", personId)
+          .maybeSingle();
+        if (!person) continue;
+
+        // Get new mentions linked to this person in last 24h
+        const { data: personMentions } = await supabase
+          .from("mention_people")
+          .select("mention_id")
+          .eq("person_id", personId);
+
+        const mentionIds = (personMentions || []).map((m: any) => m.mention_id);
+        if (!mentionIds.length) continue;
+
+        const { count } = await supabase
+          .from("mentions")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", org.id)
+          .eq("mention_type", "brand")
+          .in("id", mentionIds)
+          .gte("created_at", since24h);
+
+        const newCount = count || 0;
+        if (newCount > 0) {
+          alerts.push({
+            org_id: org.id,
+            type: "watchlist_person_mention",
+            payload: {
+              person_id: personId,
+              person_name: person.name,
+              new_mentions: newCount,
+              message: `${person.name} has ${newCount} new mention${newCount !== 1 ? "s" : ""} in the last 24 hours`,
+            },
+          });
+        }
+      }
+    }
+
     // Insert all alerts and trigger email notifications
     if (alerts.length > 0) {
       const alertRows = alerts.map(a => ({
