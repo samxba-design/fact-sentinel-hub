@@ -210,7 +210,6 @@ export default function CompetitorBenchmarkPage() {
     }));
   }, [orgData, competitors]);
 
-  const allNames = orgData ? [orgData.name, ...competitors.map(c => c.name)] : [];
 
   if (loading) {
     return (
