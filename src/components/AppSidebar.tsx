@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
       { to: "/competitors/intel-feed", icon: Newspaper, label: "Intel Feed", access: "edit" },
       { to: "/noise-filters", icon: EyeOff, label: "Noise Filters", access: "edit" },
+      { to: "/entities", icon: Shield, label: "Entity Intelligence", badge: "New" },
       { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
     ],
   },
