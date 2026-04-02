@@ -42,12 +42,16 @@ const TYPE_CONFIG: Record<string, { fill: string; size: number }> = {
 };
 
 const PHYSICS = {
-  chargeStrength: -300,
-  linkDistance: 80,
+  chargeStrength: -120,   // weaker repulsion — was -300, caused explosion
+  linkDistance: 120,
   dampingFactor: 0.05,
   dt: 0.016,
-  velocityDecay: 0.9,
+  velocityDecay: 0.85,    // more damping so nodes settle faster
+  centerStrength: 0.03,   // center gravity — pulls nodes back to canvas center
+  maxVelocity: 8,         // velocity cap — prevents runaway acceleration
 };
+
+const MAX_SOURCE_NODES = 15; // cap source nodes to prevent O(n²) explosion
 
 export default function NarrativeGraphPage() {
   const navigate = useNavigate();
@@ -182,8 +186,8 @@ export default function NarrativeGraphPage() {
               id: `n-${n.id}`,
               label: n.name,
               type: "narrative",
-              x: Math.random() * 400 - 200,
-              y: Math.random() * 400 - 200,
+              x: Math.random() * 600 - 300,
+              y: Math.random() * 600 - 300,
               vx: 0,
               vy: 0,
             };
@@ -196,8 +200,8 @@ export default function NarrativeGraphPage() {
               id: `p-${p.id}`,
               label: p.handle || p.name,
               type: "person",
-              x: Math.random() * 400 - 200,
-              y: Math.random() * 400 - 200,
+              x: Math.random() * 600 - 300,
+              y: Math.random() * 600 - 300,
               vx: 0,
               vy: 0,
             };
@@ -217,8 +221,8 @@ export default function NarrativeGraphPage() {
               id: `e-${e.id}`,
               label: e.display_name || e.handle,
               type: "entity",
-              x: Math.random() * 400 - 200,
-              y: Math.random() * 400 - 200,
+              x: Math.random() * 600 - 300,
+              y: Math.random() * 600 - 300,
               vx: 0,
               vy: 0,
             };
@@ -243,17 +247,27 @@ export default function NarrativeGraphPage() {
           });
 
           // Collect unique sources and build source->narratives map
+          // Score each source by number of unique narratives it covers, then cap to MAX_SOURCE_NODES
+          const sourceNarrativeCounts = new Map<string, Set<string>>();
           mentions.forEach((m: any) => {
-            if (m.source) sources.add(m.source);
+            if (!m.source) return;
+            sources.add(m.source);
+            if (!sourceNarrativeCounts.has(m.source)) sourceNarrativeCounts.set(m.source, new Set());
+            const nid = mentionNarratives.find((mn: any) => mn.mention_id === m.id)?.narrative_id;
+            if (nid) sourceNarrativeCounts.get(m.source)!.add(nid);
           });
+          // Sort sources by narrative coverage, keep top MAX_SOURCE_NODES
+          const topSources = Array.from(sources)
+            .sort((a, b) => (sourceNarrativeCounts.get(b)?.size || 0) - (sourceNarrativeCounts.get(a)?.size || 0))
+            .slice(0, MAX_SOURCE_NODES);
 
-          sources.forEach((source: string) => {
+          topSources.forEach((source: string) => {
             const node: GraphNode = {
               id: `s-${source}`,
               label: source,
               type: "source",
-              x: Math.random() * 400 - 200,
-              y: Math.random() * 400 - 200,
+              x: Math.random() * 600 - 300,
+              y: Math.random() * 600 - 300,
               vx: 0,
               vy: 0,
             };
@@ -435,14 +449,27 @@ export default function NarrativeGraphPage() {
       target.vy -= fy;
     });
 
-    // Apply damping and update positions
+    const canvas = canvasRef.current;
     ns.forEach((n) => {
       if (isDraggingRef.current && selectedRef.current?.id === n.id) return;
 
+      // Center gravity — pulls nodes back toward world origin (0,0 = canvas center)
+      n.vx += -n.x * PHYSICS.centerStrength;
+      n.vy += -n.y * PHYSICS.centerStrength;
+
+      // Velocity damping
       n.vx *= PHYSICS.velocityDecay;
       n.vy *= PHYSICS.velocityDecay;
-      n.x += n.vx * PHYSICS.dt;
-      n.y += n.vy * PHYSICS.dt;
+
+      // Velocity cap — prevents runaway acceleration
+      const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy);
+      if (speed > PHYSICS.maxVelocity) {
+        n.vx = (n.vx / speed) * PHYSICS.maxVelocity;
+        n.vy = (n.vy / speed) * PHYSICS.maxVelocity;
+      }
+
+      n.x += n.vx;
+      n.y += n.vy;
     });
   }, []);
 
@@ -615,8 +642,11 @@ export default function NarrativeGraphPage() {
     const y = e.clientY - rect.top;
 
     if (isDraggingRef.current && selectedRef.current) {
-      selectedRef.current.x += x - dragStartRef.current.x;
-      selectedRef.current.y += y - dragStartRef.current.y;
+      selectedRef.current.x += (x - dragStartRef.current.x) / viewRef.current.scale;
+      selectedRef.current.y += (y - dragStartRef.current.y) / viewRef.current.scale;
+      // Zero velocity so node doesn't fly off when released
+      selectedRef.current.vx = 0;
+      selectedRef.current.vy = 0;
       dragStartRef.current = { x, y };
     } else if (isPanningRef.current) {
       const dx = x - panStartRef.current.x;
