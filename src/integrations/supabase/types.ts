@@ -320,6 +320,185 @@ export type Database = {
           },
         ]
       }
+      entity_records: {
+        Row: {
+          account_created_at: string | null
+          action_recommendation: string | null
+          actual_affiliation: string | null
+          ai_confidence: number | null
+          ai_suggested_flags: Json | null
+          ai_suggested_risk: string | null
+          ai_suggested_type: string | null
+          alert_enabled: boolean | null
+          audit_log: Json | null
+          bio: string | null
+          changed_fields: string[] | null
+          claimed_affiliation: string | null
+          confidence: string | null
+          created_at: string
+          credibility: string | null
+          detected_topics: string[] | null
+          display_name: string | null
+          engagement_pattern: string | null
+          enriched_at: string | null
+          enrichment_confidence: Json | null
+          evidence_links: Json | null
+          first_seen_at: string | null
+          follower_count: number | null
+          following_count: number | null
+          handle: string | null
+          id: string
+          intent_type: string | null
+          known_aliases: string[] | null
+          language: string | null
+          linked_incident_ids: string[] | null
+          linked_narrative_ids: string[] | null
+          linked_people_ids: string[] | null
+          monitoring_intent: string | null
+          notes: string | null
+          org_id: string
+          ownership_type: string | null
+          platform: string | null
+          profile_image_url: string | null
+          reason_added: string | null
+          recent_posts: Json | null
+          region: string | null
+          relationship_to_brand: string | null
+          risk_flags: Json | null
+          risk_type: string | null
+          severity: string | null
+          source_type: string | null
+          status: string | null
+          tags: string[] | null
+          updated_at: string
+          url: string | null
+          verified: boolean | null
+          watch_keywords: string[] | null
+          website_in_bio: string | null
+          why_flagged: string[] | null
+        }
+        Insert: {
+          account_created_at?: string | null
+          action_recommendation?: string | null
+          actual_affiliation?: string | null
+          ai_confidence?: number | null
+          ai_suggested_flags?: Json | null
+          ai_suggested_risk?: string | null
+          ai_suggested_type?: string | null
+          alert_enabled?: boolean | null
+          audit_log?: Json | null
+          bio?: string | null
+          changed_fields?: string[] | null
+          claimed_affiliation?: string | null
+          confidence?: string | null
+          created_at?: string
+          credibility?: string | null
+          detected_topics?: string[] | null
+          display_name?: string | null
+          engagement_pattern?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: Json | null
+          evidence_links?: Json | null
+          first_seen_at?: string | null
+          follower_count?: number | null
+          following_count?: number | null
+          handle?: string | null
+          id?: string
+          intent_type?: string | null
+          known_aliases?: string[] | null
+          language?: string | null
+          linked_incident_ids?: string[] | null
+          linked_narrative_ids?: string[] | null
+          linked_people_ids?: string[] | null
+          monitoring_intent?: string | null
+          notes?: string | null
+          org_id: string
+          ownership_type?: string | null
+          platform?: string | null
+          profile_image_url?: string | null
+          reason_added?: string | null
+          recent_posts?: Json | null
+          region?: string | null
+          relationship_to_brand?: string | null
+          risk_flags?: Json | null
+          risk_type?: string | null
+          severity?: string | null
+          source_type?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          url?: string | null
+          verified?: boolean | null
+          watch_keywords?: string[] | null
+          website_in_bio?: string | null
+          why_flagged?: string[] | null
+        }
+        Update: {
+          account_created_at?: string | null
+          action_recommendation?: string | null
+          actual_affiliation?: string | null
+          ai_confidence?: number | null
+          ai_suggested_flags?: Json | null
+          ai_suggested_risk?: string | null
+          ai_suggested_type?: string | null
+          alert_enabled?: boolean | null
+          audit_log?: Json | null
+          bio?: string | null
+          changed_fields?: string[] | null
+          claimed_affiliation?: string | null
+          confidence?: string | null
+          created_at?: string
+          credibility?: string | null
+          detected_topics?: string[] | null
+          display_name?: string | null
+          engagement_pattern?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: Json | null
+          evidence_links?: Json | null
+          first_seen_at?: string | null
+          follower_count?: number | null
+          following_count?: number | null
+          handle?: string | null
+          id?: string
+          intent_type?: string | null
+          known_aliases?: string[] | null
+          language?: string | null
+          linked_incident_ids?: string[] | null
+          linked_narrative_ids?: string[] | null
+          linked_people_ids?: string[] | null
+          monitoring_intent?: string | null
+          notes?: string | null
+          org_id?: string
+          ownership_type?: string | null
+          platform?: string | null
+          profile_image_url?: string | null
+          reason_added?: string | null
+          recent_posts?: Json | null
+          region?: string | null
+          relationship_to_brand?: string | null
+          risk_flags?: Json | null
+          risk_type?: string | null
+          severity?: string | null
+          source_type?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          url?: string | null
+          verified?: boolean | null
+          watch_keywords?: string[] | null
+          website_in_bio?: string | null
+          why_flagged?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       escalation_comments: {
         Row: {
           content: string
