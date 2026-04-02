@@ -58,8 +58,6 @@ const QuickTriagePage = React.lazy(() => import("@/pages/QuickTriagePage"));
 const NoiseFiltersPage = React.lazy(() => import("@/pages/NoiseFiltersPage"));
 const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
 const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
-const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
-const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
 
 const queryClient = new QueryClient();
 
@@ -175,8 +173,6 @@ function AppRoutes() {
           <Route path="/competitors/benchmark" element={<RoleGate require="edit"><ErrorBoundary><CompetitorBenchmarkPage /></ErrorBoundary></RoleGate>} />
           <Route path="/competitors/:name" element={<RoleGate require="edit"><ErrorBoundary><CompetitorProfilePage /></ErrorBoundary></RoleGate>} />
           <Route path="/contacts" element={<RoleGate require="manage"><ErrorBoundary><ContactsPage /></ErrorBoundary></RoleGate>} />
-          <Route path="/entities" element={<ErrorBoundary><EntityRecordsPage /></ErrorBoundary>} />
-          <Route path="/entities/:id" element={<ErrorBoundary><EntityDetailPage /></ErrorBoundary>} />
           <Route path="/exports" element={<RoleGate require="write"><ErrorBoundary><ExportsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/settings" element={<RoleGate require="manage"><ErrorBoundary><SettingsPage /></ErrorBoundary></RoleGate>} />
           <Route path="/pricing" element={<PricingPage />} />

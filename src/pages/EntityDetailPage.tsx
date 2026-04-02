@@ -111,7 +111,7 @@ export default function EntityDetailPage() {
 
   const fetchEntity = useCallback(async () => {
     if (!id) return;
-    const { data } = await supabase.from("entity_records").select("*").eq("id", id).maybeSingle();
+    const { data } = await (supabase as any).from("entity_records").select("*").eq("id", id).maybeSingle();
     setEntity(data as EntityRecord | null);
     setLoading(false);
   }, [id]);
@@ -120,7 +120,7 @@ export default function EntityDetailPage() {
 
   const patch = async (fields: Partial<EntityRecord>) => {
     if (!id) return;
-    const { error } = await supabase.from("entity_records").update({
+    const { error } = await (supabase as any).from("entity_records").update({
       ...fields,
       audit_log: entity?.audit_log ? [
         ...(Array.isArray(entity.audit_log) ? entity.audit_log : []),

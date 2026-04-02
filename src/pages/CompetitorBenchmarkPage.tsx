@@ -177,6 +177,8 @@ export default function CompetitorBenchmarkPage() {
     ];
   }, [orgData, competitors]);
 
+  const allNames = orgData ? [orgData.name, ...competitors.map(c => c.name)] : [];
+
   // Share of Voice — normalise each day's mention count to % of total conversation
   const sovChartData = useMemo(() => {
     if (!orgData || allNames.length === 0) return [];
@@ -208,7 +210,6 @@ export default function CompetitorBenchmarkPage() {
     }));
   }, [orgData, competitors]);
 
-  const allNames = orgData ? [orgData.name, ...competitors.map(c => c.name)] : [];
 
   if (loading) {
     return (
