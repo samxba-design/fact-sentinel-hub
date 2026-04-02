@@ -995,6 +995,56 @@ Deno.serve(async (req) => {
 
     const inserted = allInserted;
 
+    // ── 11a. Entity → mention linking (async, non-blocking) ────────────────
+    // For each inserted mention, check if source/author_name matches a tracked entity.
+    // If so, update the mention's entity_id field (best-effort, won't block response).
+    if (inserted.length > 0) {
+      (async () => {
+        try {
+          const { data: entities } = await sb
+            .from("entity_records")
+            .select("id, handle, display_name, url")
+            .eq("org_id", parsedOrg)
+            .not("status", "eq", "archived")
+            .limit(100);
+
+          if (!entities || entities.length === 0) return;
+
+          // Build lookup map: lowercase term → entity_id
+          const entityLookup: Map<string, string> = new Map();
+          for (const e of entities) {
+            if (e.handle) entityLookup.set(e.handle.toLowerCase().replace(/^@/, ""), e.id);
+            if (e.display_name) entityLookup.set(e.display_name.toLowerCase(), e.id);
+          }
+
+          const updates: { id: string; entity_id: string }[] = [];
+          for (const mention of inserted) {
+            const src = (mention.source || "").toLowerCase();
+            const author = (mention.author_name || "").toLowerCase();
+            for (const [term, entityId] of entityLookup) {
+              if (term.length > 2 && (src.includes(term) || author.includes(term))) {
+                updates.push({ id: mention.id, entity_id: entityId });
+                break; // first match wins
+              }
+            }
+          }
+
+          if (updates.length > 0) {
+            // Batch update — 50 at a time
+            for (let i = 0; i < updates.length; i += 50) {
+              const batch = updates.slice(i, i + 50);
+              await Promise.all(
+                batch.map(u => sb.from("mentions").update({ entity_id: u.entity_id } as any).eq("id", u.id))
+              );
+            }
+            console.log(`[entity-link] Linked ${updates.length} mentions to tracked entities`);
+          }
+        } catch (e: any) {
+          console.warn("[entity-link] non-fatal:", e.message);
+        }
+      })();
+    }
+
     // ── 11. Update scan_run stats ──────────────────────────────────────────
     const negCount = mentionRows.filter(m =>
       m.sentiment_label === "negative" || m.sentiment_label === "mixed"
@@ -1108,6 +1158,20 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Scan ${scanRun.id} complete: ${inserted.length} mentions saved, ${negPct}% negative, ${critCount} high/critical`);
+
+    // ── 13a. Fire-and-forget detect-narratives for a thorough narrative pass ─
+    // (run-scan already does inline clustering above, but detect-narratives
+    //  does a deeper analysis pass — run async so it doesn't block the response)
+    if (inserted.length > 0) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      fetch(`${supabaseUrl}/functions/v1/detect-narratives`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        body: JSON.stringify({ org_id: parsedOrg }),
+        signal: AbortSignal.timeout(5000), // don't wait — just kick it off
+      }).catch(() => {}); // fully non-blocking
+    }
 
     // ── 13. Return success ─────────────────────────────────────────────────
     return json({

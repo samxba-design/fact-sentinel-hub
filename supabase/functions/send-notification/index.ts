@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
       escalation_assigned: "escalation_assigned",
       escalation_updated: "escalation_updated",
       scan_complete: "new_scan_complete",
+      watchlist_person_mention: "critical_alerts", // uses same pref gate as critical alerts
     };
 
     const prefField = prefFieldMap[type];
@@ -157,6 +158,19 @@ Deno.serve(async (req) => {
           profile.full_name || profile.email,
           orgName,
           `${APP_URL}/escalations`,
+          preferencesUrl,
+          emailTheme
+        );
+        subject = result.subject;
+        html = result.html;
+      } else if (type === "watchlist_person_mention") {
+        const personName = payload.person_name || "A tracked person";
+        const count = payload.new_mentions || 1;
+        const result = buildCriticalAlertEmail(
+          "Watchlist Alert",
+          `${personName} has ${count} new mention${count !== 1 ? "s" : ""} in the last 24 hours. Review their activity.`,
+          orgName,
+          `${APP_URL}/people`,
           preferencesUrl,
           emailTheme
         );

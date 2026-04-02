@@ -12,7 +12,7 @@ import {
 import {
   MessageSquareWarning, Network, Siren, Users, TicketCheck,
   LayoutDashboard, Scan, AlertTriangle, MessageCircleReply,
-  BookCheck, FileText, Download, Settings, Search, Target
+  BookCheck, FileText, Download, Settings, Search, Target, Shield
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -69,20 +69,22 @@ export default function GlobalSearch() {
     const orgId = currentOrg.id;
     const term = `%${q}%`;
 
-    const [mentions, narratives, incidents, people, escalations] = await Promise.all([
+    const [mentions, narratives, incidents, people, escalations, entities] = await Promise.all([
       supabase.from("mentions").select("id, content, source").eq("org_id", orgId).eq("mention_type", "brand").ilike("content", term).limit(5),
       supabase.from("narratives").select("id, name").eq("org_id", orgId).ilike("name", term).limit(5),
       supabase.from("incidents").select("id, name").eq("org_id", orgId).ilike("name", term).limit(5),
       supabase.from("people").select("id, name").ilike("name", term).limit(5),
       supabase.from("escalations").select("id, title").eq("org_id", orgId).ilike("title", term).limit(5),
+      (supabase as any).from("entity_records").select("id, display_name, handle, platform, risk_type").eq("org_id", orgId).or(`display_name.ilike.${term},handle.ilike.${term}`).limit(5),
     ]);
 
     const r: SearchResult[] = [
-      ...(mentions.data?.map(m => ({ type: "mention" as const, id: m.id, label: (m.content || "").slice(0, 80), detail: m.source })) || []),
-      ...(narratives.data?.map(n => ({ type: "narrative" as const, id: n.id, label: n.name })) || []),
-      ...(incidents.data?.map(i => ({ type: "incident" as const, id: i.id, label: i.name })) || []),
-      ...(people.data?.map(p => ({ type: "person" as const, id: p.id, label: p.name })) || []),
-      ...(escalations.data?.map(e => ({ type: "escalation" as const, id: e.id, label: e.title })) || []),
+      ...(mentions.data?.map((m: any) => ({ type: "mention" as const, id: m.id, label: (m.content || "").slice(0, 80), detail: m.source })) || []),
+      ...(narratives.data?.map((n: any) => ({ type: "narrative" as const, id: n.id, label: n.name })) || []),
+      ...(incidents.data?.map((i: any) => ({ type: "incident" as const, id: i.id, label: i.name })) || []),
+      ...(people.data?.map((p: any) => ({ type: "person" as const, id: p.id, label: p.name })) || []),
+      ...(escalations.data?.map((e: any) => ({ type: "escalation" as const, id: e.id, label: e.title })) || []),
+      ...(entities.data?.map((e: any) => ({ type: "entity" as const, id: e.id, label: e.display_name || e.handle || "Entity", detail: e.platform })) || []),
     ];
     setResults(r);
     setLoading(false);
@@ -105,6 +107,7 @@ export default function GlobalSearch() {
     incident: "/incidents",
     person: "/people",
     escalation: "/escalations",
+    entity: "/entities",
   };
 
   const typeIcons: Record<string, React.ElementType> = {
@@ -113,6 +116,7 @@ export default function GlobalSearch() {
     incident: Siren,
     person: Users,
     escalation: TicketCheck,
+    entity: Shield,
   };
 
   return (
@@ -130,7 +134,7 @@ export default function GlobalSearch() {
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
-          placeholder="Search mentions, narratives, incidents, people..."
+          placeholder="Search mentions, narratives, incidents, people, entities..."
           value={query}
           onValueChange={setQuery}
         />
