@@ -42,13 +42,12 @@ const TYPE_CONFIG: Record<string, { fill: string; size: number }> = {
 };
 
 const PHYSICS = {
-  chargeStrength: -120,   // weaker repulsion — was -300, caused explosion
-  linkDistance: 120,
-  dampingFactor: 0.05,
-  dt: 0.016,
-  velocityDecay: 0.85,    // more damping so nodes settle faster
-  centerStrength: 0.03,   // center gravity — pulls nodes back to canvas center
-  maxVelocity: 8,         // velocity cap — prevents runaway acceleration
+  chargeStrength: -800,  // repulsion (applied once, no size multiplier)
+  linkDistance: 120,     // target edge length in px
+  linkStrength: 0.05,    // spring constant for edges
+  centerStrength: 0.02,  // gentle pull back to origin
+  velocityDecay: 0.8,    // damping per tick (lower = settles faster)
+  maxVelocity: 6,        // px per tick cap
 };
 
 const MAX_SOURCE_NODES = 15; // cap source nodes to prevent O(n²) explosion
@@ -417,10 +416,9 @@ export default function NarrativeGraphPage() {
       for (let j = i + 1; j < ns.length; j++) {
         const dx = ns[j].x - ns[i].x;
         const dy = ns[j].y - ns[i].y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-        const force =
-          (PHYSICS.chargeStrength * TYPE_CONFIG[ns[i].type].size * TYPE_CONFIG[ns[j].type].size) /
-          (dist * dist);
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        // Simple Coulomb-like repulsion — no size multiplier to prevent blowup
+        const force = PHYSICS.chargeStrength / (dist * dist);
         const fx = (force * dx) / dist;
         const fy = (force * dy) / dist;
         ns[i].vx -= fx;
@@ -438,10 +436,10 @@ export default function NarrativeGraphPage() {
 
       const dx = target.x - source.x;
       const dy = target.y - source.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       const force = (dist - PHYSICS.linkDistance) / dist;
-      const fx = force * dx * 0.1;
-      const fy = force * dy * 0.1;
+      const fx = force * dx * PHYSICS.linkStrength;
+      const fy = force * dy * PHYSICS.linkStrength;
 
       source.vx += fx;
       source.vy += fy;
@@ -481,8 +479,9 @@ export default function NarrativeGraphPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
+    // Use CSS pixel dimensions — after ResizeObserver, canvas.width/height == clientWidth/Height
+    const w = canvas.clientWidth || canvas.width;
+    const h = canvas.clientHeight || canvas.height;
     const view = viewRef.current;
 
     // Clear
@@ -577,6 +576,23 @@ export default function NarrativeGraphPage() {
     });
   }, []);
 
+  // Resize observer — keep canvas buffer pixels = CSS display pixels (no DPR scaling needed)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          canvas.width = Math.round(width);
+          canvas.height = Math.round(height);
+        }
+      }
+    });
+    obs.observe(canvas);
+    return () => obs.disconnect();
+  }, []);
+
   // Animation loop
   useEffect(() => {
     let rafId = 0;
@@ -596,8 +612,9 @@ export default function NarrativeGraphPage() {
       const canvas = canvasRef.current;
       if (!canvas) return null;
 
-      const w = canvas.width;
-      const h = canvas.height;
+      // Use CSS pixel dimensions to match getBoundingClientRect() coords
+      const w = canvas.clientWidth || canvas.width;
+      const h = canvas.clientHeight || canvas.height;
       const view = viewRef.current;
 
       for (const n of nodesRef.current) {
@@ -914,14 +931,13 @@ export default function NarrativeGraphPage() {
         >
           <canvas
             ref={canvasRef}
-            width={1200}
-            height={560}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
             onContextMenu={handleContextMenu}
-            className="w-full h-full cursor-grab active:cursor-grabbing"
+            className="absolute inset-0 cursor-grab active:cursor-grabbing"
+            style={{ width: "100%", height: "100%" }}
           />
 
           {/* Zoom controls */}
