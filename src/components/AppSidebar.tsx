@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/risk-console", icon: AlertTriangle, label: "Risk Console" },
       { to: "/people", icon: Users, label: "Key People" },
       { to: "/threat-map", icon: Globe, label: "Threat Map" },
-      { to: "/narrative-graph", icon: Share2, label: "Network Graph" },
+      { to: "/narrative-graph", icon: Share2, label: "Narrative Intelligence" },
     ],
   },
   {
