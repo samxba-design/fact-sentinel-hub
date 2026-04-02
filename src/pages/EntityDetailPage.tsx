@@ -111,7 +111,7 @@ export default function EntityDetailPage() {
 
   const fetchEntity = useCallback(async () => {
     if (!id) return;
-    const { data } = await supabase.from("entity_records").select("*").eq("id", id).maybeSingle();
+    const { data } = await (supabase as any).from("entity_records").select("*").eq("id", id).maybeSingle();
     setEntity(data as EntityRecord | null);
     setLoading(false);
   }, [id]);
