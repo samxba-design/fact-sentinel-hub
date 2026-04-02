@@ -58,8 +58,6 @@ const QuickTriagePage = React.lazy(() => import("@/pages/QuickTriagePage"));
 const NoiseFiltersPage = React.lazy(() => import("@/pages/NoiseFiltersPage"));
 const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
 const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
-const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
-const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
 
 const queryClient = new QueryClient();
 
