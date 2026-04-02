@@ -120,7 +120,7 @@ export default function EntityDetailPage() {
 
   const patch = async (fields: Partial<EntityRecord>) => {
     if (!id) return;
-    const { error } = await supabase.from("entity_records").update({
+    const { error } = await (supabase as any).from("entity_records").update({
       ...fields,
       audit_log: entity?.audit_log ? [
         ...(Array.isArray(entity.audit_log) ? entity.audit_log : []),

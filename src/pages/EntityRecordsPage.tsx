@@ -251,7 +251,7 @@ export default function EntityRecordsPage() {
   const fetchEntities = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("entity_records")
       .select("*")
       .eq("org_id", currentOrg.id)

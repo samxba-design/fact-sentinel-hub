@@ -236,7 +236,7 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
         audit_log: [{ action: "created", at: new Date().toISOString(), by: "user" }],
       };
 
-      const { data: inserted, error } = await supabase
+      const { data: inserted, error } = await (supabase as any)
         .from("entity_records")
         .insert(payload)
         .select("id")
