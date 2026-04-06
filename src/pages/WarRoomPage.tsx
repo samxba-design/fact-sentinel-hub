@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Radio, Siren, MessageSquareWarning, TrendingDown, Shield,
-  Users, Clock, ExternalLink, Send, Wifi, WifiOff, AlertTriangle,
+  Users, Clock, ExternalLink, Send, Wifi, WifiOff, AlertTriangle, Plus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from "date-fns";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageGuide from "@/components/PageGuide";
+import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
 
 interface LiveMention {
   id: string;
@@ -63,6 +64,7 @@ export default function WarRoomPage() {
   const [connected, setConnected] = useState(false);
   const [liveMentions, setLiveMentions] = useState<LiveMention[]>([]);
   const [incidents, setIncidents] = useState<ActiveIncident[]>([]);
+  const [createIncidentOpen, setCreateIncidentOpen] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState({ total24h: 0, negative24h: 0, critical24h: 0 });
   const mentionFeedRef = useRef<HTMLDivElement>(null);
@@ -281,11 +283,31 @@ export default function WarRoomPage() {
         <div className="space-y-4">
           {/* Active Incidents */}
           <Card className="bg-card border-border p-5 space-y-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Siren className="h-3 w-3" /> Active Incidents
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Siren className="h-3 w-3" /> Active Incidents
+              </h3>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[10px] gap-1"
+                onClick={() => setCreateIncidentOpen(true)}
+              >
+                <Plus className="h-2.5 w-2.5" /> New
+              </Button>
+            </div>
             {incidents.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No active incidents</p>
+              <div className="text-center py-3 space-y-2">
+                <p className="text-xs text-muted-foreground">No active incidents</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 gap-1 text-primary"
+                  onClick={() => setCreateIncidentOpen(true)}
+                >
+                  <Plus className="h-3 w-3" /> Declare an incident
+                </Button>
+              </div>
             ) : (
               incidents.map(inc => (
                 <div
@@ -305,6 +327,19 @@ export default function WarRoomPage() {
               ))
             )}
           </Card>
+          <IncidentFormDialog
+            open={createIncidentOpen}
+            onOpenChange={setCreateIncidentOpen}
+            onSaved={() => {
+              setCreateIncidentOpen(false);
+              // Reload incidents
+              if (currentOrg) {
+                supabase.from("incidents").select("id, name, status, started_at")
+                  .eq("org_id", currentOrg.id).eq("status", "active")
+                  .then(({ data }) => setIncidents((data as ActiveIncident[]) || []));
+              }
+            }}
+          />
 
           {/* Team Presence */}
           <Card className="bg-card border-border p-5 space-y-3">

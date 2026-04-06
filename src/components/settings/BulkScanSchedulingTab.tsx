@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Save, Loader2, Zap, Languages } from "lucide-react";
+import { Clock, Save, Loader2, Zap, Languages, CheckCircle2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import InfoTooltip from "@/components/InfoTooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
 
 interface SourceSchedule {
   type: string;
@@ -49,6 +50,8 @@ export default function BulkScanSchedulingTab() {
   const [schedules, setSchedules] = useState<SourceSchedule[]>([]);
   const [multiLangEnabled, setMultiLangEnabled] = useState(false);
   const [autoTranslate, setAutoTranslate] = useState(true);
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
+  const [totalScans, setTotalScans] = useState<number>(0);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -56,12 +59,16 @@ export default function BulkScanSchedulingTab() {
     Promise.all([
       supabase.from("sources").select("type, enabled").eq("org_id", currentOrg.id),
       supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle(),
-    ]).then(([sourcesRes, profileRes]) => {
+      supabase.from("scan_runs").select("finished_at").eq("org_id", currentOrg.id).eq("status", "completed").order("finished_at", { ascending: false }).limit(1),
+      supabase.from("scan_runs").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "completed"),
+    ]).then(([sourcesRes, profileRes, lastScanRes, countRes]) => {
       const sources = sourcesRes.data || [];
       const settings = (profileRes.data?.settings as Record<string, any>) || {};
       const scanSchedules = settings.scan_schedules || {};
       setMultiLangEnabled(settings.multi_language_detection ?? false);
       setAutoTranslate(settings.auto_translate ?? true);
+      setLastScanAt(lastScanRes.data?.[0]?.finished_at || null);
+      setTotalScans(countRes.count ?? 0);
 
       setSchedules(
         sources.map(s => ({
@@ -140,6 +147,23 @@ export default function BulkScanSchedulingTab() {
           Save Schedules
         </Button>
       </div>
+
+      {/* Last scan status */}
+      <Card className="bg-muted/30 border-border p-3">
+        <div className="flex items-center gap-3 text-sm">
+          <CheckCircle2 className={`h-4 w-4 shrink-0 ${lastScanAt ? "text-emerald-500" : "text-muted-foreground"}`} />
+          <div>
+            <span className="text-foreground font-medium">
+              {lastScanAt
+                ? `Last scan completed ${formatDistanceToNow(new Date(lastScanAt), { addSuffix: true })}`
+                : "No completed scans yet"}
+            </span>
+            <span className="text-muted-foreground ml-2 text-xs">
+              {totalScans > 0 ? `${totalScans} total scan${totalScans !== 1 ? "s" : ""} completed` : "Run your first scan from the Scans page"}
+            </span>
+          </div>
+        </div>
+      </Card>
 
       {schedules.length === 0 ? (
         <Card className="bg-card border-border p-8 text-center">

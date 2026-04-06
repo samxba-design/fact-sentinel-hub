@@ -658,16 +658,31 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 3. Load org + keywords ─────────────────────────────────────────────
-    const [orgRes, kwRes, ignoredRes] = await Promise.all([
+    // ── 3. Load org + keywords + noise rules ──────────────────────────────
+    const [orgRes, kwRes, ignoredRes, profileRes] = await Promise.all([
       sb.from("organizations").select("name,domain,plan").eq("id", org_id).maybeSingle(),
       sb.from("keywords").select("value,type").eq("org_id", org_id).eq("status", "active"),
       sb.from("ignored_sources").select("domain").eq("org_id", org_id),
+      sb.from("tracking_profiles").select("settings").eq("org_id", org_id).maybeSingle(),
     ]);
 
     const orgName = orgRes.data?.name || "";
     const orgDomain = (orgRes.data?.domain || "").toLowerCase();
     const ignoredDomains = new Set((ignoredRes.data || []).map((r: any) => r.domain?.toLowerCase() || ""));
+
+    // Load noise filter rules from tracking_profiles.settings
+    const noiseRules: Array<{ type: string; value: string; field?: string }> =
+      (profileRes.data?.settings as any)?.noise_rules || [];
+    const noiseBlockedDomains = new Set(
+      noiseRules.filter(r => r.type === "domain").map(r => r.value.toLowerCase())
+    );
+    const noiseBlockedKeywords = noiseRules
+      .filter(r => r.type === "keyword")
+      .map(r => r.value.toLowerCase());
+    const noiseBlockedAuthors = new Set(
+      noiseRules.filter(r => r.type === "author").map(r => r.value.toLowerCase())
+    );
+    console.log(`[noise] ${noiseRules.length} rules: ${noiseBlockedDomains.size} domains, ${noiseBlockedKeywords.length} keywords, ${noiseBlockedAuthors.size} authors`);
 
     // Separate competitor keywords from brand/risk/product keywords
     // Competitor scans are always separate — they don't belong in brand health metrics
@@ -817,7 +832,18 @@ Deno.serve(async (req) => {
         // Block self-published content
         if (orgDomain && host === orgDomain) return false;
         if (ignoredDomains.has(host)) return false;
+        // Apply noise filter domain rules
+        if (noiseBlockedDomains.has(host)) return false;
       } catch { return false; }
+      // Apply noise filter keyword rules (block if content matches any blocked keyword)
+      if (noiseBlockedKeywords.length > 0) {
+        const lc = (r.content + " " + (r.title || "")).toLowerCase();
+        if (noiseBlockedKeywords.some(kw => lc.includes(kw))) return false;
+      }
+      // Apply noise filter author rules
+      if (noiseBlockedAuthors.size > 0 && r.author_name) {
+        if (noiseBlockedAuthors.has(r.author_name.toLowerCase())) return false;
+      }
       if (dateFromMs && r.posted_at) {
         if (new Date(r.posted_at).getTime() < dateFromMs) return false;
       }

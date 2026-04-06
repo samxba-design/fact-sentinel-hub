@@ -90,8 +90,17 @@ export default function CompetitorBenchmarkPage() {
       .eq("type", "brand")
       .eq("status", "active");
 
-    // Get all recent mentions
-    const { data: mentions } = await supabase
+    // Get brand mentions separately (not from competitor scans)
+    const { data: brandMentions } = await supabase
+      .from("mentions")
+      .select("content, sentiment_label, severity, source, posted_at, created_at")
+      .eq("org_id", currentOrg.id)
+      .eq("mention_type", "brand")
+      .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`)
+      .limit(500);
+
+    // Get competitor mentions using competitor_name column directly (accurate, no content matching)
+    const { data: compMentions } = await supabase
       .from("mentions")
       .select("content, sentiment_label, severity, source, posted_at, created_at, competitor_name")
       .eq("org_id", currentOrg.id)
@@ -99,9 +108,8 @@ export default function CompetitorBenchmarkPage() {
       .or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`)
       .limit(1000);
 
-    const allMentions = mentions || [];
+    const allCompMentions = compMentions || [];
     const compNames = (keywords || []).map(k => k.value);
-    const brandNames = (brandKws || []).map(k => k.value);
 
     // Build day map template
     const dayTemplate: Record<string, number> = {};
@@ -109,7 +117,7 @@ export default function CompetitorBenchmarkPage() {
       dayTemplate[format(subDays(now, i), "MMM dd")] = 0;
     }
 
-    const buildData = (name: string, matched: typeof allMentions): CompetitorData => {
+    const buildData = (name: string, matched: any[]): CompetitorData => {
       const total = matched.length || 1;
       const neg = matched.filter(m => m.sentiment_label === "negative").length;
       const pos = matched.filter(m => m.sentiment_label === "positive").length;
@@ -117,8 +125,10 @@ export default function CompetitorBenchmarkPage() {
       const sources = new Set(matched.map(m => m.source));
       const volByDay = { ...dayTemplate };
       matched.forEach(m => {
-        const d = format(new Date(m.posted_at || m.created_at || ""), "MMM dd");
-        if (d in volByDay) volByDay[d]++;
+        try {
+          const d = format(new Date(m.posted_at || m.created_at || ""), "MMM dd");
+          if (d in volByDay) volByDay[d]++;
+        } catch {}
       });
       return {
         name,
@@ -132,16 +142,16 @@ export default function CompetitorBenchmarkPage() {
       };
     };
 
-    // Build org data (brand mentions = mentions not matching any competitor)
-    const orgMentions = allMentions.filter(m => {
-      const c = (m.content || "").toLowerCase();
-      return brandNames.length === 0 || brandNames.some(b => c.includes(b.toLowerCase()));
-    });
-    setOrgData(buildData(currentOrg.name || "Your Brand", orgMentions));
+    // Build org data from brand mentions
+    setOrgData(buildData(currentOrg.name || "Your Brand", brandMentions || []));
 
-    // Build competitor data
+    // Build competitor data using competitor_name column (exact match, no content guessing)
     const compData = compNames.map(name => {
-      const matched = allMentions.filter(m => (m.content || "").toLowerCase().includes(name.toLowerCase()));
+      const matched = allCompMentions.filter(m =>
+        m.competitor_name?.toLowerCase() === name.toLowerCase()
+        // Fallback: content match if competitor_name not set (older scans)
+        || (!m.competitor_name && (m.content || "").toLowerCase().includes(name.toLowerCase()))
+      );
       return buildData(name, matched);
     });
     setCompetitors(compData);

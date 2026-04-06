@@ -325,6 +325,34 @@ export default function DashboardPage() {
       <OnboardingTour />
       <GettingStartedChecklist />
       <UpgradeBanner feature="Advanced analytics & unlimited scans" />
+
+      {/* ── New-user zero state ── */}
+      {!loading && totalMentions === 0 && !lastScanAt && (
+        <Card className="bg-gradient-to-br from-primary/5 via-card to-card border-primary/20 p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+              <Shield className="h-7 w-7 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-foreground">Welcome to SentiWatch — run your first scan</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Your dashboard is empty because no scans have run yet. A scan pulls in brand mentions from news, social, Reddit, and more, then analyses sentiment and detects narrative themes automatically.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button size="sm" onClick={() => navigate("/scans")} className="gap-1.5">
+                  <Zap className="h-3.5 w-3.5" /> Run First Scan
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => navigate("/settings")} className="gap-1.5">
+                  Configure Keywords
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => navigate("/guide")} className="gap-1.5 text-muted-foreground">
+                  View Getting Started Guide
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>

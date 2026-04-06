@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain } from "lucide-react";
+import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain, Printer } from "lucide-react";
 import SmartDigestDialog from "@/components/briefing/SmartDigestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -225,6 +225,10 @@ export default function BriefingPage() {
           <Button variant="outline" size="sm" onClick={copyLink} className="gap-2">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Share Briefing Link"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+            <Printer className="h-3.5 w-3.5" />
+            Export PDF
           </Button>
           <SmartDigestDialog />
         </div>

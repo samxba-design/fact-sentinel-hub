@@ -46,19 +46,17 @@ export default function TestimonialRequest() {
         return;
       }
 
-      // Insert testimonial — using the response_drafts table as a proxy since
-      // there's no dedicated testimonials table; or insert into mentions as a
-      // "testimonial" source entry
-      const { error } = await supabase.from("mentions").insert({
+      // Insert into dedicated testimonials table (not mentions — keeps sentiment data clean)
+      const { error } = await supabase.from("testimonials").insert({
         org_id: org.id,
-        source: "testimonial",
-        content: `[Testimonial from ${form.author_name}${form.author_title ? `, ${form.author_title}` : ""}${form.author_company ? ` at ${form.author_company}` : ""}]\n\n${form.content}`,
-        author_name: form.author_name,
-        sentiment_label: "positive",
-        sentiment_score: rating > 0 ? (rating - 3) / 2 : 0.5,
-        mention_type: "brand",
+        submitter_name: form.author_name,
+        submitter_role: form.author_title || null,
+        submitter_company: form.author_company || null,
+        content: form.content,
+        rating: rating > 0 ? rating : null,
         status: "pending",
-      });
+        source_slug: slug || null,
+      } as any);
 
       if (error) throw error;
 

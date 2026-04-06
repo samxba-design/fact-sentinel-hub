@@ -109,7 +109,14 @@ export default function RespondPage() {
         },
       });
       if (error) throw new Error(error.message || "Failed to generate response");
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        // Friendly message for missing AI key
+        const msg = data.error as string;
+        if (msg.includes("LOVABLE_API_KEY") || msg.includes("AI") || msg.includes("gateway")) {
+          throw new Error("AI response generation requires a LOVABLE_API_KEY. Contact your admin to configure it in Supabase Edge Function secrets.");
+        }
+        throw new Error(msg);
+      }
       setResult(data as ResponseResult);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });

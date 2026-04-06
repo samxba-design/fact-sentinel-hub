@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X, Scan, Settings2, Eye } from "lucide-react";
+import { AlertTriangle, Siren, Flag, ShieldAlert, TrendingUp, Zap, Bell, Check, X, Scan, Settings2, Eye, MessageSquare, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -321,23 +321,57 @@ export default function RiskConsolePage() {
             filteredMentions.slice(0, 15).map(item => (
               <div
                 key={item.id}
-                className={`flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer ${
+                className={`group p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors ${
                   item.severity === "critical" ? "border border-sentinel-red/30 sentinel-pulse-red" : ""
                 }`}
-                onClick={() => navigate(`/mentions/${item.id}`)}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <AlertTriangle className={`h-4 w-4 shrink-0 ${item.severity === "critical" ? "text-sentinel-red" : "text-sentinel-amber"}`} />
-                  <div className="min-w-0">
-                    <div className="text-sm text-card-foreground line-clamp-1">{item.content || "No content"}</div>
-                    <div className="text-xs text-muted-foreground">{item.source} · {timeAgo(item.posted_at)}</div>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${item.severity === "critical" ? "text-sentinel-red" : "text-sentinel-amber"}`} />
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className="text-sm text-card-foreground line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => navigate(`/mentions/${item.id}`)}
+                    >
+                      {item.content || "No content"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{item.source} · {timeAgo(item.posted_at)}</div>
+                    {/* Inline actions */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={() => navigate(`/respond?mention=${item.id}`)}
+                      >
+                        <MessageSquare className="h-2.5 w-2.5" /> Respond
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={async () => {
+                          await supabase.from("escalations").insert({ org_id: currentOrg?.id, mention_id: item.id, status: "open", reason: "Flagged from Risk Console" });
+                          toast({ title: "Escalated", description: "Added to escalations queue" });
+                        }}
+                      >
+                        <Flag className="h-2.5 w-2.5" /> Escalate
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-[10px] gap-1 text-muted-foreground"
+                        onClick={() => navigate(`/mentions/${item.id}`)}
+                      >
+                        <ChevronRight className="h-2.5 w-2.5" /> Details
+                      </Button>
+                    </div>
                   </div>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                    item.severity === "critical" ? "border-sentinel-red/30 text-sentinel-red" : "border-sentinel-amber/30 text-sentinel-amber"
+                  }`}>
+                    {item.severity}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className={`text-[10px] shrink-0 ${
-                  item.severity === "critical" ? "border-sentinel-red/30 text-sentinel-red" : "border-sentinel-amber/30 text-sentinel-amber"
-                }`}>
-                  {item.severity}
-                </Badge>
               </div>
             ))
           )}

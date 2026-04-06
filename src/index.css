@@ -229,3 +229,26 @@
     max-width: 100% !important;
   }
 }
+/* ── Print / PDF export (used by Briefing page) ──────────────────────── */
+@media print {
+  /* Hide all chrome — sidebar, toolbar, header, buttons */
+  aside, nav, header,
+  [data-sidebar], [role="navigation"],
+  .no-print, button, [role="button"],
+  .fixed, .sticky { display: none !important; }
+
+  /* Reset background for white paper */
+  body, .bg-background, .bg-card { background: white !important; color: black !important; }
+  .text-muted-foreground { color: #555 !important; }
+  .text-foreground, .text-card-foreground { color: #111 !important; }
+  .border-border { border-color: #ddd !important; }
+
+  /* Full width content */
+  main, [data-main-content], .max-w-5xl { max-width: 100% !important; margin: 0 !important; padding: 8px !important; }
+
+  /* Ensure cards show borders */
+  .rounded-xl, .rounded-lg { border: 1px solid #ddd !important; }
+
+  /* Page breaks */
+  .space-y-8 > * { page-break-inside: avoid; }
+}
