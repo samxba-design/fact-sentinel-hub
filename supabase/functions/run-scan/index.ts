@@ -70,15 +70,39 @@ function xmlDecode(s: string): string {
 }
 
 function isJunk(text: string): boolean {
-  const blockers = [
-    "blocked by an extension", "enable javascript", "access denied",
-    "403 forbidden", "captcha", "please verify you are a human",
-    "cloudflare", "just a moment", "checking your browser", "page not found",
-    "javascript is required", "cookie policy", "sign in to youtube",
-  ];
   const lower = text.toLowerCase();
-  const hits = blockers.filter(b => lower.includes(b)).length;
-  return hits >= 2 || (hits >= 1 && text.length < 200);
+
+  // Hard-block patterns — 1 hit is enough to discard
+  const hardBlock = [
+    "403 forbidden", "access denied", "access is denied",
+    "403 error", "http 403", "status 403",
+    "captcha", "please verify you are a human", "are you a human",
+    "cloudflare", "just a moment", "checking your browser",
+    "ray id:", "cf-ray",
+    "sign in to youtube", "youtube.*sign in",
+    "this video is private", "video unavailable",
+    "enable javascript to run this app",
+    "javascript is required", "you need javascript",
+    "blocked by an extension",
+    "page cannot be displayed",
+    "service unavailable", "503 service",
+    "502 bad gateway", "504 gateway",
+    "this page isn't available", "page not found", "404 not found",
+    "error establishing a database connection",
+    "we couldn't find this page",
+  ];
+  if (hardBlock.some(b => lower.includes(b))) return true;
+
+  // Soft-block patterns — 2 hits = discard
+  const softBlock = [
+    "cookie policy", "accept cookies", "we use cookies",
+    "access control", "forbidden", "not authorized",
+    "please log in", "please sign in", "login required",
+    "subscribe to read", "subscribe to continue",
+    "paywall", "premium content",
+  ];
+  const softHits = softBlock.filter(b => lower.includes(b)).length;
+  return softHits >= 2;
 }
 
 // Normalize URL for dedup — strip tracking params, fragment, trailing slash
@@ -841,13 +865,13 @@ async function analyzeWithAI(
             {
               role: "system",
               content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
-- relevant: boolean (is this actually about "${brandName}"?)  
+- relevant: boolean — true if this is a genuine mention/discussion about "${brandName}". Mark FALSE for: error pages (403, 404, 500), crawler failures, empty content, login walls, cookie notices, app store listing pages (not reviews), homepage descriptions, Wikipedia/reference pages, or any content that does not contain an actual human opinion, news story, or discussion about ${brandName}.
 - sentiment_label: "positive"|"negative"|"neutral"|"mixed"
 - sentiment_score: number from -1.0 to 1.0
 - severity: "low"|"medium"|"high"|"critical"
-- summary: 1-2 sentence plain English description
+- summary: 1-2 sentence plain English description of what is being said
 - flags: {misinformation:bool, viral_potential:bool}
-Be INCLUSIVE — mark relevant=true unless clearly unrelated. Return ONLY valid JSON: {"analyses":[...]}`,
+Return ONLY valid JSON: {"analyses":[...]}`,
             },
             {
               role: "user",

@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import SourceBadge from "@/components/SourceBadge";
-import { Radio, AlertTriangle } from "lucide-react";
+import { Radio, AlertTriangle, WifiOff, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import InfoTooltip from "@/components/InfoTooltip";
+import { useLiveNarratives, buildLiveFilter } from "@/hooks/useLiveNarratives";
 
 interface LiveMention {
   id: string;
@@ -38,57 +40,94 @@ const severityDot: Record<string, string> = {
 export default function LiveThreatFeed() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
+  const { config } = useLiveNarratives();
   const [feed, setFeed] = useState<LiveMention[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const { sentimentFilter, severityFilter } = buildLiveFilter(config);
 
-  // Load initial recent mentions
-  useEffect(() => {
+  const loadFeed = async () => {
     if (!currentOrg) return;
-    (async () => {
-      const { data } = await supabase
-        .from("mentions")
-        .select("id, content, source, severity, sentiment_label, posted_at, author_name, created_at")
-        .eq("org_id", currentOrg.id)
-        .eq("mention_type", "brand")
-        .order("created_at", { ascending: false })
-        .limit(8);
-      setFeed((data as LiveMention[]) || []);
-    })();
-  }, [currentOrg]);
+    setRefreshing(true);
+    let q = supabase
+      .from("mentions")
+      .select("id, content, source, severity, sentiment_label, posted_at, author_name, created_at")
+      .eq("org_id", currentOrg.id)
+      .eq("mention_type", "brand")
+      .order("created_at", { ascending: false })
+      .limit(15);
 
-  // Subscribe to realtime inserts
+    // Apply filters when live mode is on
+    if (config.enabled) {
+      if (sentimentFilter && sentimentFilter.length > 0) q = q.in("sentiment_label", sentimentFilter);
+      if (severityFilter && severityFilter.length > 0) q = q.in("severity", severityFilter);
+      if (config.sources.length > 0) q = q.in("source", config.sources);
+    }
+
+    const { data } = await q;
+    setFeed((data as LiveMention[]) || []);
+    setRefreshing(false);
+  };
+
+  // Load feed on mount and config change
+  useEffect(() => { loadFeed(); }, [currentOrg, config.enabled, config.sentiment, config.minSeverity, JSON.stringify(config.sources)]);
+
+  // Realtime subscription — only when enabled AND showLiveFeed is on
   useEffect(() => {
-    if (!currentOrg) return;
+    if (!currentOrg || !config.enabled || !config.showLiveFeed) {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
 
     const channel = supabase
-      .channel("live-mentions")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "mentions",
-          filter: `org_id=eq.${currentOrg.id}`,
-        },
-        (payload) => {
-          const newMention = payload.new as LiveMention;
-          setFeed((prev) => [newMention, ...prev].slice(0, 20));
-        }
-      )
+      .channel(`live-threat-feed-${currentOrg.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "mentions",
+        filter: `org_id=eq.${currentOrg.id}`,
+      }, (payload) => {
+        const newMention = payload.new as LiveMention;
+        // Client-side filter matching
+        if (sentimentFilter && !sentimentFilter.includes(newMention.sentiment_label || "")) return;
+        if (severityFilter && !severityFilter.includes(newMention.severity || "")) return;
+        if (config.sources.length > 0 && !config.sources.includes(newMention.source)) return;
+        setFeed(prev => [newMention, ...prev].slice(0, 20));
+      })
       .subscribe();
 
+    channelRef.current = channel;
     return () => {
       supabase.removeChannel(channel);
+      channelRef.current = null;
     };
-  }, [currentOrg]);
+  }, [currentOrg?.id, config.enabled, config.showLiveFeed, JSON.stringify(sentimentFilter), JSON.stringify(severityFilter), JSON.stringify(config.sources)]);
 
   return (
     <Card className="bg-card border-border p-5 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-card-foreground flex items-center gap-2">
-          <Radio className="h-4 w-4 text-primary" />
+          {config.enabled && config.showLiveFeed
+            ? <Radio className="h-4 w-4 text-primary animate-pulse" />
+            : <Radio className="h-4 w-4 text-muted-foreground" />
+          }
           Recent Scan Detections
-          <InfoTooltip text="Live feed of the latest mentions detected by your scans. Critical and high-severity items glow to indicate urgency. Click any item to view details." />
+          {config.enabled && config.showLiveFeed && (
+            <span className="text-[10px] text-emerald-500 bg-emerald-500/10 rounded-full px-1.5 py-0.5">Live</span>
+          )}
+          {!config.enabled && (
+            <span className="text-[10px] text-muted-foreground bg-muted/50 rounded-full px-1.5 py-0.5 flex items-center gap-1">
+              <WifiOff className="h-2.5 w-2.5" /> Static
+            </span>
+          )}
+          <InfoTooltip text="Shows recent mentions from your scans. Enable Live Monitoring in Narrative Now to receive real-time updates as new mentions arrive." />
         </span>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={loadFeed} disabled={refreshing} title="Refresh">
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        </Button>
       </div>
       {feed.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
