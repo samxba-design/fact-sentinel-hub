@@ -81,11 +81,28 @@ function isJunk(text: string): boolean {
   return hits >= 2 || (hits >= 1 && text.length < 200);
 }
 
+// Normalize URL for dedup — strip tracking params, fragment, trailing slash
+function normalizeUrl(url: string): string {
+  if (!url) return "";
+  try {
+    const u = new URL(url.toLowerCase());
+    // Remove known tracking/utm params
+    const TRACKING_PARAMS = ["utm_source","utm_medium","utm_campaign","utm_term","utm_content",
+      "ref","source","fbclid","gclid","msclkid","igshid","mc_cid","mc_eid","_ga","_gl",
+      "share","from","via","s","t","si"];
+    for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+    u.hash = "";
+    return (u.origin + u.pathname).replace(/\/$/, "") + (u.search !== "?" ? u.search : "");
+  } catch {
+    return url.toLowerCase().replace(/\/$/, "").replace(/^https?:\/\//, "");
+  }
+}
+
 function dedup(arr: any[]): any[] {
   const seen = new Set<string>();
   return arr.filter(r => {
     if (!r.url) return true;
-    const key = r.url.toLowerCase().replace(/\/$/, "").replace(/^https?:\/\//, "");
+    const key = normalizeUrl(r.url);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -125,10 +142,12 @@ function kwSentiment(text: string) {
 
 async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<any[]> {
   const results: any[] = [];
-  const queries = [
-    keywords.slice(0, 3).join(" OR "),
-    keywords[0],
-    keywords.length > 1 ? `"${keywords[0]}" site:news` : null,
+  // Run multiple keyword combinations to maximize coverage
+  const queries: string[] = [
+    keywords.slice(0, 4).join(" OR "),       // all main keywords
+    keywords[0],                              // primary keyword alone (most relevant)
+    keywords.length > 2 ? `"${keywords[0]}" "${keywords[1]}"` : null,  // exact phrase combo
+    keywords.length > 1 ? keywords[1] : null, // second keyword alone
   ].filter(Boolean) as string[];
 
   await Promise.allSettled(queries.map(async (q) => {
@@ -308,7 +327,7 @@ async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
 
 async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<any[]> {
   const results: any[] = [];
-  await Promise.allSettled(keywords.slice(0, 2).map(async (kw) => {
+  await Promise.allSettled(keywords.slice(0, 5).map(async (kw) => {
     try {
       const params = new URLSearchParams({ query: kw, hitsPerPage: "20", tags: "story,comment" });
       if (dateFrom) {
@@ -341,7 +360,7 @@ async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<a
 async function crawlReddit(keywords: string[], dateFrom?: string): Promise<any[]> {
   const results: any[] = [];
   const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
-  await Promise.allSettled(keywords.slice(0, 2).map(async (kw) => {
+  await Promise.allSettled(keywords.slice(0, 5).map(async (kw) => {
     try {
       const params = new URLSearchParams({ q: kw, sort: "new", limit: "25", t: "month" });
       const res = await fetch(`https://www.reddit.com/search.json?${params}`, {
@@ -479,6 +498,314 @@ async function crawlFirecrawl(keywords: string[], limit: number, apiKey: string)
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ── Language detection (heuristic, no library needed) ──────────────────────
+// Detects obvious non-English text by checking common high-frequency words
+function detectLanguage(text: string): string {
+  if (!text || text.length < 20) return "en";
+  const t = text.toLowerCase();
+  // CJK unicode range
+  if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(t)) {
+    if (/[\u4e00-\u9fff]/.test(t) && /[\u3040-\u30ff]/.test(t)) return "ja";
+    if (/[\uac00-\ud7af]/.test(t)) return "ko";
+    return "zh";
+  }
+  if (/[\u0400-\u04ff]/.test(t)) return "ru"; // Cyrillic
+  if (/[\u0600-\u06ff]/.test(t)) return "ar"; // Arabic
+  // Common non-English Latin words
+  const es = ["que","con","para","pero","como","esto","este","una","por","los","las","del","al","se","no","en","es","de","la","el","un"];
+  const fr = ["que","avec","pour","mais","comme","dans","sur","les","des","est","une","pas","plus","tout","bien","aussi","très","être","avoir","faire"];
+  const de = ["und","der","die","das","ist","mit","für","nicht","auch","sich","nach","auf","des","bei","ein","eine","als","aber","oder","wenn"];
+  const pt = ["que","com","para","mas","como","isso","este","uma","por","os","as","do","ao","se","não","em","é","de","a","o","um"];
+  const words = t.split(/\s+/);
+  const score = (list: string[]) => words.filter(w => list.includes(w)).length / Math.max(words.length, 1);
+  const scores = { es: score(es), fr: score(fr), de: score(de), pt: score(pt) };
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  if (best[1] > 0.18) return best[0]; // >18% of words match → non-English
+  return "en";
+}
+
+// ── Twitter/X crawler ─────────────────────────────────────────────────────
+async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
+  const results: any[] = [];
+  try {
+    const query = keywords.slice(0, 5).map(k => `"${k}"`).join(" OR ");
+    const params = new URLSearchParams({
+      query: `(${query}) -is:retweet lang:en`,
+      max_results: "100",
+      "tweet.fields": "created_at,public_metrics,author_id,lang",
+      "user.fields": "name,username,verified,public_metrics",
+      expansions: "author_id",
+    });
+    if (dateFrom) params.set("start_time", new Date(dateFrom).toISOString());
+    if (dateTo) params.set("end_time", new Date(dateTo).toISOString());
+
+    const res = await fetch(`https://api.x.com/2/tweets/search/recent?${params}`, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn(`[twitter] ${res.status}: ${err.detail || err.title || "API error"}`);
+      return results;
+    }
+    const data = await res.json();
+    const tweets = data.data || [];
+    const userMap = new Map((data.includes?.users || []).map((u: any) => [u.id, u]));
+    for (const tweet of tweets) {
+      const author = userMap.get(tweet.author_id) as any;
+      const content = clean(tweet.text || "");
+      if (content.length < 15) continue;
+      results.push({
+        source: "twitter",
+        content,
+        title: `Tweet by @${author?.username || "unknown"}`,
+        url: `https://twitter.com/${author?.username || "i"}/status/${tweet.id}`,
+        author_name: author?.name || author?.username || "Twitter User",
+        author_handle: `@${author?.username || "unknown"}`,
+        author_verified: author?.verified || false,
+        author_follower_count: author?.public_metrics?.followers_count || 0,
+        posted_at: tweet.created_at || null,
+        date_verified: !!tweet.created_at,
+        language: tweet.lang || "en",
+        metrics: {
+          likes: tweet.public_metrics?.like_count || 0,
+          shares: tweet.public_metrics?.retweet_count || 0,
+          comments: tweet.public_metrics?.reply_count || 0,
+        },
+      });
+    }
+    console.log(`[twitter] ${results.length} tweets`);
+  } catch (e: any) { console.warn("[twitter] failed:", e.message); }
+  return results;
+}
+
+// ── YouTube crawler ───────────────────────────────────────────────────────
+async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
+  const results: any[] = [];
+  try {
+    const query = keywords.slice(0, 5).join(" | ");
+    const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
+    searchUrl.searchParams.set("part", "snippet");
+    searchUrl.searchParams.set("q", query);
+    searchUrl.searchParams.set("type", "video");
+    searchUrl.searchParams.set("maxResults", "25");
+    searchUrl.searchParams.set("order", "date");
+    searchUrl.searchParams.set("key", apiKey);
+    if (dateFrom) searchUrl.searchParams.set("publishedAfter", new Date(dateFrom).toISOString());
+    if (dateTo) searchUrl.searchParams.set("publishedBefore", new Date(dateTo).toISOString());
+
+    const searchRes = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(20000) });
+    if (!searchRes.ok) { console.warn(`[youtube] search ${searchRes.status}`); return results; }
+    const searchData = await searchRes.json();
+    const items = searchData.items || [];
+    if (items.length === 0) return results;
+
+    // Fetch stats
+    const videoIds = items.map((v: any) => v.id?.videoId).filter(Boolean);
+    const statsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
+    statsUrl.searchParams.set("part", "statistics");
+    statsUrl.searchParams.set("id", videoIds.join(","));
+    statsUrl.searchParams.set("key", apiKey);
+    const statsRes = await fetch(statsUrl.toString(), { signal: AbortSignal.timeout(10000) });
+    const statsData = statsRes.ok ? await statsRes.json() : { items: [] };
+    const statsMap: Record<string, any> = {};
+    for (const v of (statsData.items || [])) statsMap[v.id] = v.statistics;
+
+    const dateFromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+    for (const item of items) {
+      const vid = item.id?.videoId;
+      const sn = item.snippet || {};
+      if (dateFromMs > 0 && new Date(sn.publishedAt).getTime() < dateFromMs) continue;
+      const st = statsMap[vid] || {};
+      const content = clean(`${sn.title || ""}. ${sn.description || ""}`.trim()).slice(0, 800);
+      if (content.length < 20) continue;
+      results.push({
+        source: "youtube",
+        content,
+        title: sn.title || "",
+        url: `https://www.youtube.com/watch?v=${vid}`,
+        author_name: sn.channelTitle || "",
+        author_handle: sn.channelId || "",
+        posted_at: sn.publishedAt || null,
+        date_verified: !!sn.publishedAt,
+        metrics: {
+          likes: parseInt(st.likeCount || "0"),
+          comments: parseInt(st.commentCount || "0"),
+          views: parseInt(st.viewCount || "0"),
+        },
+      });
+    }
+    console.log(`[youtube] ${results.length} videos`);
+  } catch (e: any) { console.warn("[youtube] failed:", e.message); }
+  return results;
+}
+
+// ── Trustpilot RSS (free, no scraping, real review data) ─────────────────
+// Trustpilot publishes RSS feeds for company pages at /review/{domain}?format=rss
+// Also searches their sitemap for keyword-matching companies
+async function crawlTrustpilotRSS(keywords: string[], orgDomain: string): Promise<any[]> {
+  const results: any[] = [];
+  // Build candidate domains to check: org domain + keyword-derived guesses
+  const candidateDomains: string[] = [];
+  if (orgDomain && !orgDomain.includes(" ")) {
+    candidateDomains.push(orgDomain.replace(/^www\./, ""));
+  }
+  // Derive domain guesses from first keyword (e.g. "Binance" → "binance.com")
+  const firstKw = keywords[0]?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (firstKw && firstKw.length > 2 && !candidateDomains.includes(`${firstKw}.com`)) {
+    candidateDomains.push(`${firstKw}.com`);
+  }
+
+  await Promise.allSettled(candidateDomains.slice(0, 3).map(async (domain) => {
+    try {
+      const rssUrl = `https://www.trustpilot.com/review/${domain}?format=rss`;
+      const res = await fetch(rssUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatchBot/1.0)" },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) return; // Company not on Trustpilot or different domain
+      const xml = await res.text();
+      if (xml.includes("Just a moment") || xml.includes("captcha") || xml.length < 200) return;
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items.slice(0, 20)) {
+        try {
+          const title = xmlDecode(item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "");
+          const desc  = xmlDecode(item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "");
+          const link  = xmlDecode((item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim());
+          const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+          const author = xmlDecode(item.match(/<author>([\s\S]*?)<\/author>/)?.[1] ||
+                                    item.match(/<dc:creator>([\s\S]*?)<\/dc:creator>/)?.[1] || "Trustpilot User");
+          if (!link || !desc) continue;
+          const content = clean([title, desc].filter(Boolean).join(". "));
+          if (content.length < 20) continue;
+          let posted_at: string | null = null;
+          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+          results.push({
+            source: "trustpilot",
+            content: content.slice(0, 600),
+            title,
+            url: link,
+            author_name: author,
+            posted_at,
+            date_verified: !!posted_at,
+          });
+        } catch { /* skip malformed item */ }
+      }
+      if (items.length > 0) console.log(`[trustpilot] ${domain}: ${items.length} reviews`);
+    } catch (e: any) { console.warn(`[trustpilot] ${domain} failed:`, e.message); }
+  }));
+  return results;
+}
+
+// ── iTunes/App Store reviews (free, official API) ─────────────────────────
+// Uses iTunes Search API to find apps by keyword, then fetches their RSS review feed
+async function crawlAppStoreReviews(keywords: string[]): Promise<any[]> {
+  const results: any[] = [];
+  try {
+    // Search for matching apps
+    const query = keywords.slice(0, 2).join(" ");
+    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=software&limit=5&country=us`;
+    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(10000) });
+    if (!searchRes.ok) return results;
+    const searchData = await searchRes.json();
+    const apps = (searchData.results || []).slice(0, 3); // top 3 matching apps
+    if (apps.length === 0) return results;
+
+    await Promise.allSettled(apps.map(async (app: any) => {
+      try {
+        // RSS feed for App Store reviews (page 1, 10 reviews)
+        const rssUrl = `https://itunes.apple.com/rss/customerreviews/page=1/id=${app.trackId}/sortby=mostrecent/json?l=en&cc=us`;
+        const rssRes = await fetch(rssUrl, { signal: AbortSignal.timeout(8000) });
+        if (!rssRes.ok) return;
+        const rssData = await rssRes.json();
+        const entries = rssData.feed?.entry || [];
+        // First entry is the app info, rest are reviews
+        for (const entry of entries.slice(1, 11)) {
+          const reviewText = entry.content?.label || entry["im:summary"]?.label || "";
+          const title = entry.title?.label || "";
+          const rating = entry["im:rating"]?.label;
+          const author = entry.author?.name?.label || "App Store User";
+          const updated = entry.updated?.label || null;
+          if (!reviewText || reviewText.length < 15) continue;
+          const content = clean(`${title}. ${reviewText}`.trim()).slice(0, 600);
+          results.push({
+            source: "apple-app-store",
+            content,
+            title: `${title} — ${app.trackName}`,
+            url: app.trackViewUrl || `https://apps.apple.com/app/id${app.trackId}`,
+            author_name: author,
+            posted_at: updated ? new Date(updated).toISOString() : null,
+            date_verified: !!updated,
+            metrics: { rating: rating ? parseInt(rating) : null },
+          });
+        }
+      } catch (e: any) { console.warn(`[appstore] ${app.trackId} failed:`, e.message); }
+    }));
+    console.log(`[app-store] ${results.length} reviews for "${query}"`);
+  } catch (e: any) { console.warn("[app-store] failed:", e.message); }
+  return results;
+}
+
+// ── Authenticated Reddit (uses OAuth if client_id/secret configured) ──────
+async function crawlRedditAuth(keywords: string[], clientId: string, clientSecret: string, dateFrom?: string): Promise<any[]> {
+  const results: any[] = [];
+  try {
+    // Get OAuth token
+    const tokenRes = await fetch("https://www.reddit.com/api/v1/access_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "SentiWatch/2.0 (reputation monitor)",
+      },
+      body: "grant_type=client_credentials",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!tokenRes.ok) {
+      console.warn("[reddit-auth] token fetch failed, falling back to public");
+      return crawlReddit(keywords, dateFrom);
+    }
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+    if (!accessToken) return crawlReddit(keywords, dateFrom);
+
+    const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+    await Promise.allSettled(keywords.slice(0, 5).map(async (kw) => { // all keywords, not just 2
+      try {
+        const params = new URLSearchParams({ q: kw, sort: "new", limit: "25", t: "month" });
+        const res = await fetch(`https://oauth.reddit.com/search?${params}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "User-Agent": "SentiWatch/2.0 (reputation monitor)",
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const child of (data.data?.children || [])) {
+          const p = child.data;
+          if (dateMs && p.created_utc * 1000 < dateMs) continue;
+          const content = clean((p.selftext || p.title || "").slice(0, 600));
+          if (content.length < 20) continue;
+          results.push({
+            source: "reddit", content, title: p.title || kw,
+            url: `https://reddit.com${p.permalink}`,
+            author_name: p.author || "reddit",
+            posted_at: new Date(p.created_utc * 1000).toISOString(),
+            date_verified: true,
+            metrics: { likes: p.ups || 0, comments: p.num_comments || 0 },
+          });
+        }
+      } catch (e: any) { console.warn(`[reddit-auth] kw "${kw}" failed:`, e.message); }
+    }));
+    console.log(`[reddit-auth] ${results.length} results`);
+  } catch (e: any) {
+    console.warn("[reddit-auth] failed, falling back to public:", e.message);
+    return crawlReddit(keywords, dateFrom);
+  }
+  return results;
+}
+
 // AI ANALYSIS — tries Lovable gateway, falls back 100% to keyword sentiment
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -658,17 +985,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 3. Load org + keywords + noise rules ──────────────────────────────
-    const [orgRes, kwRes, ignoredRes, profileRes] = await Promise.all([
+    // ── 3. Load org + keywords + noise rules + API keys ───────────────────
+    const [orgRes, kwRes, ignoredRes, profileRes, apiKeysRes] = await Promise.all([
       sb.from("organizations").select("name,domain,plan").eq("id", org_id).maybeSingle(),
       sb.from("keywords").select("value,type").eq("org_id", org_id).eq("status", "active"),
       sb.from("ignored_sources").select("domain").eq("org_id", org_id),
       sb.from("tracking_profiles").select("settings").eq("org_id", org_id).maybeSingle(),
+      sb.from("org_api_keys").select("provider,key_name,key_value").eq("org_id", org_id),
     ]);
 
     const orgName = orgRes.data?.name || "";
     const orgDomain = (orgRes.data?.domain || "").toLowerCase();
     const ignoredDomains = new Set((ignoredRes.data || []).map((r: any) => r.domain?.toLowerCase() || ""));
+
+    // Extract org API keys
+    const apiKeys = apiKeysRes.data || [];
+    const getApiKey = (provider: string, keyName: string) =>
+      apiKeys.find((k: any) => k.provider === provider && k.key_name === keyName)?.key_value || null;
+    const twitterBearerToken = getApiKey("twitter", "bearer_token");
+    const youtubeApiKey = getApiKey("youtube", "api_key") || Deno.env.get("YOUTUBE_API_KEY") || null;
+    const redditClientId = getApiKey("reddit", "client_id");
+    const redditClientSecret = getApiKey("reddit", "client_secret");
 
     // Load noise filter rules from tracking_profiles.settings
     const noiseRules: Array<{ type: string; value: string; field?: string }> =
@@ -749,7 +1086,12 @@ Deno.serve(async (req) => {
       return json({ error: `Failed to create scan record: ${runErr?.message}` }, 500);
     }
 
-    console.log(`Scan ${scanRun.id} started for "${brandName}" | keywords: ${keywords.join(", ")}`);
+    console.log(`Scan ${scanRun.id} started for "${brandName}" | keywords: ${keywords.join(", ")} | sources: ${(sources || []).join(", ") || "auto"}`);
+
+    // Determine which sources to actually run
+    // sources array from request gates optional crawlers; free crawlers always run
+    const requestedSources: string[] = sources || [];
+    const wantSource = (s: string) => requestedSources.length === 0 || requestedSources.includes(s);
 
     // ── 5. Run all crawlers in parallel ────────────────────────────────────
     const allRaw: any[] = [];
@@ -757,7 +1099,7 @@ Deno.serve(async (req) => {
 
     const crawlPromises: Promise<void>[] = [];
 
-    // Free sources (always run)
+    // ── Free sources (always run unless specific sources requested) ─────────
     crawlPromises.push((async () => {
       const r = await crawlGoogleNews(keywords, date_from);
       allRaw.push(...r);
@@ -782,11 +1124,60 @@ Deno.serve(async (req) => {
       scanLog.push({ source: "hackernews", found: r.length });
     })());
 
-    crawlPromises.push((async () => {
-      const r = await crawlReddit(keywords, date_from);
-      allRaw.push(...r);
-      scanLog.push({ source: "reddit-public", found: r.length });
-    })());
+    // Reddit: public API (always), upgraded to authenticated if keys present
+    if (redditClientId && redditClientSecret && wantSource("reddit")) {
+      crawlPromises.push((async () => {
+        const r = await crawlRedditAuth(keywords, redditClientId, redditClientSecret, date_from);
+        allRaw.push(...r);
+        scanLog.push({ source: "reddit-auth", found: r.length });
+      })());
+    } else {
+      crawlPromises.push((async () => {
+        const r = await crawlReddit(keywords, date_from);
+        allRaw.push(...r);
+        scanLog.push({ source: "reddit-public", found: r.length });
+      })());
+    }
+
+    // Twitter/X — only if bearer token configured and source requested
+    if (twitterBearerToken && wantSource("twitter")) {
+      crawlPromises.push((async () => {
+        const r = await crawlTwitter(keywords, twitterBearerToken, date_from, date_to);
+        allRaw.push(...r);
+        scanLog.push({ source: "twitter", found: r.length });
+      })());
+    } else if (wantSource("twitter") && !twitterBearerToken) {
+      scanLog.push({ source: "twitter", found: 0, error: "Twitter Bearer Token not configured in Settings → Connections" });
+    }
+
+    // YouTube — only if API key configured and source requested
+    if (youtubeApiKey && wantSource("youtube")) {
+      crawlPromises.push((async () => {
+        const r = await crawlYouTube(keywords, youtubeApiKey, date_from, date_to);
+        allRaw.push(...r);
+        scanLog.push({ source: "youtube", found: r.length });
+      })());
+    } else if (wantSource("youtube") && !youtubeApiKey) {
+      scanLog.push({ source: "youtube", found: 0, error: "YouTube API Key not configured in Settings → Connections" });
+    }
+
+    // Trustpilot RSS — free, no key required, always run when reviews requested
+    if (wantSource("reviews")) {
+      crawlPromises.push((async () => {
+        const r = await crawlTrustpilotRSS(keywords, orgDomain);
+        allRaw.push(...r);
+        scanLog.push({ source: "trustpilot", found: r.length });
+      })());
+    }
+
+    // App Store reviews — iTunes Search API, free, no key
+    if (wantSource("reviews") || wantSource("app-store")) {
+      crawlPromises.push((async () => {
+        const r = await crawlAppStoreReviews(keywords);
+        allRaw.push(...r);
+        scanLog.push({ source: "app-store", found: r.length });
+      })());
+    }
 
     // Paid sources (only if keys configured)
     if (braveKey) {
@@ -876,13 +1267,17 @@ Deno.serve(async (req) => {
     }
 
     // ── 7. Dedup against existing DB mentions ─────────────────────────────
+    // Store normalized URLs for accurate cross-run dedup
     const candidateUrls = filtered
-      .map(r => r.url?.toLowerCase().replace(/\/$/, ""))
+      .map(r => r.url ? normalizeUrl(r.url) : null)
       .filter(Boolean) as string[];
+    // Also include the raw URLs so we can match against what's already in DB
+    const candidateRawUrls = filtered.map(r => r.url?.toLowerCase().replace(/\/$/, "")).filter(Boolean) as string[];
 
     const existingUrls = new Set<string>();
-    for (let i = 0; i < candidateUrls.length; i += 50) {
-      const batch = candidateUrls.slice(i, i + 50);
+    const allBatch = [...new Set([...candidateUrls, ...candidateRawUrls])];
+    for (let i = 0; i < allBatch.length; i += 50) {
+      const batch = allBatch.slice(i, i + 50);
       if (batch.length === 0) continue;
       const { data: ex } = await sb
         .from("mentions")
@@ -890,13 +1285,17 @@ Deno.serve(async (req) => {
         .eq("org_id", org_id)
         .in("url", batch);
       for (const m of (ex || [])) {
-        if (m.url) existingUrls.add(m.url.toLowerCase().replace(/\/$/, ""));
+        if (m.url) {
+          existingUrls.add(m.url.toLowerCase().replace(/\/$/, ""));
+          existingUrls.add(normalizeUrl(m.url));
+        }
       }
     }
 
     const newItems = filtered.filter(r => {
       if (!r.url) return true;
-      return !existingUrls.has(r.url.toLowerCase().replace(/\/$/, ""));
+      return !existingUrls.has(r.url.toLowerCase().replace(/\/$/, ""))
+          && !existingUrls.has(normalizeUrl(r.url));
     });
     const dedupSkipped = filtered.length - newItems.length;
     console.log(`New items: ${newItems.length} (${dedupSkipped} already in DB)`);
@@ -928,19 +1327,36 @@ Deno.serve(async (req) => {
     if (analyses.length === 0) {
       console.log("[ai] Using full keyword-sentiment fallback");
       analyses = newItems.map(r => {
-        const kw = kwSentiment(r.content + " " + (r.title || ""));
+        const lang = detectLanguage(r.content);
+        const kw = lang === "en" ? kwSentiment(r.content + " " + (r.title || "")) : { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
         return {
           relevant: true, ...kw,
           summary: r.title || r.content.slice(0, 180),
           flags: {},
+          language: lang,
         };
       });
     }
 
-    // ── 9. Build mention rows ──────────────────────────────────────────────
-    let mentionRows = newItems.map((r, i) => {
+    // ── 8b. Filter irrelevant items (AI explicitly said not relevant) ──────
+    // Only filter when AI is actually running — keyword fallback marks everything relevant
+    const relevantPairs: Array<{ raw: any; analysis: any }> = [];
+    for (let i = 0; i < newItems.length; i++) {
       const a = analyses[i] || {};
-      const kw = kwSentiment(r.content + " " + (r.title || ""));
+      // Only discard if AI explicitly said false (not just missing/undefined)
+      if (a.relevant === false) {
+        console.log(`[ai] Filtered irrelevant: "${(newItems[i].title || newItems[i].content).slice(0, 80)}"`);
+        continue;
+      }
+      relevantPairs.push({ raw: newItems[i], analysis: a });
+    }
+    console.log(`After relevance filter: ${relevantPairs.length}/${newItems.length} items kept`);
+
+    // ── 9. Build mention rows ──────────────────────────────────────────────
+    let mentionRows = relevantPairs.map(({ raw: r, analysis: a }) => {
+      const lang = a.language || r.language || detectLanguage(r.content);
+      // Only use kwSentiment for English — non-English gets neutral fallback from keyword matching
+      const kw = lang === "en" ? kwSentiment(r.content + " " + (r.title || "")) : { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
 
       // Use AI result if valid, otherwise keyword fallback
       const sentiment_label: string = a.sentiment_label || kw.sentiment_label;
@@ -964,9 +1380,9 @@ Deno.serve(async (req) => {
           ? Math.min(Math.round(a.sentiment_confidence * 100), 999.99)
           : 65,
         severity,
-        language: "en",
+        language: lang || "en",
         posted_at: r.posted_at || null,
-        url: r.url || null,
+        url: r.url ? normalizeUrl(r.url) || r.url : null,
         metrics: r.metrics || {},
         flags: { ...(a.flags || {}), date_verified: r.date_verified || false },
         status: "new",

@@ -40,12 +40,13 @@ const statusConfig: Record<string, { icon: any; className: string }> = {
   pending: { icon: Clock, className: "text-muted-foreground" },
 };
 
-const ALL_SOURCES = ["twitter", "reddit", "youtube", "news", "blogs", "forums", "reviews", "google-news", "social"];
+const ALL_SOURCES = ["news", "google-news", "reddit", "twitter", "youtube", "reviews", "forums", "blogs", "social"];
 
-// Sources that need API keys from the user
-const SOURCES_NEEDING_KEYS: Record<string, string> = {
-  twitter: "X (Twitter)",
-  youtube: "YouTube",
+// Sources that need API keys from the user — shown with ⚠ and description
+const SOURCES_NEEDING_KEYS: Record<string, { label: string; description: string }> = {
+  twitter: { label: "X (Twitter)", description: "Requires Twitter Bearer Token" },
+  youtube: { label: "YouTube", description: "Requires YouTube Data API key" },
+  reviews: { label: "Review Sites", description: "Requires Firecrawl API key for G2/Glassdoor; Trustpilot & App Store work without a key" },
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -57,7 +58,24 @@ const SOURCE_LABELS: Record<string, string> = {
   forums: "Forums",
   reviews: "Review Sites",
   "google-news": "Google News",
-  social: "Social Media (X, LinkedIn)",
+  social: "Social Media",
+};
+
+// Map source names from scan_log to display labels
+const SCAN_LOG_LABELS: Record<string, string> = {
+  "google-news-rss": "Google News",
+  "bing-news-rss": "Bing News",
+  "direct-rss": "RSS Feeds",
+  "hackernews": "Hacker News",
+  "reddit-public": "Reddit (public)",
+  "reddit-auth": "Reddit (authenticated)",
+  "twitter": "X (Twitter)",
+  "youtube": "YouTube",
+  "trustpilot": "Trustpilot",
+  "app-store": "App Store",
+  "brave-search": "Brave Search",
+  "newsapi": "NewsAPI",
+  "firecrawl": "Firecrawl",
 };
 
 export default function ScansPage() {
@@ -159,9 +177,11 @@ export default function ScansPage() {
       const customTypes = (customSourcesRes.data || []).map(s => s.type);
 
       // Improved source selection - include social media and more sources by default
-      const autoSources = ["news", "blogs", "forums", "reviews", "google-news", "youtube", "social"];
+      // Auto-scan: start with all free sources, then add authenticated ones if connected
+      const autoSources = ["news", "google-news", "blogs", "forums", "reviews"];
       if (connectedProviders.includes("twitter")) autoSources.push("twitter");
       if (connectedProviders.includes("reddit")) autoSources.push("reddit");
+      if (connectedProviders.includes("youtube")) autoSources.push("youtube");
       customTypes.forEach(t => { if (!autoSources.includes(t)) autoSources.push(t); });
 
       const now = new Date();
@@ -692,11 +712,15 @@ export default function ScansPage() {
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Sources</Label>
               <div className="flex flex-wrap gap-2">
                 {ALL_SOURCES.map(s => {
-                  const needsKey = s in SOURCES_NEEDING_KEYS;
-                  const isConnected = !needsKey || connectedProviders.includes(s);
+                  const keyInfo = SOURCES_NEEDING_KEYS[s as keyof typeof SOURCES_NEEDING_KEYS];
+                  const needsKey = !!keyInfo;
+                  // "reviews" is partially free (trustpilot + app store work without a key)
+                  const partiallyFree = s === "reviews";
+                  const isConnected = !needsKey || partiallyFree || connectedProviders.includes(s);
                   return (
                     <label
                       key={s}
+                      title={needsKey && !isConnected ? keyInfo?.description : undefined}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer transition-colors text-xs capitalize ${
                         selectedSources.includes(s)
                           ? isConnected
@@ -712,10 +736,13 @@ export default function ScansPage() {
                       />
                       {SOURCE_LABELS[s] || s}
                       {needsKey && !isConnected && (
-                        <AlertTriangle className="h-3 w-3 text-sentinel-amber" />
+                        <AlertTriangle className="h-3 w-3 text-sentinel-amber" title={keyInfo?.description} />
                       )}
-                      {needsKey && isConnected && (
+                      {needsKey && isConnected && !partiallyFree && (
                         <CheckCircle2 className="h-3 w-3 text-sentinel-emerald" />
+                      )}
+                      {partiallyFree && (
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-600 rounded px-1">free</span>
                       )}
                     </label>
                   );
@@ -723,19 +750,22 @@ export default function ScansPage() {
               </div>
 
               {/* Warning for unconnected sources */}
-              {selectedSources.some(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s)) && (
+              {selectedSources.some(s => {
+                const ki = SOURCES_NEEDING_KEYS[s as keyof typeof SOURCES_NEEDING_KEYS];
+                return ki && s !== "reviews" && !connectedProviders.includes(s);
+              }) && (
                 <div className="flex items-start gap-2 rounded-md bg-sentinel-amber/10 border border-sentinel-amber/20 p-3 mt-2">
                   <AlertTriangle className="h-3.5 w-3.5 text-sentinel-amber mt-0.5 shrink-0" />
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>
                       <strong className="text-card-foreground">API keys required:</strong>{" "}
                       {selectedSources
-                        .filter(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s))
-                        .map(s => SOURCES_NEEDING_KEYS[s])
+                        .filter(s => SOURCES_NEEDING_KEYS[s as keyof typeof SOURCES_NEEDING_KEYS] && s !== "reviews" && !connectedProviders.includes(s))
+                        .map(s => SOURCES_NEEDING_KEYS[s as keyof typeof SOURCES_NEEDING_KEYS]?.label)
                         .join(", ")}{" "}
-                      {selectedSources.filter(s => s in SOURCES_NEEDING_KEYS && !connectedProviders.includes(s)).length === 1 ? "requires" : "require"} API credentials.
+                      will be skipped without credentials.
                     </p>
-                    <p>Go to <strong>Settings → Connections</strong> to connect your accounts. Without credentials, these sources will be skipped.</p>
+                    <p>Go to <strong>Settings → Connections</strong> to connect your accounts.</p>
                     <Button variant="link" size="sm" className="h-auto p-0 text-xs text-primary" onClick={() => { setBuilderOpen(false); navigate("/settings?tab=connections"); }}>
                       Go to Connections →
                     </Button>
@@ -874,9 +904,18 @@ export default function ScansPage() {
                       <p className="text-xs text-muted-foreground leading-relaxed">{scanResult.zero_reason}</p>
                     )}
                     {scanResult.scan_log && scanResult.scan_log.length > 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium">Sources scanned:</span>{" "}
-                        {scanResult.scan_log.map((s: any) => `${s.source} (${s.found} raw)`).join(", ")}
+                      <div className="mt-3 space-y-1">
+                        <p className="text-xs font-medium text-card-foreground">Per-source breakdown:</p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {scanResult.scan_log.map((s: any) => (
+                            <div key={s.source} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-muted/40">
+                              <span className="text-muted-foreground">{SCAN_LOG_LABELS[s.source] || s.source}</span>
+                              <span className={`font-medium tabular-nums ${s.error ? "text-sentinel-amber" : s.found > 0 ? "text-emerald-500" : "text-muted-foreground"}`}>
+                                {s.error ? "⚠ skipped" : `${s.found}`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {scanResult.keyword_groups?.brand?.length > 0 && (
