@@ -71,16 +71,24 @@ function xmlDecode(s: string): string {
 
 function isJunk(text: string): boolean {
   const lower = text.toLowerCase();
+  const length = text.length;
 
   // Hard-block patterns — 1 hit is enough to discard
+  // NOTE: some of these strings (like "sign in to youtube") CAN appear in legitimate transcripts
+  // So for longer content (>500 chars) we skip youtube-specific blocks — it's likely real content
+  const hardBlockShortContent = [
+    "sign in to youtube",
+    "this video is private",
+    "video unavailable",
+  ];
+  if (length < 500 && hardBlockShortContent.some(b => lower.includes(b))) return true;
+
   const hardBlock = [
     "403 forbidden", "access denied", "access is denied",
     "403 error", "http 403", "status 403",
     "captcha", "please verify you are a human", "are you a human",
     "cloudflare", "just a moment", "checking your browser",
     "ray id:", "cf-ray",
-    "sign in to youtube", "youtube.*sign in",
-    "this video is private", "video unavailable",
     "enable javascript to run this app",
     "javascript is required", "you need javascript",
     "blocked by an extension",
@@ -604,6 +612,75 @@ async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: 
 }
 
 // ── YouTube crawler ───────────────────────────────────────────────────────
+// ── YouTube transcript fetcher ────────────────────────────────────────────
+// Fetches auto-generated captions via YouTube's innertube API.
+// No API key required — same endpoint the web player uses.
+// Returns cleaned plain-text transcript, or null if unavailable.
+async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    // Step 1: get the initial page to extract ytInitialData which contains caption track info
+    // Use a lightweight approach: directly request the timedtext endpoint with known params
+    // YouTube's timedtext v3 endpoint is publicly accessible for auto-captioned videos
+    const timedtextUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=json3&xorb=2&xobt=3&xovt=3`;
+    const r1 = await fetch(timedtextUrl, {
+      headers: {
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (r1.ok) {
+      const ct = r1.headers.get("content-type") || "";
+      if (ct.includes("application/json") || ct.includes("text/javascript")) {
+        const data = await r1.json();
+        // json3 format: { events: [{ segs: [{ utf8: "text" }] }] }
+        const events: any[] = data.events || [];
+        const parts: string[] = [];
+        for (const evt of events) {
+          for (const seg of (evt.segs || [])) {
+            if (seg.utf8 && seg.utf8 !== "\n") parts.push(seg.utf8.trim());
+          }
+        }
+        const transcript = parts.join(" ").replace(/\s+/g, " ").trim();
+        if (transcript.length > 100) {
+          console.log(`[youtube] transcript for ${videoId}: ${transcript.length} chars`);
+          return transcript;
+        }
+      }
+    }
+
+    // Step 2: fallback — try the xml format which has broader availability
+    const xmlUrl = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=en&fmt=srv3`;
+    const r2 = await fetch(xmlUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SentiWatch/1.0)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r2.ok) {
+      const xml = await r2.text();
+      // Strip XML tags, get text content
+      const text = xml.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+      if (text.length > 100) {
+        console.log(`[youtube] transcript (xml) for ${videoId}: ${text.length} chars`);
+        return text;
+      }
+    }
+  } catch (e: any) {
+    console.log(`[youtube] transcript unavailable for ${videoId}: ${e.message}`);
+  }
+  return null;
+}
+
+// Clean transcript to a useful length for AI analysis
+// Keep enough to understand what's being said, but cap to avoid token explosion
+function truncateTranscript(transcript: string, maxChars = 3000): string {
+  if (transcript.length <= maxChars) return transcript;
+  // Take opening + closing chunks — context often at start/end
+  const head = transcript.slice(0, Math.floor(maxChars * 0.7));
+  const tail = transcript.slice(-Math.floor(maxChars * 0.3));
+  return `${head} [...] ${tail}`;
+}
+
 async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
   const results: any[] = [];
   try {
@@ -612,7 +689,7 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     searchUrl.searchParams.set("part", "snippet");
     searchUrl.searchParams.set("q", query);
     searchUrl.searchParams.set("type", "video");
-    searchUrl.searchParams.set("maxResults", "25");
+    searchUrl.searchParams.set("maxResults", "20"); // slightly fewer to allow time for transcript fetches
     searchUrl.searchParams.set("order", "date");
     searchUrl.searchParams.set("key", apiKey);
     if (dateFrom) searchUrl.searchParams.set("publishedAfter", new Date(dateFrom).toISOString());
@@ -624,16 +701,31 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     const items = searchData.items || [];
     if (items.length === 0) return results;
 
-    // Fetch stats
+    // Fetch stats + captions availability in one batch call
     const videoIds = items.map((v: any) => v.id?.videoId).filter(Boolean);
     const statsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
-    statsUrl.searchParams.set("part", "statistics");
+    statsUrl.searchParams.set("part", "statistics,contentDetails");
     statsUrl.searchParams.set("id", videoIds.join(","));
     statsUrl.searchParams.set("key", apiKey);
     const statsRes = await fetch(statsUrl.toString(), { signal: AbortSignal.timeout(10000) });
     const statsData = statsRes.ok ? await statsRes.json() : { items: [] };
     const statsMap: Record<string, any> = {};
-    for (const v of (statsData.items || [])) statsMap[v.id] = v.statistics;
+    const captionMap: Record<string, boolean> = {}; // whether captions are available
+    for (const v of (statsData.items || [])) {
+      statsMap[v.id] = v.statistics;
+      captionMap[v.id] = v.contentDetails?.caption === "true";
+    }
+
+    // Fetch transcripts in parallel (capped at 10 to avoid timeout)
+    const transcriptIds = videoIds.slice(0, 10);
+    const transcriptResults = await Promise.allSettled(
+      transcriptIds.map(vid => fetchYouTubeTranscript(vid))
+    );
+    const transcriptMap: Record<string, string | null> = {};
+    transcriptIds.forEach((vid, i) => {
+      const r = transcriptResults[i];
+      transcriptMap[vid] = r.status === "fulfilled" ? r.value : null;
+    });
 
     const dateFromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
     for (const item of items) {
@@ -641,17 +733,35 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
       const sn = item.snippet || {};
       if (dateFromMs > 0 && new Date(sn.publishedAt).getTime() < dateFromMs) continue;
       const st = statsMap[vid] || {};
-      const content = clean(`${sn.title || ""}. ${sn.description || ""}`.trim()).slice(0, 800);
+
+      const title = sn.title || "";
+      const description = sn.description || "";
+      const transcript = transcriptMap[vid] || null;
+
+      // Build content: title + description always, then transcript if available
+      // The transcript is the ground truth of what was said — this is what AI must analyse
+      let content: string;
+      if (transcript) {
+        // Include full transcript context; AI gets a much richer signal
+        const cleanTranscript = truncateTranscript(transcript, 3000);
+        content = clean(`TITLE: ${title}\n\nDESCRIPTION: ${description}\n\nTRANSCRIPT: ${cleanTranscript}`).slice(0, 3500);
+      } else {
+        // No transcript: use title + description, flag as limited context
+        content = clean(`${title}. ${description}`.trim()).slice(0, 800);
+      }
+
       if (content.length < 20) continue;
+
       results.push({
         source: "youtube",
         content,
-        title: sn.title || "",
+        title,
         url: `https://www.youtube.com/watch?v=${vid}`,
         author_name: sn.channelTitle || "",
         author_handle: sn.channelId || "",
         posted_at: sn.publishedAt || null,
         date_verified: !!sn.publishedAt,
+        has_transcript: !!transcript,
         metrics: {
           likes: parseInt(st.likeCount || "0"),
           comments: parseInt(st.commentCount || "0"),
@@ -659,7 +769,8 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
         },
       });
     }
-    console.log(`[youtube] ${results.length} videos`);
+    const withTranscript = results.filter(r => r.has_transcript).length;
+    console.log(`[youtube] ${results.length} videos, ${withTranscript} with transcript`);
   } catch (e: any) { console.warn("[youtube] failed:", e.message); }
   return results;
 }
@@ -865,12 +976,18 @@ async function analyzeWithAI(
             {
               role: "system",
               content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
-- relevant: boolean — true if this is a genuine mention/discussion about "${brandName}". Mark FALSE for: error pages (403, 404, 500), crawler failures, empty content, login walls, cookie notices, app store listing pages (not reviews), homepage descriptions, Wikipedia/reference pages, or any content that does not contain an actual human opinion, news story, or discussion about ${brandName}.
-- sentiment_label: "positive"|"negative"|"neutral"|"mixed"
+- relevant: boolean — true if this mention genuinely discusses "${brandName}" as a brand, product, or company. Mark FALSE only for: HTTP error pages (403/404/500 in the content), login walls, cookie notices, Wikipedia/reference descriptions, empty content. Do NOT mark false just because a video is a tutorial or educational — tutorials that mention the brand are relevant.
+- sentiment_label: "positive"|"negative"|"neutral"|"mixed" — base this on actual tone/opinion expressed, not just the topic. A tutorial showing how to use ${brandName} is neutral or positive, not negative.
 - sentiment_score: number from -1.0 to 1.0
-- severity: "low"|"medium"|"high"|"critical"
-- summary: 1-2 sentence plain English description of what is being said
+- severity: "low"|"medium"|"high"|"critical" — severity is about reputational risk. A tutorial video = low. Criticism or complaints = medium/high. Fraud allegations or coordinated attacks = critical.
+- summary: 2-3 sentences of what is ACTUALLY being said. For YouTube videos: state what the video covers and how ${brandName} is mentioned or portrayed. If you have a transcript, summarise the specific claims or content about ${brandName}. NEVER say "the content is an error page" for a YouTube video — if the content field starts with TITLE: and TRANSCRIPT: it is real video content, not an error.
 - flags: {misinformation:bool, viral_potential:bool}
+
+IMPORTANT for YouTube videos (source="youtube"):
+- Content may include a TRANSCRIPT: section — this is what was actually spoken in the video. Use it.
+- If there is no transcript, use the title and description to infer the context.
+- Do not confuse a missing/short transcript with an error page.
+- A YouTube tutorial about how to use ${brandName} is relevant=true, sentiment neutral/positive, severity low.
 Return ONLY valid JSON: {"analyses":[...]}`,
             },
             {
@@ -880,7 +997,10 @@ Return ONLY valid JSON: {"analyses":[...]}`,
                   idx,
                   source: r.source,
                   title: r.title,
-                  content: r.content.slice(0, 400),
+                  // YouTube with transcript gets much more content — don't truncate it heavily
+                  content: r.source === "youtube" && r.has_transcript
+                    ? r.content.slice(0, 2500)
+                    : r.content.slice(0, 400),
                 }))
               )}`,
             },
@@ -925,9 +1045,18 @@ Return ONLY valid JSON: {"analyses":[...]}`,
       // Full keyword fallback for this batch
       for (const r of batch) {
         const kw = kwSentiment(r.content + " " + r.title);
+        // For YouTube with transcript, use the first meaningful sentence from transcript
+        let fallbackSummary = r.title || r.content.slice(0, 150);
+        if (r.source === "youtube" && r.has_transcript) {
+          // Extract first real sentence from transcript section
+          const transcriptMatch = r.content.match(/TRANSCRIPT:\s*(.+?)(?:[.!?]|$)/i);
+          if (transcriptMatch) {
+            fallbackSummary = `${r.title} — ${transcriptMatch[1].trim().slice(0, 200)}`;
+          }
+        }
         analyses.push({
           relevant: true, ...kw,
-          summary: r.title || r.content.slice(0, 150),
+          summary: fallbackSummary,
           flags: {},
         });
       }
@@ -1408,7 +1537,7 @@ Deno.serve(async (req) => {
         posted_at: r.posted_at || null,
         url: r.url ? normalizeUrl(r.url) || r.url : null,
         metrics: r.metrics || {},
-        flags: { ...(a.flags || {}), date_verified: r.date_verified || false },
+        flags: { ...(a.flags || {}), date_verified: r.date_verified || false, has_transcript: r.has_transcript || false },
         status: "new",
         owner_user_id: userId, // null for scheduled/system scans — this is valid (nullable UUID)
         mention_type: scanMentionType,

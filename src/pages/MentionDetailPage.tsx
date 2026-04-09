@@ -614,9 +614,52 @@ export default function MentionDetailPage() {
                 <Link2 className="h-3 w-3 mr-1" /> From Link Scanner
               </Badge>
             )}
+            {mention.source === "youtube" && flags.has_transcript && (
+              <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-500">
+                <CheckCircle2 className="h-3 w-3 mr-1" /> Transcript analysed
+              </Badge>
+            )}
+            {mention.source === "youtube" && !flags.has_transcript && (
+              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-500">
+                <AlertCircle className="h-3 w-3 mr-1" /> Title/description only
+              </Badge>
+            )}
           </div>
         </div>
 
+        {/* Content display — structured for YouTube transcripts */}
+        {mention.source === "youtube" && flags.has_transcript && mention.content?.includes("TRANSCRIPT:") ? (
+          <div className="space-y-3">
+            {/* Parse out sections */}
+            {(() => {
+              const raw = mention.content || "";
+              const titleMatch = raw.match(/TITLE:\s*(.*?)(?:\n|DESCRIPTION:|TRANSCRIPT:|$)/i);
+              const descMatch = raw.match(/DESCRIPTION:\s*(.*?)(?:\n\n|TRANSCRIPT:|$)/is);
+              const transcriptMatch = raw.match(/TRANSCRIPT:\s*([\s\S]+)$/i);
+              const titleText = titleMatch?.[1]?.trim();
+              const descText = descMatch?.[1]?.trim();
+              const transcriptText = transcriptMatch?.[1]?.trim();
+              return (
+                <>
+                  {descText && descText.length > 10 && (
+                    <div className="text-sm text-muted-foreground bg-muted/20 rounded-lg p-3 border border-border">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Description</p>
+                      <p className="leading-relaxed">{descText}</p>
+                    </div>
+                  )}
+                  {transcriptText && (
+                    <div className="text-sm text-foreground bg-muted/30 rounded-lg p-4 border border-border">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500 mb-2 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Full Transcript
+                      </p>
+                      <p className="leading-relaxed whitespace-pre-wrap">{transcriptText}</p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        ) : (
         <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-4 border border-border">
           {cleanContentText(mention.content) || (
             <span className="text-muted-foreground italic">
@@ -624,6 +667,7 @@ export default function MentionDetailPage() {
             </span>
           )}
         </div>
+        )}
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
