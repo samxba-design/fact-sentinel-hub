@@ -122,6 +122,8 @@ export default function MentionDetailPage() {
   const [sourceIntelOpen, setSourceIntelOpen] = useState(false);
   const [similarMentions, setSimilarMentions] = useState<MentionDetail[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
+  const [prevMentionId, setPrevMentionId] = useState<string | null>(null);
+  const [nextMentionId, setNextMentionId] = useState<string | null>(null);
 
   const getDomain = (url: string | null): string => {
     if (!url) return "unknown";
@@ -144,11 +146,37 @@ export default function MentionDetailPage() {
       supabase.from("claim_extractions").select("id, claim_text, category, confidence").eq("mention_id", id),
       supabase.from("mention_topics").select("topic_id, topics(name)").eq("mention_id", id),
       supabase.from("mention_narratives").select("narrative_id, narratives(name, status)").eq("mention_id", id),
-    ]).then(([mentionRes, claimsRes, topicsRes, narrativesRes]) => {
-      setMention(mentionRes.data as MentionDetail);
+    ]).then(async ([mentionRes, claimsRes, topicsRes, narrativesRes]) => {
+      const currentMention = mentionRes.data as MentionDetail;
+      setMention(currentMention);
       setClaims((claimsRes.data as any) || []);
       setTopics((topicsRes.data as any) || []);
       setNarratives((narrativesRes.data as any) || []);
+
+      // Fetch adjacent mentions (prev and next)
+      if (currentMention) {
+        const [nextRes, prevRes] = await Promise.all([
+          supabase
+            .from("mentions")
+            .select("id")
+            .eq("org_id", currentOrg.id)
+            .eq("mention_type", "brand")
+            .gt("created_at", currentMention.created_at)
+            .order("created_at", { ascending: true })
+            .limit(1),
+          supabase
+            .from("mentions")
+            .select("id")
+            .eq("org_id", currentOrg.id)
+            .eq("mention_type", "brand")
+            .lt("created_at", currentMention.created_at)
+            .order("created_at", { ascending: false })
+            .limit(1),
+        ]);
+        setNextMentionId(nextRes.data?.[0]?.id || null);
+        setPrevMentionId(prevRes.data?.[0]?.id || null);
+      }
+
       setLoading(false);
     });
   }, [id, currentOrg]);
@@ -179,6 +207,20 @@ export default function MentionDetailPage() {
         setSimilarLoading(false);
       });
   }, [mention, currentOrg]);
+
+  // Keyboard navigation: ArrowLeft (prev), ArrowRight (next)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft" && prevMentionId) {
+        navigate(`/mentions/${prevMentionId}`);
+      } else if (e.key === "ArrowRight" && nextMentionId) {
+        navigate(`/mentions/${nextMentionId}`);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [prevMentionId, nextMentionId, navigate]);
 
   const formatReach = (count: number | null) => {
     if (!count) return "0";
@@ -352,6 +394,36 @@ export default function MentionDetailPage() {
           { label: "Mentions", href: "/mentions" },
           { label: mention.author_name || mention.author_handle || "Mention Detail" },
         ]} />
+      </div>
+
+      {/* Navigation bar — Prev / Back / Next */}
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => prevMentionId && navigate(`/mentions/${prevMentionId}`)}
+          disabled={!prevMentionId}
+          className="gap-1.5"
+        >
+          <ArrowLeft className="h-4 w-4" /> Prev
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/mentions")}
+          className="gap-1.5"
+        >
+          ← Back to Threats
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => nextMentionId && navigate(`/mentions/${nextMentionId}`)}
+          disabled={!nextMentionId}
+          className="gap-1.5"
+        >
+          Next <ArrowLeft className="h-4 w-4 rotate-180" />
+        </Button>
       </div>
 
       {/* Header */}

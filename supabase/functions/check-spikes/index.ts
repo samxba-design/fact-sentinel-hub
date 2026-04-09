@@ -283,14 +283,14 @@ Deno.serve(async (req) => {
 
       // Send email notifications for each alert
       const supabaseFunctionsUrl = Deno.env.get("SUPABASE_URL")! + "/functions/v1";
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       for (const alert of alerts) {
         try {
           await fetch(`${supabaseFunctionsUrl}/send-notification`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${anonKey}`,
+              Authorization: `Bearer ${serviceRoleKey}`,
             },
             body: JSON.stringify({
               type: alert.type,

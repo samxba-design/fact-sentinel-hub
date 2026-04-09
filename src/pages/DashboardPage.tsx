@@ -9,7 +9,7 @@ import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
-  Clock, FileWarning, Plus, Zap,
+  Clock, FileWarning, Plus, Zap, CheckCircle2, AlertOctagon,
 } from "lucide-react";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import { Switch } from "@/components/ui/switch";
@@ -194,6 +194,74 @@ function buildChartData(mentions: any[], rangeDays: number) {
   };
 }
 
+// ── Threat Status Banner ─────────────────────────────────────────────────────
+interface ThreatStatusBannerProps {
+  emergencies: number;
+  negativeMentions: number;
+  totalMentions: number;
+  positiveMentions: number;
+  rangeDays: number;
+  loading: boolean;
+}
+
+function ThreatStatusBanner({ emergencies, negativeMentions, totalMentions, positiveMentions, rangeDays, loading }: ThreatStatusBannerProps) {
+  const navigate = useNavigate();
+
+  if (loading) return null;
+
+  const negativePct = totalMentions > 0 ? Math.round((negativeMentions / totalMentions) * 100) : 0;
+  const positivePct = totalMentions > 0 ? Math.round((positiveMentions / totalMentions) * 100) : 0;
+  const isHighNegative = totalMentions > 0 && (negativeMentions / totalMentions) > 0.3 && negativeMentions >= 5;
+
+  if (emergencies > 0) {
+    const label = `🚨 ${emergencies} critical threat${emergencies !== 1 ? "s" : ""} detected in the last ${rangeDays} days`;
+    return (
+      <Card className="border-l-4 border-l-red-500 bg-red-500/5 border-red-500/20 py-3 px-5 flex items-center gap-4">
+        <AlertOctagon className="h-5 w-5 text-red-500 shrink-0" />
+        <p className="flex-1 text-sm font-medium text-foreground">{label}</p>
+        <Button size="sm" variant="destructive" onClick={() => navigate(`/mentions?severity=critical&days=${rangeDays}`)}>
+          Review Now →
+        </Button>
+      </Card>
+    );
+  }
+
+  if (isHighNegative) {
+    const label = `⚠ Negative sentiment elevated — ${negativeMentions} negative mentions (${negativePct}% of total)`;
+    return (
+      <Card className="border-l-4 border-l-amber-500 bg-amber-500/5 border-amber-500/20 py-3 px-5 flex items-center gap-4">
+        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+        <p className="flex-1 text-sm font-medium text-foreground">{label}</p>
+        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={() => navigate(`/mentions?sentiment=negative&days=${rangeDays}`)}>
+          View Threats →
+        </Button>
+      </Card>
+    );
+  }
+
+  if (totalMentions === 0) {
+    return (
+      <Card className="border-l-4 border-l-muted-foreground/30 bg-muted/30 border-muted/50 py-3 px-5 flex items-center gap-4">
+        <Shield className="h-5 w-5 text-muted-foreground shrink-0" />
+        <p className="flex-1 text-sm text-muted-foreground">No data yet. Run your first scan to start monitoring.</p>
+        <Button size="sm" variant="outline" onClick={() => navigate("/scans")}>
+          Run Scan →
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-l-4 border-l-emerald-500 bg-emerald-500/5 border-emerald-500/20 py-3 px-5 flex items-center gap-4">
+      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+      <p className="flex-1 text-sm font-medium text-foreground">✓ All clear — {totalMentions} mentions tracked, {positivePct}% positive</p>
+      <Button size="sm" variant="outline" className="border-emerald-500/50 text-emerald-600 hover:bg-emerald-500/10" onClick={() => navigate(`/mentions?days=${rangeDays}`)}>
+        View All →
+      </Button>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
@@ -201,6 +269,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);
+  const [positiveMentions, setPositiveMentions] = useState(0);
   const [emergencies, setEmergencies] = useState(0);
   const [activeIncidents, setActiveIncidents] = useState(0);
   const [pendingEscalations, setPendingEscalations] = useState(0);
@@ -244,6 +313,11 @@ export default function DashboardPage() {
       setVolumeData(vd);
       setSentimentData(sd);
       setSourceData(srd);
+      
+      // Extract positive mentions count from sentiment data
+      const positiveCount = sd.find(s => s.name === "positive")?.value ?? 0;
+      setPositiveMentions(positiveCount);
+      
       setLoading(false);
     });
   }, [currentOrg, rangeDays]);
@@ -269,6 +343,8 @@ export default function DashboardPage() {
         setVolumeData(vd);
         setSentimentData(sd);
         setSourceData(srd);
+        const positiveCount = sd.find(s => s.name === "positive")?.value ?? 0;
+        setPositiveMentions(positiveCount);
       });
     }, 2000);
   }, [currentOrg, rangeDays]);
@@ -305,6 +381,8 @@ export default function DashboardPage() {
           setVolumeData(vd);
           setSentimentData(sd);
           setSourceData(srd);
+          const positiveCount = sd.find(s => s.name === "positive")?.value ?? 0;
+          setPositiveMentions(positiveCount);
         });
         
         clearInterval(pollActiveScan);
@@ -428,6 +506,16 @@ export default function DashboardPage() {
           </TooltipProvider>
         </div>
       </div>
+
+      {/* ── Threat Status Banner ── */}
+      <ThreatStatusBanner 
+        emergencies={emergencies}
+        negativeMentions={negativeMentions}
+        totalMentions={totalMentions}
+        positiveMentions={positiveMentions}
+        rangeDays={rangeDays}
+        loading={loading}
+      />
 
       {/* ── Narrative Now — brand-only overview, togglable ── */}
       {isVisible("narrative-now") && <NarrativeNow />}

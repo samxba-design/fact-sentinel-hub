@@ -4,12 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import { useOrgRole } from "@/hooks/useOrgRole";
 import {
-  Shield, LayoutDashboard, Scan, MessageSquareWarning, Network,
-  Users, AlertTriangle, Siren, MessageCircleReply, BookCheck,
+  Shield, LayoutDashboard, Scan, AlertTriangle, Network,
+  Users, Siren, MessageCircleReply, BookCheck,
   FileText, TicketCheck, Download, Settings, LogOut,
   ChevronDown, ChevronRight, Building2, ShieldCheck, CreditCard, Plus, BookOpen,
-  Target, Contact, Bell, Link2, Radio, Globe, Share2, Brain, Newspaper,
-  Zap, Eye, EyeOff,
+  Target, Contact, Bell, Radio, Globe, Share2, Brain, Newspaper,
+  Zap, EyeOff, Link2, Eye,
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import {
@@ -27,95 +27,47 @@ interface NavItem {
   badge?: string;
 }
 
-interface NavGroup {
-  label: string;
-  icon: any;
-  items: NavItem[];
-  defaultOpen?: boolean;
-  focusMode?: boolean; // show in focus mode
-}
-
-// ── Core items always visible in Focus Mode ─────────────────────────
-const FOCUS_ITEMS: NavItem[] = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/scans", icon: Scan, label: "Run Scan", access: "edit" },
-  { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
-  { to: "/narratives", icon: Network, label: "Narratives" },
-  { to: "/briefing", icon: Brain, label: "Briefing", badge: "Now" },
-  { to: "/respond", icon: MessageCircleReply, label: "Respond" },
+// ── Primary nav — always visible ────────────────────────────────────
+const PRIMARY_NAV: NavItem[] = [
+  { to: "/",          icon: LayoutDashboard,   label: "Dashboard" },
+  { to: "/mentions",  icon: AlertTriangle,     label: "Threats" },
+  { to: "/narratives",icon: Network,           label: "Narratives" },
+  { to: "/scans",     icon: Scan,              label: "Scans",    access: "edit" },
+  { to: "/alerts",    icon: Bell,              label: "Alerts" },
+  { to: "/respond",   icon: MessageCircleReply,label: "Respond" },
+  { to: "/briefing",  icon: Brain,             label: "Briefing" },
 ];
 
-// ── Full nav grouped ────────────────────────────────────────────────
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Monitor",
-    icon: Eye,
-    defaultOpen: true,
-    focusMode: true,
-    items: [
-      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/scans", icon: Scan, label: "Scans", access: "edit" },
-      { to: "/mentions", icon: MessageSquareWarning, label: "Mentions" },
-      { to: "/triage", icon: Zap, label: "Quick Triage", badge: "New" },
-      { to: "/alerts", icon: Bell, label: "Alerts" },
-    ],
-  },
-  {
-    label: "Analyze",
-    icon: Brain,
-    defaultOpen: true,
-    focusMode: true,
-    items: [
-      { to: "/narratives", icon: Network, label: "Narratives" },
-      { to: "/briefing", icon: Brain, label: "Briefing", badge: "Now" },
-      { to: "/risk-console", icon: AlertTriangle, label: "Risk Console" },
-      { to: "/people", icon: Users, label: "Key People" },
-      { to: "/threat-map", icon: Globe, label: "Threat Map" },
-      { to: "/narrative-graph", icon: Share2, label: "Narrative Intelligence" },
-    ],
-  },
-  {
-    label: "Respond",
-    icon: Zap,
-    defaultOpen: true,
-    items: [
-      { to: "/respond", icon: MessageCircleReply, label: "Respond" },
-      { to: "/approved-facts", icon: BookCheck, label: "Approved Facts" },
-      { to: "/approved-templates", icon: FileText, label: "Templates" },
-      { to: "/incidents", icon: Siren, label: "Incidents" },
-      { to: "/war-room", icon: Radio, label: "War Room" },
-      { to: "/escalations", icon: TicketCheck, label: "Escalations", access: "write" },
-    ],
-  },
-  {
-    label: "Intelligence",
-    icon: Target,
-    defaultOpen: true,
-    items: [
-      { to: "/competitors", icon: Target, label: "Competitors", access: "edit" },
-      { to: "/competitors/intel-feed", icon: Newspaper, label: "Intel Feed", access: "edit" },
-      { to: "/noise-filters", icon: EyeOff, label: "Noise Filters", access: "edit" },
-      { to: "/entities", icon: Shield, label: "Entity Intelligence", badge: "New" },
-      { to: "/contacts", icon: Contact, label: "Contacts", access: "manage" },
-    ],
-  },
-  {
-    label: "Account",
-    icon: Settings,
-    defaultOpen: false,
-    items: [
-      { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
-      { to: "/exports", icon: Download, label: "Exports", access: "write" },
-      { to: "/guide", icon: BookOpen, label: "Getting Started" },
-      { to: "/pricing", icon: CreditCard, label: "Pricing" },
-    ],
-  },
+// ── Advanced — collapsible ───────────────────────────────────────────
+const ADVANCED_NAV: NavItem[] = [
+  { to: "/triage",          icon: Zap,          label: "Quick Triage" },
+  { to: "/risk-console",    icon: AlertTriangle, label: "Risk Console" },
+  { to: "/people",          icon: Users,         label: "Key People" },
+  { to: "/competitors",     icon: Target,        label: "Competitors",        access: "edit" },
+  { to: "/incidents",       icon: Siren,         label: "Incidents" },
+  { to: "/war-room",        icon: Radio,         label: "War Room" },
+  { to: "/noise-filters",   icon: EyeOff,        label: "Noise Filters",      access: "edit" },
+  { to: "/entities",        icon: Shield,        label: "Entity Intelligence" },
+  { to: "/threat-map",      icon: Globe,         label: "Threat Map" },
+  { to: "/narrative-graph", icon: Share2,        label: "Narrative Graph" },
+  { to: "/approved-templates", icon: FileText,   label: "Templates" },
+  { to: "/approved-facts",  icon: BookCheck,     label: "Approved Facts" },
+  { to: "/escalations",     icon: TicketCheck,   label: "Escalations",        access: "write" },
+  { to: "/contacts",        icon: Contact,       label: "Contacts",           access: "manage" },
+  { to: "/exports",         icon: Download,      label: "Exports",            access: "write" },
 ];
 
-const FOCUS_STORAGE_KEY = "sentiwatch_focus_mode";
+// ── Account ──────────────────────────────────────────────────────────
+const ACCOUNT_NAV: NavItem[] = [
+  { to: "/settings", icon: Settings, label: "Settings", access: "manage" },
+  { to: "/guide",    icon: BookOpen, label: "Getting Started" },
+  { to: "/pricing",  icon: CreditCard, label: "Pricing" },
+];
 
-function loadFocusMode(): boolean {
-  try { return localStorage.getItem(FOCUS_STORAGE_KEY) === "true"; } catch { return false; }
+const ADV_STORAGE_KEY = "sentiwatch_advanced_nav_open";
+
+function loadAdvOpen(): boolean {
+  try { return localStorage.getItem(ADV_STORAGE_KEY) === "true"; } catch { return false; }
 }
 
 export default function AppSidebar() {
@@ -124,18 +76,12 @@ export default function AppSidebar() {
   const { isManager, canEdit, canWrite } = useOrgRole();
   const navigate = useNavigate();
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(NAV_GROUPS.map(g => [g.label, g.defaultOpen ?? false]))
-  );
-  const [focusMode, setFocusMode] = useState(loadFocusMode);
+  const [advOpen, setAdvOpen] = useState(loadAdvOpen);
 
-  const toggleGroup = (label: string) =>
-    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }));
-
-  const toggleFocus = () => {
-    const next = !focusMode;
-    setFocusMode(next);
-    try { localStorage.setItem(FOCUS_STORAGE_KEY, String(next)); } catch {}
+  const toggleAdv = () => {
+    const next = !advOpen;
+    setAdvOpen(next);
+    try { localStorage.setItem(ADV_STORAGE_KEY, String(next)); } catch {}
   };
 
   const hasAccess = (access?: Access) => {
@@ -151,6 +97,13 @@ export default function AppSidebar() {
       isActive
         ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+    }`;
+
+  const smallLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+      isActive
+        ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
+        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
     }`;
 
   return (
@@ -195,118 +148,79 @@ export default function AppSidebar() {
         </div>
       )}
 
-      {/* ── Focus Mode Toggle ── */}
-      <div className="px-3 py-2 border-b border-sidebar-border">
-        <button
-          onClick={toggleFocus}
-          className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-            focusMode
-              ? "bg-primary/10 text-primary"
-              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          }`}
-        >
-          {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {focusMode ? "Exit Focus Mode" : "Focus Mode (core only)"}
-          {focusMode && (
-            <Badge className="ml-auto text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0">On</Badge>
-          )}
-        </button>
-      </div>
-
       {/* ── Nav ── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
-        {focusMode ? (
-          /* Focus Mode: flat list of core items only */
-          <div className="space-y-0.5">
-            <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-widest px-3 mb-2">
-              Core Features
-            </p>
-            {FOCUS_ITEMS.filter(i => hasAccess(i.access)).map(item => (
-              <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
-                <item.icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.badge && (
-                  <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0">{item.badge}</Badge>
-                )}
-              </NavLink>
-            ))}
-            <div className="border-t border-sidebar-border my-2" />
-            <NavLink to="/settings" className={navLinkClass}>
-              <Settings className="h-4 w-4 shrink-0" /> Settings
-            </NavLink>
-          </div>
-        ) : (
-          /* Full Mode: grouped sections */
-          <div className="space-y-1">
-            {NAV_GROUPS.map(group => {
-              const visibleItems = group.items.filter(i => hasAccess(i.access));
-              if (visibleItems.length === 0) return null;
-              const isOpen = openGroups[group.label] ?? group.defaultOpen;
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+        {/* Primary nav */}
+        {PRIMARY_NAV.filter(i => hasAccess(i.access)).map(item => (
+          <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
+            <item.icon className="h-4 w-4 shrink-0" />
+            <span className="flex-1">{item.label}</span>
+            {item.badge && (
+              <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0">{item.badge}</Badge>
+            )}
+          </NavLink>
+        ))}
 
-              return (
-                <div key={group.label}>
-                  <button
-                    onClick={() => toggleGroup(group.label)}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-semibold text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors uppercase tracking-wider"
-                  >
-                    <group.icon className="h-3.5 w-3.5" />
-                    <span className="flex-1 text-left">{group.label}</span>
-                    <ChevronRight
-                      className={`h-3 w-3 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
-                    />
-                  </button>
+        {/* Advanced section */}
+        <div className="pt-1">
+          <button
+            onClick={toggleAdv}
+            className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-semibold text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors uppercase tracking-wider"
+          >
+            {advOpen
+              ? <ChevronDown className="h-3 w-3" />
+              : <ChevronRight className="h-3 w-3" />
+            }
+            <span className="flex-1 text-left">Advanced</span>
+          </button>
 
-                  {isOpen && (
-                    <div className="space-y-0.5 mt-0.5 mb-1">
-                      {visibleItems.map(item => (
-                        <NavLink
-                          key={item.to}
-                          to={item.to}
-                          end={item.to === "/"}
-                          className={({ isActive }) =>
-                            `flex items-center gap-3 pl-8 pr-3 py-2 rounded-lg text-sm transition-colors ${
-                              isActive
-                                ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
-                                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                            }`
-                          }
-                        >
-                          <item.icon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="flex-1">{item.label}</span>
-                          {item.badge && (
-                            <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0 h-4">
-                              {item.badge}
-                            </Badge>
-                          )}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {isSuperAdmin && (
-              <div className="border-t border-sidebar-border pt-2 mt-2">
+          {advOpen && (
+            <div className="space-y-0.5 mt-0.5">
+              {ADVANCED_NAV.filter(i => hasAccess(i.access)).map(item => (
                 <NavLink
-                  to="/admin"
+                  key={item.to}
+                  to={item.to}
+                  end={false}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    `flex items-center gap-3 pl-7 pr-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
                         ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     }`
                   }
                 >
-                  <ShieldCheck className="h-4 w-4 shrink-0" /> Admin Panel
+                  <item.icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && (
+                    <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-0 h-4">
+                      {item.badge}
+                    </Badge>
+                  )}
                 </NavLink>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
+        </div>
+
+        {isSuperAdmin && (
+          <div className="border-t border-sidebar-border pt-2 mt-2">
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? "bg-sidebar-primary/10 text-sidebar-primary font-medium"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`
+              }
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" /> Admin Panel
+            </NavLink>
           </div>
         )}
       </nav>
 
-      {/* ── Quick Tools ── */}
+      {/* ── Scan a Link ── */}
       <div className="px-3 py-2 border-t border-sidebar-border">
         <LinkScannerDialog
           trigger={
@@ -317,14 +231,14 @@ export default function AppSidebar() {
         />
       </div>
 
-      {/* ── Marketing site links ── */}
+      {/* ── Account ── */}
       <div className="px-3 py-2 border-t border-sidebar-border space-y-0.5">
-        <a
-          href="/home"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-        >
-          <Globe className="h-3.5 w-3.5 shrink-0" /> Marketing site &amp; How It Works
-        </a>
+        {ACCOUNT_NAV.filter(i => hasAccess(i.access)).map(item => (
+          <NavLink key={item.to} to={item.to} className={smallLinkClass}>
+            <item.icon className="h-3.5 w-3.5 shrink-0" />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
       </div>
 
       {/* ── Sign out ── */}

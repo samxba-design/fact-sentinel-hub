@@ -257,6 +257,11 @@ export default function OnboardingPage() {
 
       await refetchOrgs();
       toast({ title: "Organization created!", description: `Welcome to ${orgName}` });
+
+      // Trigger first scan (non-blocking — user goes to dashboard while it runs)
+      supabase.functions.invoke("run-scan", { body: { org_id: org.id } }).catch(() => {});
+      toast({ title: "First scan running…", description: "Your dashboard will populate in a moment." });
+
       navigate("/");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -583,7 +588,7 @@ export default function OnboardingPage() {
           ) : (
             <Button onClick={handleFinish} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-              {saving ? "Setting up..." : "Finish Setup"}
+              {saving ? "Setting up..." : "Finish & Run First Scan"}
             </Button>
           )}
         </div>
