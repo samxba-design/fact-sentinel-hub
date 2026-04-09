@@ -12,6 +12,7 @@ import {
   Zap, EyeOff, Link2, Eye,
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
+import CompanyLogo from "@/components/CompanyLogo";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -121,7 +122,13 @@ export default function AppSidebar() {
         <div className="px-3 py-2 border-b border-sidebar-border">
           <DropdownMenu>
             <DropdownMenuTrigger className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors text-left">
-              <Building2 className="h-3.5 w-3.5 text-sidebar-foreground shrink-0" />
+              <CompanyLogo
+                domain={currentOrg.domain || currentOrg.name}
+                name={currentOrg.name}
+                size={16}
+                rounded="rounded-sm"
+                className="shrink-0"
+              />
               <span className="text-xs font-medium text-sidebar-accent-foreground truncate flex-1">
                 {currentOrg.name}
               </span>
@@ -130,7 +137,13 @@ export default function AppSidebar() {
             <DropdownMenuContent align="start" className="w-56">
               {orgs.map(org => (
                 <DropdownMenuItem key={org.id} onClick={() => setCurrentOrg(org)}>
-                  <Building2 className="h-4 w-4 mr-2" />
+                  <CompanyLogo
+                    domain={org.domain || org.name}
+                    name={org.name}
+                    size={16}
+                    rounded="rounded-sm"
+                    className="mr-2 shrink-0"
+                  />
                   {org.name}
                   {org.id === currentOrg?.id && (
                     <span className="ml-auto text-[10px] text-primary">Active</span>

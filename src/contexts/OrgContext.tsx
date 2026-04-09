@@ -6,6 +6,7 @@ interface Org {
   id: string;
   name: string;
   slug: string;
+  domain: string | null;
   plan: string;
   incident_mode: boolean;
   subscription_status: string;
@@ -39,7 +40,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
     const { data: memberships } = await supabase
       .from("org_memberships")
-      .select("org_id, role, organizations(id, name, slug, plan, incident_mode, subscription_status, subscription_type, subscription_expires_at)")
+      .select("org_id, role, organizations(id, name, slug, domain, plan, incident_mode, subscription_status, subscription_type, subscription_expires_at)")
       .eq("user_id", user.id)
       .not("accepted_at", "is", null);
 

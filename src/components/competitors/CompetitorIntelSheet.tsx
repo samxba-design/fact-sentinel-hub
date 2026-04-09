@@ -7,6 +7,7 @@ import { Scan, Loader2, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import SourceBadge from "@/components/SourceBadge";
 
 interface Competitor {
   id: string;
@@ -226,9 +227,7 @@ export default function CompetitorIntelSheet({ competitor, orgId, open, onOpenCh
                     className="p-3 rounded-lg border border-border bg-muted/10 space-y-2"
                   >
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-[10px]">
-                        {m.source}
-                      </Badge>
+                      <SourceBadge source={m.source} />
                       <Badge className={`text-[10px] ${sentimentBadgeClass(m.sentiment_label)}`}>
                         {m.sentiment_label ?? "unknown"}
                       </Badge>

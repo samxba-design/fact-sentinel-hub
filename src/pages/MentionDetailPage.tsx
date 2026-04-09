@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import MentionDetailedView from "@/components/mentions/MentionDetailedView";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
+import CompanyLogo from "@/components/CompanyLogo";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { Card } from "@/components/ui/card";
@@ -562,9 +563,9 @@ export default function MentionDetailPage() {
                   <DropdownMenuTrigger asChild>
                     <Badge
                       variant="outline"
-                      className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors gap-1"
+                      className="text-[10px] cursor-pointer hover:border-primary/50 transition-colors gap-1 pl-1"
                     >
-                      <Globe className="h-3 w-3" />
+                      <CompanyLogo domain={domain} name={domain} size={12} rounded="rounded-none" />
                       {domain}
                       <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
                     </Badge>

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Target, Plus, TrendingUp, TrendingDown, Minus, MessageSquareWarning, Network, Search, ExternalLink, Scan, Trash2, Pencil, BarChart3, Eye, Loader2, User, Zap, Newspaper } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import CompetitorIntelSheet from "@/components/competitors/CompetitorIntelSheet";
+import CompanyLogo from "@/components/CompanyLogo";
 import PageGuide from "@/components/PageGuide";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -486,8 +487,13 @@ export default function CompetitorsPage() {
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Target className="h-5 w-5 text-primary" />
+                    <div className="h-10 w-10 rounded-lg bg-muted/30 border border-border flex items-center justify-center overflow-hidden">
+                      <CompanyLogo
+                        domain={comp.domain || comp.name}
+                        name={comp.name}
+                        size={32}
+                        rounded="rounded-none"
+                      />
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">{comp.name}</h3>
