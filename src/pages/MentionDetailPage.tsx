@@ -17,7 +17,7 @@ import {
   MessageCircleReply, TicketCheck, Siren, User, Globe, BarChart3,
   ThumbsUp, ThumbsDown, Minus, Hash, EyeOff, Clock, CheckCircle2, MoreVertical,
   Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye, ChevronDown, Search,
-  Network, Link2, Lock, Share2,
+  Network, Link2, Lock, Share2, RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import PageGuide from "@/components/PageGuide";
@@ -125,6 +125,7 @@ export default function MentionDetailPage() {
   const [similarLoading, setSimilarLoading] = useState(false);
   const [prevMentionId, setPrevMentionId] = useState<string | null>(null);
   const [nextMentionId, setNextMentionId] = useState<string | null>(null);
+  const [reAnalysing, setReAnalysing] = useState(false);
 
   const getDomain = (url: string | null): string => {
     if (!url) return "unknown";
@@ -284,6 +285,35 @@ export default function MentionDetailPage() {
 
   const handleAddToIncident = async () => {
     navigate("/incidents");
+  };
+
+  const handleReAnalyse = async () => {
+    if (!mention || reAnalysing) return;
+    setReAnalysing(true);
+    toast({ title: "Re-analysing…", description: mention.source === "youtube" ? "Fetching transcript and re-running AI analysis" : "Re-running AI analysis" });
+    try {
+      const { data, error } = await supabase.functions.invoke("re-analyse", {
+        body: { mention_id: mention.id },
+      });
+      if (error || data?.error) {
+        toast({ title: "Re-analysis failed", description: error?.message || data?.error, variant: "destructive" });
+        return;
+      }
+      // Reload mention from DB to pick up updated content/sentiment/summary
+      const { data: updated } = await supabase.from("mentions").select("*").eq("id", mention.id).single();
+      if (updated) {
+        setMention(updated as MentionDetail);
+        setAiSummary(null); // clear cached summary so it regenerates
+      }
+      toast({
+        title: "Re-analysis complete",
+        description: `${data.updated.sentiment_label} · ${data.updated.severity} severity${data.updated.has_transcript ? " · transcript fetched" : ""}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setReAnalysing(false);
+    }
   };
 
   const deleteMention = async () => {
@@ -456,6 +486,11 @@ export default function MentionDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleReAnalyse} disabled={reAnalysing}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-2 ${reAnalysing ? "animate-spin" : ""}`} />
+                {reAnalysing ? "Re-analysing…" : mention.source === "youtube" ? "Re-fetch Transcript & Analyse" : "Re-analyse Content"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {mention.status !== "ignored" && (
                 <DropdownMenuItem onClick={() => updateStatus("ignored")}>
                   <EyeOff className="h-3.5 w-3.5 mr-2" /> Ignore
@@ -490,11 +525,23 @@ export default function MentionDetailPage() {
           <h3 className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
           </h3>
-          {aiSummary && (
-            <Button size="sm" variant="ghost" onClick={() => generateSummary(true)} disabled={summaryLoading} className="h-6 text-[10px]">
-              Regenerate
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm" variant="ghost"
+              onClick={handleReAnalyse}
+              disabled={reAnalysing}
+              className="h-6 text-[10px] gap-1"
+              title={mention.source === "youtube" ? "Re-fetch transcript & re-run AI analysis" : "Re-run AI analysis on this content"}
+            >
+              <RefreshCw className={`h-3 w-3 ${reAnalysing ? "animate-spin" : ""}`} />
+              {reAnalysing ? "Re-analysing…" : mention.source === "youtube" ? "Re-fetch & Analyse" : "Re-analyse"}
             </Button>
-          )}
+            {aiSummary && (
+              <Button size="sm" variant="ghost" onClick={() => generateSummary(true)} disabled={summaryLoading} className="h-6 text-[10px]">
+                Regenerate
+              </Button>
+            )}
+          </div>
         </div>
         {summaryLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
