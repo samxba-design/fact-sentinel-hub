@@ -2,12 +2,21 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Check, Shield, Zap, CreditCard, Loader2 } from "lucide-react";
+import { Check, Shield, Zap, CreditCard, Loader2, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+
+const FREE_FEATURES = [
+  "2 scans per month",
+  "Up to 200 mentions",
+  "Narrative & threat tracking",
+  "Basic sentiment analysis",
+  "1 user seat",
+  "Community support",
+];
 
 const PLANS = [
   {
@@ -95,11 +104,48 @@ export default function PricingPage() {
           <h1 className="text-3xl font-bold text-foreground">Pricing</h1>
         </div>
         <p className="text-muted-foreground max-w-lg mx-auto">
-          Choose the plan that fits your organization. All plans include core monitoring capabilities.
+          Start free, no card required. Upgrade when you need the full arsenal.
         </p>
       </div>
 
-      {/* Plan Cards */}
+      {/* Free tier */}
+      <div className="max-w-3xl mx-auto">
+        <Card className="p-6 border-border bg-muted/30">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-card-foreground">Free</h3>
+                <Badge variant="secondary" className="text-[10px]">No card required</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">Perfect for trying out SentiWatch on your brand</p>
+              <ul className="grid grid-cols-2 gap-x-6 gap-y-1 mt-2">
+                {FREE_FEATURES.map((f) => (
+                  <li key={f} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Check className="h-3 w-3 text-primary shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-card-foreground">$0</span>
+                <span className="text-sm text-muted-foreground">/month</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(user ? "/" : "/auth?mode=signup")}
+                className="gap-1.5"
+              >
+                {user ? "You're on free" : "Start free"} <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Paid Plan Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
         {PLANS.map((plan) => (
           <Card

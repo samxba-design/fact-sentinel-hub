@@ -13,7 +13,7 @@ import {
 } from "react-simple-maps";
 
 // World atlas from CDN — lightweight 110m resolution
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const GEO_URL = "/world-atlas.json";
 
 // Region definitions: lat/lng centroid for each tracked region
 const REGION_COORDS: Record<string, { lat: number; lng: number; label: string }> = {

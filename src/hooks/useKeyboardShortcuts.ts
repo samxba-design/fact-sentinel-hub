@@ -40,7 +40,7 @@ export function useKeyboardShortcuts() {
       // Single key shortcuts
       if (e.key === "?" && !buffer.startsWith("g")) {
         // Could open help modal - for now just log
-        console.log("Keyboard shortcuts: g+d=Dashboard, g+s=Scans, g+m=Mentions, g+n=Narratives, g+r=Risk, g+i=Incidents");
+        // Keyboard shortcuts: g+d=Dashboard, g+s=Scans, g+m=Mentions, g+n=Narratives, g+r=Risk, g+i=Incidents
       }
     };
 
