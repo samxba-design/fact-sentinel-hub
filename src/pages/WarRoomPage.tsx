@@ -39,7 +39,7 @@ interface TeamMember {
   user_id: string;
   email: string | null;
   full_name: string | null;
-  lastSeen: number;
+  isOnline: boolean;
 }
 
 const severityColors: Record<string, string> = {
@@ -110,11 +110,36 @@ export default function WarRoomPage() {
           user_id: m.user_id,
           email: m.invited_email,
           full_name: null,
-          lastSeen: m.user_id === user?.id ? Date.now() : Date.now() - 300000,
+          isOnline: false,
         }))
       );
       setLoading(false);
     });
+  }, [currentOrg, user]);
+
+  // Realtime presence — track who is actually online in the war room
+  useEffect(() => {
+    if (!currentOrg || !user) return;
+    const presenceChannel = supabase.channel(`war-room-presence:${currentOrg.id}`, {
+      config: { presence: { key: user.id } },
+    });
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineIds = new Set(Object.keys(state));
+        setTeamMembers(prev =>
+          prev.map(m => ({ ...m, isOnline: onlineIds.has(m.user_id) }))
+        );
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceChannel.track({ user_id: user.id, online_at: new Date().toISOString() });
+        }
+      });
+    return () => {
+      presenceChannel.untrack();
+      supabase.removeChannel(presenceChannel);
+    };
   }, [currentOrg, user]);
 
   // Realtime subscription
@@ -202,7 +227,7 @@ export default function WarRoomPage() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs gap-1.5">
             <Users className="h-3 w-3" />
-            {teamMembers.filter(m => Date.now() - m.lastSeen < 600000).length} online
+            {teamMembers.filter(m => m.isOnline).length} online
           </Badge>
         </div>
       </div>
@@ -348,11 +373,10 @@ export default function WarRoomPage() {
             </h3>
             <div className="space-y-2">
               {teamMembers.slice(0, 10).map(m => {
-                const isOnline = Date.now() - m.lastSeen < 600000;
                 const isYou = m.user_id === user?.id;
                 return (
                   <div key={m.user_id} className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
+                    <div className={`w-2 h-2 rounded-full ${m.isOnline ? "bg-sentinel-emerald" : "bg-muted-foreground/30"}`} />
                     <span className="text-xs text-card-foreground truncate">
                       {m.full_name || m.email || "Team member"}
                       {isYou && <span className="text-muted-foreground ml-1">(you)</span>}

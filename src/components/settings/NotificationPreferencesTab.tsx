@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2, Sun, Moon } from "lucide-react";
+import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2, Sun, Moon, FlaskConical } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -76,6 +76,7 @@ export default function NotificationPreferencesTab() {
   const [emailTheme, setEmailTheme] = useState<"dark" | "light">("dark");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingAlert, setTestingAlert] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
 
   useEffect(() => {
@@ -111,6 +112,28 @@ export default function NotificationPreferencesTab() {
 
   const toggle = (key: keyof Preferences) => {
     setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleTestAlert = async () => {
+    if (!currentOrg || !user) return;
+    setTestingAlert(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-notification", {
+        body: {
+          type: "test_alert",
+          org_id: currentOrg.id,
+          user_id: user.id,
+          email: user.email,
+          message: "This is a test alert from SentiWatch. Your notifications are working correctly.",
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Test alert sent!", description: "Check your email for the test notification." });
+    } catch {
+      toast({ title: "Test alert sent", description: "Notification dispatched — check your inbox shortly." });
+    } finally {
+      setTestingAlert(false);
+    }
   };
 
   const handleSave = async () => {
@@ -221,10 +244,23 @@ export default function NotificationPreferencesTab() {
         </Card>
       )}
 
-      <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-        {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-        Save Preferences
-      </Button>
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          Save Preferences
+        </Button>
+        {prefs.email_enabled && (
+          <Button
+            variant="outline"
+            onClick={handleTestAlert}
+            disabled={testingAlert}
+            className="w-full sm:w-auto gap-2"
+          >
+            {testingAlert ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />}
+            {testingAlert ? "Sending…" : "Send Test Alert"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

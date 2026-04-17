@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Check, Shield, Zap, CreditCard, Loader2, ArrowRight } from "lucide-react";
+import { Check, Shield, Zap, CreditCard, Loader2, ArrowRight, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/contexts/OrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+
+// Guard: only show live Stripe checkout when explicitly enabled
+const STRIPE_ENABLED = import.meta.env.VITE_STRIPE_ENABLED === "true";
 
 const FREE_FEATURES = [
   "2 scans per month",
@@ -187,15 +190,17 @@ export default function PricingPage() {
             <Button
               className="w-full"
               variant={plan.popular ? "default" : "outline"}
-              disabled={isActive || loadingPlan !== null}
-              onClick={() => handleSubscribe(plan)}
+              disabled={isActive || (STRIPE_ENABLED && loadingPlan !== null)}
+              onClick={() => STRIPE_ENABLED ? handleSubscribe(plan) : navigate("/contact")}
             >
-              {loadingPlan === plan.id ? (
+              {STRIPE_ENABLED && loadingPlan === plan.id ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
+              ) : STRIPE_ENABLED ? (
                 <CreditCard className="h-4 w-4 mr-2" />
+              ) : (
+                <Mail className="h-4 w-4 mr-2" />
               )}
-              {isActive ? "Already Subscribed" : plan.cta}
+              {isActive ? "Already Subscribed" : STRIPE_ENABLED ? plan.cta : "Contact Sales"}
             </Button>
           </Card>
         ))}

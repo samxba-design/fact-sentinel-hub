@@ -9,7 +9,7 @@ import InfoTooltip from "@/components/InfoTooltip";
 import {
   MessageSquareWarning, AlertTriangle, Siren, TrendingUp,
   TrendingDown, Shield, Flame, ChevronDown, ChevronUp, ExternalLink,
-  Clock, FileWarning, Plus, Zap, CheckCircle2, AlertOctagon,
+  Clock, FileWarning, Plus, Zap, CheckCircle2, AlertOctagon, Sparkles, Loader2,
 } from "lucide-react";
 import AddMentionDialog from "@/components/mentions/AddMentionDialog";
 import { Switch } from "@/components/ui/switch";
@@ -281,6 +281,24 @@ export default function DashboardPage() {
   const [prevTotal, setPrevTotal] = useState(0);
   const [rangeDays, setRangeDays] = useState(7);
   const [addMentionOpen, setAddMentionOpen] = useState(false);
+  const [seedingDemo, setSeedingDemo] = useState(false);
+
+  const handleSeedDemo = async () => {
+    if (!currentOrg) return;
+    setSeedingDemo(true);
+    try {
+      const { error } = await supabase.functions.invoke("seed-demo", {
+        body: { org_id: currentOrg.id },
+      });
+      if (error) throw error;
+      // Reload the page data after seeding
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Seed demo error:", err);
+    } finally {
+      setSeedingDemo(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -422,6 +440,19 @@ export default function DashboardPage() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => navigate("/settings")} className="gap-1.5">
                   Configure Keywords
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleSeedDemo}
+                  disabled={seedingDemo}
+                  className="gap-1.5"
+                >
+                  {seedingDemo
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Sparkles className="h-3.5 w-3.5" />
+                  }
+                  {seedingDemo ? "Loading…" : "Load Demo Data"}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => navigate("/guide")} className="gap-1.5 text-muted-foreground">
                   View Getting Started Guide

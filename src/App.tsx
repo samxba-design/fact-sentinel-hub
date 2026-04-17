@@ -58,8 +58,7 @@ const QuickTriagePage = React.lazy(() => import("@/pages/QuickTriagePage"));
 const NoiseFiltersPage = React.lazy(() => import("@/pages/NoiseFiltersPage"));
 const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
 const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
-
-const queryClient = new QueryClient();
+const AuditLogPage = React.lazy(() => import("@/pages/AuditLogPage"));
 
 function PageLoader() {
   return (
@@ -164,6 +163,7 @@ function AppRoutes() {
           <Route path="/noise-filters" element={<RoleGate require="edit"><ErrorBoundary><NoiseFiltersPage /></ErrorBoundary></RoleGate>} />
           <Route path="/entities" element={<ErrorBoundary><EntityRecordsPage /></ErrorBoundary>} />
           <Route path="/entities/:id" element={<ErrorBoundary><EntityDetailPage /></ErrorBoundary>} />
+          <Route path="/audit-log" element={<ErrorBoundary><AuditLogPage /></ErrorBoundary>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
           <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />
@@ -190,7 +190,9 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
+const App = () => {
+  const [queryClient] = React.useState(() => new QueryClient());
+  return (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <TooltipProvider>
@@ -208,6 +210,7 @@ const App = () => (
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
