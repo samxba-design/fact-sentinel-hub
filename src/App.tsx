@@ -59,6 +59,11 @@ const NoiseFiltersPage = React.lazy(() => import("@/pages/NoiseFiltersPage"));
 const EntityRecordsPage = React.lazy(() => import("@/pages/EntityRecordsPage"));
 const EntityDetailPage = React.lazy(() => import("@/pages/EntityDetailPage"));
 const AuditLogPage = React.lazy(() => import("@/pages/AuditLogPage"));
+const TopicWatchPage = React.lazy(() => import("@/pages/TopicWatchPage"));
+const TopicWatchDetailPage = React.lazy(() => import("@/pages/TopicWatchDetailPage"));
+const ContagionMapPage = React.lazy(() => import("@/pages/ContagionMapPage"));
+const CoAssociationPage = React.lazy(() => import("@/pages/CoAssociationPage"));
+const AmplifierRadarPage = React.lazy(() => import("@/pages/AmplifierRadarPage"));
 
 function PageLoader() {
   return (
@@ -164,6 +169,11 @@ function AppRoutes() {
           <Route path="/entities" element={<ErrorBoundary><EntityRecordsPage /></ErrorBoundary>} />
           <Route path="/entities/:id" element={<ErrorBoundary><EntityDetailPage /></ErrorBoundary>} />
           <Route path="/audit-log" element={<ErrorBoundary><AuditLogPage /></ErrorBoundary>} />
+          <Route path="/topic-watch" element={<ErrorBoundary><TopicWatchPage /></ErrorBoundary>} />
+          <Route path="/topic-watch/:id" element={<ErrorBoundary><TopicWatchDetailPage /></ErrorBoundary>} />
+          <Route path="/contagion-map" element={<ErrorBoundary><ContagionMapPage /></ErrorBoundary>} />
+          <Route path="/co-association" element={<ErrorBoundary><CoAssociationPage /></ErrorBoundary>} />
+          <Route path="/amplifier-radar" element={<ErrorBoundary><AmplifierRadarPage /></ErrorBoundary>} />
           <Route path="/respond" element={<ErrorBoundary><RespondPage /></ErrorBoundary>} />
           <Route path="/approved-facts" element={<ErrorBoundary><ApprovedFactsPage /></ErrorBoundary>} />
           <Route path="/approved-templates" element={<ErrorBoundary><ApprovedTemplatesPage /></ErrorBoundary>} />

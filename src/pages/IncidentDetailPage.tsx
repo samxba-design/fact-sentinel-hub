@@ -21,6 +21,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import IncidentFormDialog from "@/components/incidents/IncidentFormDialog";
 import CrisisPlaybook from "@/components/incidents/CrisisPlaybook";
+import StoryArcTimeline from "@/components/StoryArcTimeline";
+import ResponseEfficacyPanel from "@/components/ResponseEfficacyPanel";
 
 interface Incident {
   id: string;
@@ -472,6 +474,18 @@ export default function IncidentDetailPage() {
         mentionCount={mentions.length}
         narrativeCount={narratives.length}
       />
+
+      {/* Story Arc */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Story Arc</h2>
+        <StoryArcTimeline sourceType="incident" sourceId={incident.id} days={7} />
+      </div>
+
+      {/* Response Efficacy */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Response Efficacy</h2>
+        <ResponseEfficacyPanel incidentId={incident.id} />
+      </div>
 
       <IncidentFormDialog
         open={editOpen}

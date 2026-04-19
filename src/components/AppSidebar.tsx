@@ -9,7 +9,7 @@ import {
   FileText, TicketCheck, Download, Settings, LogOut,
   ChevronDown, ChevronRight, Building2, ShieldCheck, CreditCard, Plus, BookOpen,
   Target, Contact, Bell, Radio, Globe, Share2, Brain, Newspaper,
-  Zap, EyeOff, Link2, Eye, ClipboardList,
+  Zap, EyeOff, Link2, Eye, ClipboardList, Crosshair, GitBranch,
 } from "lucide-react";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import CompanyLogo from "@/components/CompanyLogo";
@@ -47,6 +47,10 @@ const ADVANCED_NAV: NavItem[] = [
   { to: "/competitors",     icon: Target,        label: "Competitors",        access: "edit" },
   { to: "/incidents",       icon: Siren,         label: "Incidents" },
   { to: "/war-room",        icon: Radio,         label: "War Room" },
+  { to: "/topic-watch",     icon: Crosshair,     label: "Topic Watch" },
+  { to: "/contagion-map",   icon: GitBranch,     label: "Contagion Map" },
+  { to: "/amplifier-radar", icon: Radio,         label: "Amplifier Radar" },
+  { to: "/co-association",  icon: Link2,         label: "Association Signals" },
   { to: "/noise-filters",   icon: EyeOff,        label: "Noise Filters",      access: "edit" },
   { to: "/entities",        icon: Shield,        label: "Entity Intelligence" },
   { to: "/threat-map",      icon: Globe,         label: "Threat Map" },
