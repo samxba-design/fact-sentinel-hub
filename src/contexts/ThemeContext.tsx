@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-export type ThemePalette = "midnight" | "arctic" | "ember" | "forest";
+export type ThemePalette = "midnight" | "arctic" | "ember" | "forest" | "neon" | "steel";
 export type ThemeDensity = "compact" | "default" | "comfortable";
 
 interface ThemeContextValue {
@@ -36,7 +36,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     // Remove all palette classes
-    root.classList.remove("theme-midnight", "theme-arctic", "theme-ember", "theme-forest");
+    root.classList.remove("theme-midnight", "theme-arctic", "theme-ember", "theme-forest", "theme-neon", "theme-steel");
     root.classList.add(`theme-${palette}`);
 
     // Remove all density classes

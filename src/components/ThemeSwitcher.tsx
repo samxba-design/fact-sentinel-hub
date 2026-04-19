@@ -1,18 +1,26 @@
-import { useTheme, type ThemePalette } from "@/contexts/ThemeContext";
-import { Palette } from "lucide-react";
+import { useTheme, type ThemePalette, type ThemeDensity } from "@/contexts/ThemeContext";
+import { Palette, LayoutDensity } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const palettes: { id: ThemePalette; label: string; colors: string[] }[] = [
-  { id: "midnight", label: "Midnight", colors: ["hsl(222,30%,12%)", "hsl(20,90%,48%)", "hsl(0,0%,98%)"] },
-  { id: "arctic", label: "Arctic", colors: ["hsl(210,40%,96%)", "hsl(210,80%,50%)", "hsl(210,10%,20%)"] },
-  { id: "ember", label: "Ember", colors: ["hsl(15,20%,10%)", "hsl(15,85%,55%)", "hsl(38,92%,50%)"] },
-  { id: "forest", label: "Forest", colors: ["hsl(160,25%,8%)", "hsl(152,60%,45%)", "hsl(45,80%,60%)"] },
+  { id: "midnight", label: "Midnight", colors: ["hsl(222,30%,12%)", "hsl(27,95%,60%)", "hsl(0,0%,98%)"] },
+  { id: "arctic",  label: "Arctic",   colors: ["hsl(210,40%,96%)", "hsl(210,80%,50%)", "hsl(210,10%,20%)"] },
+  { id: "ember",   label: "Ember",    colors: ["hsl(15,20%,10%)",  "hsl(15,85%,55%)",  "hsl(38,92%,50%)"] },
+  { id: "forest",  label: "Forest",   colors: ["hsl(160,25%,8%)",  "hsl(152,60%,45%)", "hsl(45,80%,60%)"] },
+  { id: "neon",    label: "Neon",     colors: ["hsl(240,20%,8%)",  "hsl(270,90%,65%)", "hsl(180,80%,55%)"] },
+  { id: "steel",   label: "Steel",    colors: ["hsl(215,25%,10%)", "hsl(215,60%,55%)", "hsl(215,10%,70%)"] },
+];
+
+const densities: { id: ThemeDensity; label: string; desc: string }[] = [
+  { id: "compact",     label: "Compact",     desc: "Tight" },
+  { id: "default",     label: "Default",     desc: "Normal" },
+  { id: "comfortable", label: "Comfortable", desc: "Spacious" },
 ];
 
 export default function ThemeSwitcher({ className }: { className?: string }) {
-  const { palette, setPalette } = useTheme();
+  const { palette, setPalette, density, setDensity } = useTheme();
 
   return (
     <Popover>
@@ -21,7 +29,8 @@ export default function ThemeSwitcher({ className }: { className?: string }) {
           <Palette className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-4" align="end" sideOffset={8}>
+      <PopoverContent className="w-72 p-4 space-y-4" align="end" sideOffset={8}>
+        {/* Palette */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Color Palette</p>
           <div className="grid grid-cols-2 gap-2">
@@ -38,14 +47,32 @@ export default function ThemeSwitcher({ className }: { className?: string }) {
               >
                 <div className="flex -space-x-1">
                   {p.colors.map((c, i) => (
-                    <div
-                      key={i}
-                      className="h-4 w-4 rounded-full border border-background"
-                      style={{ backgroundColor: c }}
-                    />
+                    <div key={i} className="h-4 w-4 rounded-full border border-background" style={{ backgroundColor: c }} />
                   ))}
                 </div>
                 <span>{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Density */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Layout Density</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {densities.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setDensity(d.id)}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-xs font-medium transition-all text-center",
+                  density === d.id
+                    ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary"
+                    : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <div className="font-semibold">{d.label}</div>
+                <div className="text-[10px] opacity-60">{d.desc}</div>
               </button>
             ))}
           </div>

@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Mail, FileSpreadsheet, Webhook, Loader2, Save, ExternalLink,
   CheckCircle2, MessageSquare, ChevronDown, ChevronUp, Info,
-  LogIn, LogOut, AlertCircle,
+  LogIn, LogOut, AlertCircle, Bot,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -74,6 +74,38 @@ const INTEGRATIONS: IntegrationConfig[] = [
     ],
     externalLinks: [
       { label: "Manage exports", url: "/exports" },
+    ],
+  },
+  {
+    id: "wea",
+    label: "WEA / OpenClaw Bot",
+    shortDescription: "Push critical alerts directly to your WEA group via your OpenClaw AI bot.",
+    fullDescription:
+      "If your team uses WEA (Wecom Enterprise App) with an OpenClaw AI bot, SentiWatch can push real-time critical-threat alerts straight to a WEA group or DM. When negative sentiment crosses a threshold or an emergency mention fires, SentiWatch POSTs a JSON payload to your OpenClaw webhook endpoint — and the bot relays it to your chosen WEA recipient automatically. No Slack needed.",
+    icon: <Bot className="h-5 w-5" />,
+    fields: [
+      {
+        name: "webhook_url",
+        label: "OpenClaw Incoming Webhook URL",
+        placeholder: "https://your-openclaw-instance.com/webhook/...",
+        helpText: "Find this in your OpenClaw config under Channels → Incoming Webhooks.",
+      },
+      {
+        name: "wea_target",
+        label: "WEA Target (group ID or user WUID)",
+        placeholder: "group:912aa7af... or +12345",
+        helpText: "The WEA group ID (prefix group:) or user WUID the bot should message.",
+      },
+    ],
+    steps: [
+      "Make sure your OpenClaw instance has an Incoming Webhook plugin enabled.",
+      "Copy the webhook URL from OpenClaw → Settings → Channels → Incoming Webhooks.",
+      "Paste the URL below along with the WEA target (a group ID like group:abc123 or a user WUID like +29686).",
+      "Click Save — SentiWatch will POST a JSON alert to OpenClaw whenever a critical mention fires.",
+      "Your OpenClaw bot will then relay the alert directly to the specified WEA group or DM.",
+    ],
+    externalLinks: [
+      { label: "OpenClaw docs — Incoming Webhooks", url: "https://docs.openclaw.ai" },
     ],
   },
   {

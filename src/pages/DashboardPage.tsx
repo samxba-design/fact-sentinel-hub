@@ -414,7 +414,169 @@ export default function DashboardPage() {
   const totalChange = prevTotal > 0 ? `${Math.round(((totalMentions - prevTotal) / prevTotal) * 100)}%` : undefined;
   const totalChangeType = totalMentions > prevTotal ? "up" as const : totalMentions < prevTotal ? "down" as const : "neutral" as const;
 
-  const isVisible = (id: string) => widgets.find(w => w.id === id)?.visible !== false;
+  // Sort widgets by saved order; only render visible ones
+  const orderedWidgets = [...widgets].sort((a, b) => a.order - b.order).filter(w => w.visible);
+
+  const renderWidget = (id: string) => {
+    switch (id) {
+      case "narrative-now":
+        return <NarrativeNow key="narrative-now" />;
+
+      case "metrics":
+        return (
+          <div key="metrics" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
+            ) : (
+              <>
+                <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate(`/mentions?days=${rangeDays}`)} tooltip="Total mentions detected across all sources in the selected time period." />
+                <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate(`/mentions?sentiment=negative&days=${rangeDays}`)} tooltip="Mentions classified as having negative sentiment by AI analysis." />
+                <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate(`/mentions?severity=critical&days=${rangeDays}`)} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
+                <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents?status=active")} tooltip="Open incident war-rooms currently being tracked." />
+                <MetricCard icon={FileWarning} label="Open Escalations" value={pendingEscalations} accentClass="bg-primary/10" onClick={() => navigate("/escalations")} tooltip="Escalations currently open or in progress requiring attention." />
+              </>
+            )}
+          </div>
+        );
+
+      case "sparklines":
+        return <SentimentSparklines key="sparklines" />;
+
+      case "forecast":
+        return <SentimentForecastWidget key="forecast" />;
+
+      case "risk-sentiment":
+        return (
+          <div key="risk-sentiment" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
+              <RiskIndex score={loading ? 0 : riskScore} />
+            </div>
+            <Card className="bg-card border-border p-5 lg:col-span-2">
+              <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+                Sentiment Breakdown
+                <InfoTooltip text="Distribution of AI-classified sentiment across all mentions in the selected period." />
+              </span>
+              {loading ? (
+                <Skeleton className="h-40 w-full mt-4" />
+              ) : sentimentData.length === 0 ? (
+                <p className="text-xs text-muted-foreground mt-4">No sentiment data yet. Run a scan to populate.</p>
+              ) : (
+                <div className="flex items-center gap-6 mt-4">
+                  <ResponsiveContainer width="50%" height={160}>
+                    <PieChart>
+                      <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} strokeWidth={0}>
+                        {sentimentData.map((entry) => (
+                          <Cell key={entry.name} fill={SENTIMENT_COLORS[entry.name] || "hsl(220, 9%, 46%)"} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-3 flex-1">
+                    {sentimentData.map((s) => (
+                      <div
+                        key={s.name}
+                        className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                        onClick={() => navigate(`/mentions?sentiment=${s.name}&days=${rangeDays}`)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: SENTIMENT_COLORS[s.name] }} />
+                          <span className="text-sm text-card-foreground capitalize">{s.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-mono text-muted-foreground">{s.value}</span>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        );
+
+      case "timeline-volume":
+        return (
+          <div key="timeline-volume" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ActivityTimeline />
+            <Card className="bg-card border-border p-5">
+              <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+                Mention Volume ({rangeDays} days)
+                <InfoTooltip text="Daily mention count across all sources, showing volume trends over the selected period." />
+              </span>
+              {loading ? (
+                <Skeleton className="h-48 w-full mt-4" />
+              ) : volumeData.every(d => d.mentions === 0) ? (
+                <p className="text-xs text-muted-foreground mt-4">No mentions yet. Run a scan to populate.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200} className="mt-4">
+                  <AreaChart data={volumeData}>
+                    <defs>
+                      <linearGradient id="mentionGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="mentions" stroke="hsl(var(--primary))" fill="url(#mentionGrad)" strokeWidth={2} name="Mentions" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+          </div>
+        );
+
+      case "narrative-monitoring-feed":
+        return (
+          <div key="narrative-monitoring-feed" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <NarrativeHealthWidget />
+            <MonitoringWidget />
+            <LiveThreatFeed />
+          </div>
+        );
+
+      case "active-threats":
+        return <ActiveThreatsWidget key="active-threats" />;
+
+      case "watchlist-threats":
+        return <WatchlistThreatsWidget key="watchlist-threats" />;
+
+      case "sources":
+        return (
+          <Card key="sources" className="bg-card border-border p-5 space-y-3">
+            <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
+              Source Breakdown
+              <InfoTooltip text="Distribution of mentions by source platform in the selected period." />
+            </span>
+            {loading ? (
+              <Skeleton className="h-48 w-full" />
+            ) : sourceData.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No source data yet. Run a scan to populate.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={sourceData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Mentions" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        );
+
+      case "competitor-feed":
+        return <CompetitorFeedWidget key="competitor-feed" />;
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -548,156 +710,8 @@ export default function DashboardPage() {
         loading={loading}
       />
 
-      {/* ── Narrative Now — brand-only overview, togglable ── */}
-      {isVisible("narrative-now") && <NarrativeNow />}
-
-      {isVisible("metrics") && (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
-        ) : (
-          <>
-            <MetricCard icon={MessageSquareWarning} label="Total Mentions" value={totalMentions} change={totalChange} changeType={totalChangeType} onClick={() => navigate(`/mentions?days=${rangeDays}`)} tooltip="Total mentions detected across all sources in the selected time period." />
-            <MetricCard icon={TrendingDown} label="Negative Mentions" value={negativeMentions} accentClass="bg-sentinel-amber/10" onClick={() => navigate(`/mentions?sentiment=negative&days=${rangeDays}`)} tooltip="Mentions classified as having negative sentiment by AI analysis." />
-            <MetricCard icon={Siren} label="Emergencies" value={emergencies} accentClass="bg-sentinel-red/10" onClick={() => navigate(`/mentions?severity=critical&days=${rangeDays}`)} tooltip="Critical-severity mentions requiring immediate attention — potential crises." />
-            <MetricCard icon={AlertTriangle} label="Active Incidents" value={activeIncidents} accentClass="bg-sentinel-amber/10" onClick={() => navigate("/incidents?status=active")} tooltip="Open incident war-rooms currently being tracked." />
-            <MetricCard icon={FileWarning} label="Open Escalations" value={pendingEscalations} accentClass="bg-primary/10" onClick={() => navigate("/escalations")} tooltip="Escalations currently open or in progress requiring attention." />
-          </>
-        )}
-      </div>
-      )}
-
-      {/* Sentiment Sparklines */}
-      {isVisible("sparklines") && <SentimentSparklines />}
-
-      {/* Sentiment Forecast */}
-      {isVisible("forecast") && <SentimentForecastWidget />}
-
-      {isVisible("risk-sentiment") && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-       <div className="cursor-pointer" onClick={() => navigate("/risk-console")}>
-          <RiskIndex score={loading ? 0 : riskScore} />
-        </div>
-        <Card className="bg-card border-border p-5 lg:col-span-2">
-          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-            Sentiment Breakdown
-            <InfoTooltip text="Distribution of AI-classified sentiment across all mentions in the selected period." />
-          </span>
-          {loading ? (
-            <Skeleton className="h-40 w-full mt-4" />
-          ) : sentimentData.length === 0 ? (
-            <p className="text-xs text-muted-foreground mt-4">No sentiment data yet. Run a scan to populate.</p>
-          ) : (
-            <div className="flex items-center gap-6 mt-4">
-              <ResponsiveContainer width="50%" height={160}>
-                <PieChart>
-                  <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} strokeWidth={0}>
-                    {sentimentData.map((entry) => (
-                      <Cell key={entry.name} fill={SENTIMENT_COLORS[entry.name] || "hsl(220, 9%, 46%)"} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-3 flex-1">
-              {sentimentData.map((s) => (
-                  <div
-                    key={s.name}
-                    className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
-                    onClick={() => navigate(`/mentions?sentiment=${s.name}&days=${rangeDays}`)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: SENTIMENT_COLORS[s.name] }} />
-                      <span className="text-sm text-card-foreground capitalize">{s.name}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-mono text-muted-foreground">{s.value}</span>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
-      )}
-
-      {isVisible("timeline-volume") && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Activity Timeline */}
-        <ActivityTimeline />
-
-        {/* Mention Volume + Top Narratives */}
-        <Card className="bg-card border-border p-5">
-          <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-            Mention Volume ({rangeDays} days)
-            <InfoTooltip text="Daily mention count across all sources, showing volume trends over the selected period." />
-          </span>
-          {loading ? (
-            <Skeleton className="h-48 w-full mt-4" />
-          ) : volumeData.every(d => d.mentions === 0) ? (
-            <p className="text-xs text-muted-foreground mt-4">No mentions yet. Run a scan to populate.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200} className="mt-4">
-              <AreaChart data={volumeData}>
-                <defs>
-                  <linearGradient id="mentionGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="mentions" stroke="hsl(var(--primary))" fill="url(#mentionGrad)" strokeWidth={2} name="Mentions" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-      </div>
-      )}
-
-      {isVisible("narrative-monitoring-feed") && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <NarrativeHealthWidget />
-        <MonitoringWidget />
-        <LiveThreatFeed />
-      </div>
-      )}
-
-      {/* Active Threats Widget - Quick threat detection */}
-      {isVisible("active-threats") && <ActiveThreatsWidget />}
-
-      {isVisible("watchlist-threats") && <WatchlistThreatsWidget />}
-
-      {isVisible("sources") && (
-      <Card className="bg-card border-border p-5 space-y-3">
-        <span className="text-sm font-medium text-card-foreground flex items-center gap-1.5">
-          Source Breakdown
-          <InfoTooltip text="Distribution of mentions by source platform in the selected period." />
-        </span>
-        {loading ? (
-          <Skeleton className="h-48 w-full" />
-        ) : sourceData.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No source data yet. Run a scan to populate.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={sourceData} layout="vertical" margin={{ left: 0, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={70} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Mentions" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Card>
-      )}
-
-      {/* ── Competitor Feed — optional widget, off by default ── */}
-      {isVisible("competitor-feed") && <CompetitorFeedWidget />}
+      {/* ── Widgets — rendered in user-defined order ── */}
+      {orderedWidgets.map(w => renderWidget(w.id))}
 
       <AddMentionDialog open={addMentionOpen} onOpenChange={setAddMentionOpen} />
     </div>

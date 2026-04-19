@@ -229,26 +229,130 @@
     max-width: 100% !important;
   }
 }
+/* ── Theme variants (applied via .theme-X on <html>) ──────────────────── */
+.dark.theme-ember {
+  --primary: 15 85% 55%;
+  --primary-foreground: 15 20% 10%;
+  --ring: 15 85% 55%;
+  --sidebar-primary: 15 85% 55%;
+  --sidebar-primary-foreground: 15 20% 10%;
+  --sidebar-accent: 38 92% 50%;
+  --sidebar-accent-foreground: 15 20% 10%;
+}
+
+.dark.theme-forest {
+  --primary: 152 60% 45%;
+  --primary-foreground: 160 25% 8%;
+  --ring: 152 60% 45%;
+  --sidebar-primary: 152 60% 45%;
+  --sidebar-primary-foreground: 160 25% 8%;
+  --sidebar-accent: 45 80% 60%;
+  --sidebar-accent-foreground: 160 25% 8%;
+}
+
+.dark.theme-neon {
+  --background: 240 20% 6%;
+  --card: 240 18% 10%;
+  --popover: 240 18% 16%;
+  --primary: 270 90% 65%;
+  --primary-foreground: 270 30% 10%;
+  --ring: 270 90% 65%;
+  --border: 240 15% 22%;
+  --input: 240 15% 22%;
+  --sidebar-background: 240 25% 4%;
+  --sidebar-primary: 270 90% 65%;
+  --sidebar-primary-foreground: 270 30% 10%;
+  --sidebar-accent: 180 80% 55%;
+  --sidebar-accent-foreground: 240 20% 8%;
+  --sidebar-border: 240 15% 22%;
+  --sidebar-ring: 270 90% 65%;
+  --sentinel-cyan: 180 80% 55%;
+  --sentinel-purple: 270 90% 65%;
+}
+
+.dark.theme-steel {
+  --background: 215 20% 8%;
+  --card: 215 18% 12%;
+  --popover: 215 18% 18%;
+  --primary: 215 60% 55%;
+  --primary-foreground: 215 25% 10%;
+  --ring: 215 60% 55%;
+  --border: 215 15% 24%;
+  --input: 215 15% 24%;
+  --sidebar-background: 215 25% 5%;
+  --sidebar-primary: 215 60% 55%;
+  --sidebar-primary-foreground: 215 25% 10%;
+  --sidebar-accent: 215 40% 40%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-border: 215 15% 22%;
+  --sidebar-ring: 215 60% 55%;
+}
+
+/* ── Layout density (applied via .density-X on <html>) ──────────────── */
+.density-compact .space-y-6 { --tw-space-y-reverse: 0; margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0.75rem * var(--tw-space-y-reverse)); }
+.density-compact .gap-4 { gap: 0.5rem; }
+.density-compact .gap-6 { gap: 0.75rem; }
+.density-compact .p-5 { padding: 0.75rem; }
+.density-compact .p-6 { padding: 1rem; }
+
+.density-comfortable .space-y-6 { --tw-space-y-reverse: 0; margin-top: calc(2rem * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(2rem * var(--tw-space-y-reverse)); }
+.density-comfortable .gap-4 { gap: 1.25rem; }
+.density-comfortable .gap-6 { gap: 1.75rem; }
+.density-comfortable .p-5 { padding: 1.5rem; }
+.density-comfortable .p-6 { padding: 2rem; }
+
 /* ── Print / PDF export (used by Briefing page) ──────────────────────── */
 @media print {
-  /* Hide all chrome — sidebar, toolbar, header, buttons */
+  /* Hide all chrome */
   aside, nav, header,
   [data-sidebar], [role="navigation"],
   .no-print, button, [role="button"],
-  .fixed, .sticky { display: none !important; }
+  .fixed, .sticky,
+  [data-radix-popper-content-wrapper] { display: none !important; }
 
-  /* Reset background for white paper */
-  body, .bg-background, .bg-card { background: white !important; color: black !important; }
+  /* Paper reset */
+  @page { margin: 1.5cm; size: A4; }
+  html, body { font-size: 11pt; }
+  body, .bg-background, .bg-card, .bg-muted { background: white !important; color: #111 !important; }
+  .dark, .dark * { color-scheme: light; }
+
+  /* Typography */
   .text-muted-foreground { color: #555 !important; }
   .text-foreground, .text-card-foreground { color: #111 !important; }
-  .border-border { border-color: #ddd !important; }
+  .text-primary { color: #c2410c !important; }
+  .text-sentinel-red { color: #dc2626 !important; }
+  .text-sentinel-amber { color: #d97706 !important; }
+  .text-sentinel-emerald { color: #059669 !important; }
 
-  /* Full width content */
-  main, [data-main-content], .max-w-5xl { max-width: 100% !important; margin: 0 !important; padding: 8px !important; }
+  /* Borders + cards */
+  .border-border, .border { border-color: #d1d5db !important; }
+  .rounded-xl, .rounded-lg, .rounded-md { border: 1px solid #e5e7eb !important; background: white !important; }
+  .bg-primary\/10, .bg-sentinel-red\/10, .bg-sentinel-amber\/10, .bg-muted\/30 { background: #f9fafb !important; }
 
-  /* Ensure cards show borders */
-  .rounded-xl, .rounded-lg { border: 1px solid #ddd !important; }
+  /* Layout */
+  main, [data-main-content] { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  .max-w-5xl, .max-w-4xl, .max-w-3xl { max-width: 100% !important; }
+  .container { padding: 0 !important; }
 
   /* Page breaks */
-  .space-y-8 > * { page-break-inside: avoid; }
+  .space-y-8 > *, .grid > * { page-break-inside: avoid; }
+  h2, h3 { page-break-after: avoid; }
+
+  /* Charts — try to keep visible */
+  .recharts-wrapper, .recharts-surface { page-break-inside: avoid; }
+
+  /* Briefing-specific: show report header cleanly */
+  .print-report-header { display: block !important; border-bottom: 2px solid #e5e7eb; padding-bottom: 1rem; margin-bottom: 1rem; }
+
+  /* Print footer */
+  body::after {
+    content: "Confidential — SentiWatch Executive Briefing";
+    display: block;
+    text-align: center;
+    font-size: 9pt;
+    color: #9ca3af;
+    margin-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.5rem;
+  }
 }
