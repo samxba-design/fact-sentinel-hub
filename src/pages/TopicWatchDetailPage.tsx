@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
 import StoryArcTimeline from "@/components/StoryArcTimeline";
+import ThreatResearchPanel from "@/components/ThreatResearchPanel";
 
 type Range = "24h" | "48h" | "7d";
 
@@ -144,6 +145,16 @@ export default function TopicWatchDetailPage() {
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Story Arc</h2>
         <StoryArcTimeline sourceType="topic_watch" sourceId={id!} days={7} />
+      </div>
+
+      {/* Threat Research */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Threat Intelligence Research</h2>
+        <ThreatResearchPanel
+          text={watch.description ?? watch.query}
+          watchId={watch.id}
+          initialData={(watch as any).research_data ?? undefined}
+        />
       </div>
     </div>
   );

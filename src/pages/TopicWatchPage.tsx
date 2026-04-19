@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
+import ThreatResearchPanel from "@/components/ThreatResearchPanel";
 
 const COLORS = ["#ef4444", "#f97316", "#f59e0b", "#3b82f6", "#a855f7", "#22c55e"];
 
@@ -283,13 +284,19 @@ export default function TopicWatchPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 pb-4">
+        <div className="flex gap-2 pb-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={() => setStep("input")}>
             ← Edit text
           </Button>
           <Button className="flex-1 gap-2" onClick={handleCreate} disabled={!editedAnalysis.name || !editedAnalysis.query}>
             <Plus className="h-4 w-4" /> Create Watch
           </Button>
+        </div>
+
+        {/* Threat research panel — runs automatically in review */}
+        <div className="pb-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Threat Research</p>
+          <ThreatResearchPanel text={inputText} compact />
         </div>
       </div>
     );
