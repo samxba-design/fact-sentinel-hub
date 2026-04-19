@@ -125,13 +125,24 @@ export function useTopicWatchDetail(id: string | undefined) {
 }
 
 export async function createTopicWatch(orgId: string, data: CreateTopicWatchData) {
-  const { data: result, error } = await supabase
-    .from("topic_watches" as any)
-    .insert({ org_id: orgId, ...data })
-    .select()
-    .single();
-  if (error) throw error;
-  return result;
+  // First try via edge function (handles table-not-exists gracefully)
+  try {
+    const { data: result, error } = await supabase.functions.invoke("analyze-topic-watch", {
+      body: { action: "create", org_id: orgId, watch_data: data },
+    });
+    if (error) throw new Error(error.message);
+    if (result?.error) throw new Error(result.error);
+    return result.watch;
+  } catch (fnErr: any) {
+    // Fallback: direct insert (may fail if table doesn't exist)
+    const { data: result, error } = await supabase
+      .from("topic_watches" as any)
+      .insert({ org_id: orgId, ...data })
+      .select()
+      .single();
+    if (error) throw error;
+    return result;
+  }
 }
 
 export async function updateTopicWatch(id: string, patch: Partial<TopicWatch>) {
