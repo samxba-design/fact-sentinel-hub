@@ -125,8 +125,10 @@ Deno.serve(async (req) => {
 
       // Use title + description as content, skip if it looks like an error
       const title = snippet.title || "";
-      const description = snippet.description || "";
-      const content = `${title}\n\n${description}`.trim();
+      const description = (snippet.description || "").slice(0, 500); // cap desc to avoid bloat
+      const content = description
+        ? `${title}\n\n${description}`.trim()
+        : title;
 
       results.push({
         source: "youtube",
@@ -141,6 +143,15 @@ Deno.serve(async (req) => {
           shares: 0,
           comments: parseInt(stats.commentCount || "0"),
           views: parseInt(stats.viewCount || "0"),
+        },
+        // Tag all YouTube results as title-only so downstream AI knows
+        // it's working from metadata, not a transcript
+        metadata: {
+          content_source: "youtube_metadata",
+          video_id: videoId,
+          view_count: parseInt(stats.viewCount || "0"),
+          like_count: parseInt(stats.likeCount || "0"),
+          comment_count: parseInt(stats.commentCount || "0"),
         },
       });
     }

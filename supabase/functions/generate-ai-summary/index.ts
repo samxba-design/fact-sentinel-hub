@@ -122,6 +122,93 @@ Deno.serve(async (req) => {
     // Clean content first
     const cleaned = cleanForAI(content);
 
+    // ── YouTube special handling ──────────────────────────────────────
+    // YouTube mentions only carry title + description metadata — we can never
+    // scrape a transcript. Do NOT run junk detection on them and do NOT tell
+    // the user there's a 403 error. Instead, analyse based on what we have
+    // and be transparent that it's title/description-only.
+    if (source === "youtube" || source === "youtube_comment") {
+      const isComment = source === "youtube_comment";
+
+      // If content is literally empty, say so
+      if (!cleaned || cleaned.length < 5) {
+        return new Response(JSON.stringify({
+          summary: `${isComment ? "YouTube comment" : "YouTube video"} — no text content available to analyse.`,
+          impact: "Unable to assess without content. View the video directly.",
+          action: "Open the video to watch/read and assess manually.",
+          content_note: "title_only",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Analyse from title/description — be explicit about the limitation
+      const ytRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0.2,
+          tools: [{
+            type: "function",
+            function: {
+              name: "mention_summary",
+              description: "Return a structured analysis of the mention",
+              parameters: {
+                type: "object",
+                properties: {
+                  summary: { type: "string" },
+                  impact: { type: "string" },
+                  action: { type: "string" },
+                },
+                required: ["summary", "impact", "action"],
+                additionalProperties: false,
+              },
+            },
+          }],
+          tool_choice: { type: "function", function: { name: "mention_summary" } },
+          messages: [
+            {
+              role: "system",
+              content: `You are a reputation intelligence analyst. You are analysing a YouTube ${isComment ? "comment" : "video"} based on its title and description ONLY — full transcript is not available.
+
+RULES:
+- You are analysing METADATA (title + description), not the full video content
+- Begin your summary with "Based on the video title and description: …" to be transparent
+- Only describe what is explicitly stated in the title/description — do not guess or infer what the video says
+- Do NOT mention access errors, 403 errors, or technical scraping issues — this is expected YouTube behaviour
+- If the title/description is short or vague, say so and recommend watching the video for full context
+- Source: YouTube, Severity: ${severity || "unknown"}, Sentiment: ${sentiment || "unknown"}, Author: ${author || "unknown"}`,
+            },
+            {
+              role: "user",
+              content: isComment
+                ? `YouTube comment:\n${cleaned.slice(0, 1000)}`
+                : `YouTube video title and description:\n${cleaned.slice(0, 1500)}`,
+            },
+          ],
+        }),
+      });
+
+      if (ytRes.ok) {
+        const ytData = await ytRes.json();
+        const toolCall = ytData.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          const parsed = JSON.parse(toolCall.function.arguments);
+          return new Response(JSON.stringify({ ...parsed, content_note: "youtube_metadata_only" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Fallback if AI call fails — honest response
+      return new Response(JSON.stringify({
+        summary: `Based on the video title and description: ${cleaned.slice(0, 200)}`,
+        impact: "Transcript not available. Impact assessment requires watching the video directly.",
+        action: "Watch the video to assess the full content and determine whether a response is needed.",
+        content_note: "youtube_metadata_only",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    // ── End YouTube handling ──────────────────────────────────────────
+
     // Detect junk/blocked content BEFORE sending to AI
     if (isJunkContent(cleaned) || cleaned.length < 30) {
       return new Response(JSON.stringify({

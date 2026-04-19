@@ -524,6 +524,11 @@ export default function MentionDetailPage() {
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+            {(aiSummary as any)?.content_note === "youtube_metadata_only" && (
+              <span className="text-[10px] normal-case font-normal text-muted-foreground ml-1">
+                · title &amp; description only — transcript not available
+              </span>
+            )}
           </h3>
           <div className="flex items-center gap-1">
             <Button
