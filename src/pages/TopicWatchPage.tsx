@@ -102,9 +102,12 @@ export default function TopicWatchPage() {
       const { data, error } = await supabase.functions.invoke("analyze-topic-watch", {
         body: { action: "analyze", text: inputText, org_id: currentOrg.id },
       });
-      if (error) throw new Error(error.message ?? "Function error");
+      // Supabase wraps network/runtime errors in error.message
+      if (error) throw new Error(error.message || "Edge function unreachable — check Supabase function logs");
+      // Our function always returns JSON; a non-200 comes back in data.error
       if (data?.error) throw new Error(data.error);
       if (data?.tableError) setTableError(data.tableError);
+      if (!data?.analysis) throw new Error("No analysis returned — check GOOGLE_API_KEY or LOVABLE_API_KEY is set in Edge Function secrets");
       setAnalysis(data.analysis);
       setEditedAnalysis({ ...data.analysis });
       setStep("review");
@@ -121,7 +124,7 @@ export default function TopicWatchPage() {
       const { data, error } = await supabase.functions.invoke("analyze-topic-watch", {
         body: { action: "create", org_id: currentOrg.id, watch_data: editedAnalysis },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message || "Edge function unreachable — check Supabase function logs");
       if (data?.error) throw new Error(data.error);
       toast({ title: "Topic Watch created", description: `Now monitoring: ${editedAnalysis.name}` });
       setOpen(false);
