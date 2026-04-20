@@ -103,6 +103,7 @@ export default function MentionsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRescanning, setBulkRescanning] = useState(false);
   const [addMentionOpen, setAddMentionOpen] = useState(false);
   const [groupByNarrative, setGroupByNarrative] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -299,7 +300,31 @@ export default function MentionsPage() {
     if (selected.size === 0) return;
     const ids = Array.from(selected);
 
-    if (action === "delete") {
+    if (action === "rescan") {
+      setBulkRescanning(true);
+      toast({ title: `Rescanning ${ids.length} mention${ids.length > 1 ? "s" : ""}…`, description: "YouTube mentions use Gemini native video. This may take a moment." });
+      let success = 0;
+      let failed = 0;
+      // Run in batches of 3 to avoid rate limits
+      for (let i = 0; i < ids.length; i += 3) {
+        const batch = ids.slice(i, i + 3);
+        await Promise.all(batch.map(async (id) => {
+          try {
+            const { data, error } = await supabase.functions.invoke("re-analyse", { body: { mention_id: id } });
+            if (error || data?.error) { failed++; } else { success++; }
+          } catch { failed++; }
+        }));
+      }
+      setBulkRescanning(false);
+      setSelected(new Set());
+      toast({
+        title: "Rescan complete",
+        description: `${success} updated${failed > 0 ? `, ${failed} failed` : ""}`,
+        variant: failed > 0 && success === 0 ? "destructive" : "default",
+      });
+      // Refresh mentions list
+      return;
+    } else if (action === "delete") {
       const { error } = await supabase.from("mentions").delete().in("id", ids);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -897,7 +922,7 @@ export default function MentionsPage() {
         </div>
       )}
 
-      <BulkActionsBar selectedCount={selected.size} onAction={handleBulkAction} onClear={() => setSelected(new Set())} />
+      <BulkActionsBar selectedCount={selected.size} onAction={handleBulkAction} onClear={() => setSelected(new Set())} rescanning={bulkRescanning} />
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-md">

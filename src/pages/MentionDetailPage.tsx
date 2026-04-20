@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import SourceIntelSheet from "@/components/mentions/SourceIntelSheet";
 import MentionDetailedView from "@/components/mentions/MentionDetailedView";
+import MentionNotesPanel from "@/components/mentions/MentionNotesPanel";
+import RelatedMentionsPanel from "@/components/mentions/RelatedMentionsPanel";
 import SourceBadge, { formatReachDisplay } from "@/components/SourceBadge";
 import CompanyLogo from "@/components/CompanyLogo";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -290,24 +292,35 @@ export default function MentionDetailPage() {
   const handleReAnalyse = async () => {
     if (!mention || reAnalysing) return;
     setReAnalysing(true);
-    toast({ title: "Re-analysing…", description: mention.source === "youtube" ? "Fetching transcript and re-running AI analysis" : "Re-running AI analysis" });
+    const isYT = mention.source === "youtube";
+    toast({
+      title: isYT ? "Scanning with Gemini…" : "Rescanning…",
+      description: isYT
+        ? "Gemini is watching the video — this can take up to 60s"
+        : "Re-scraping source and re-running AI analysis",
+    });
     try {
       const { data, error } = await supabase.functions.invoke("re-analyse", {
         body: { mention_id: mention.id },
       });
       if (error || data?.error) {
-        toast({ title: "Re-analysis failed", description: error?.message || data?.error, variant: "destructive" });
+        toast({ title: "Rescan failed", description: error?.message || data?.error, variant: "destructive" });
         return;
       }
       // Reload mention from DB to pick up updated content/sentiment/summary
       const { data: updated } = await supabase.from("mentions").select("*").eq("id", mention.id).single();
       if (updated) {
         setMention(updated as MentionDetail);
-        setAiSummary(null); // clear cached summary so it regenerates
+        setAiSummary(null); // clear cached summary so it regenerates with new content
       }
+      const method = data.method === "gemini_native_video"
+        ? "✦ Gemini native video analysis"
+        : data.updated?.scraped_fresh
+          ? "fresh scrape"
+          : "cached content";
       toast({
-        title: "Re-analysis complete",
-        description: `${data.updated.sentiment_label} · ${data.updated.severity} severity${data.updated.has_transcript ? " · transcript fetched" : ""}`,
+        title: "Rescan complete",
+        description: `${data.updated.sentiment_label} · ${data.updated.severity} · ${method}`,
       });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -526,8 +539,13 @@ export default function MentionDetailPage() {
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
             {(aiSummary as any)?.content_note === "youtube_metadata_only" && (
               <span className="text-[10px] normal-case font-normal text-muted-foreground ml-1">
-                · title &amp; description only — transcript not available
+                · title &amp; description only
               </span>
+            )}
+            {mention?.flags?.transcript_source === "gemini_native_video" && (
+              <Badge variant="outline" className="text-[10px] normal-case font-normal border-emerald-500/40 text-emerald-500 ml-1">
+                ✦ Gemini video
+              </Badge>
             )}
           </h3>
           <div className="flex items-center gap-1">
@@ -535,11 +553,17 @@ export default function MentionDetailPage() {
               size="sm" variant="ghost"
               onClick={handleReAnalyse}
               disabled={reAnalysing}
-              className="h-6 text-[10px] gap-1"
-              title={mention.source === "youtube" ? "Re-fetch transcript & re-run AI analysis" : "Re-run AI analysis on this content"}
+              className={`h-6 text-[10px] gap-1 ${mention?.source === "youtube" ? "text-primary" : ""}`}
+              title={mention?.source === "youtube"
+                ? "Rescan using Gemini native video understanding — reads the actual video, speech, and captions"
+                : "Re-scrape source and re-run AI analysis"}
             >
               <RefreshCw className={`h-3 w-3 ${reAnalysing ? "animate-spin" : ""}`} />
-              {reAnalysing ? "Re-analysing…" : mention.source === "youtube" ? "Re-fetch & Analyse" : "Re-analyse"}
+              {reAnalysing
+                ? "Scanning…"
+                : mention?.source === "youtube"
+                  ? "Rescan with Gemini"
+                  : "Rescan"}
             </Button>
             {aiSummary && (
               <Button size="sm" variant="ghost" onClick={() => generateSummary(true)} disabled={summaryLoading} className="h-6 text-[10px]">
@@ -927,6 +951,22 @@ export default function MentionDetailPage() {
               ))}
             </div>
           )}
+        </Card>
+
+        {/* Analyst Notes */}
+        <Card className="bg-card border-border p-5 space-y-3">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <MessageCircleReply className="h-3 w-3" /> Analyst Notes
+          </h3>
+          {mention && <MentionNotesPanel mentionId={mention.id} />}
+        </Card>
+
+        {/* Related Mentions */}
+        <Card className="bg-card border-border p-5 space-y-3">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Link2 className="h-3 w-3" /> Related Mentions
+          </h3>
+          {mention && <RelatedMentionsPanel mentionId={mention.id} orgId={mention.org_id} />}
         </Card>
       </div>
 

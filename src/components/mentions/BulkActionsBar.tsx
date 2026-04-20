@@ -1,19 +1,30 @@
 import { Button } from "@/components/ui/button";
-import { EyeOff, Clock, CheckCircle2, Siren, Trash2, X } from "lucide-react";
+import { EyeOff, Clock, CheckCircle2, Siren, Trash2, X, RefreshCw } from "lucide-react";
 
 interface BulkActionsBarProps {
   selectedCount: number;
   onAction: (action: string) => void;
   onClear: () => void;
+  rescanning?: boolean;
 }
 
-export default function BulkActionsBar({ selectedCount, onAction, onClear }: BulkActionsBarProps) {
+export default function BulkActionsBar({ selectedCount, onAction, onClear, rescanning = false }: BulkActionsBarProps) {
   if (selectedCount === 0) return null;
 
   return (
     <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 animate-fade-up">
       <span className="text-sm font-medium text-primary">{selectedCount} selected</span>
       <div className="flex-1" />
+      <Button
+        size="sm" variant="outline"
+        onClick={() => onAction("rescan")}
+        disabled={rescanning}
+        className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+        title="Re-scrape source and re-run AI analysis. YouTube uses Gemini native video understanding."
+      >
+        <RefreshCw className={`h-3 w-3 ${rescanning ? "animate-spin" : ""}`} />
+        {rescanning ? "Rescanning…" : "Rescan"}
+      </Button>
       <Button size="sm" variant="outline" onClick={() => onAction("ignored")} className="h-7 text-xs gap-1.5">
         <EyeOff className="h-3 w-3" /> Ignore
       </Button>
