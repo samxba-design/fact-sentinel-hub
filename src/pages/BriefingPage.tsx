@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain, Printer } from "lucide-react";
+import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain, Printer, Loader2 } from "lucide-react";
 import SmartDigestDialog from "@/components/briefing/SmartDigestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { format, subDays } from "date-fns";
@@ -87,9 +88,11 @@ function RiskGauge({ score }: { score: number }) {
 
 export default function BriefingPage() {
   const { currentOrg } = useOrg();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -152,11 +155,41 @@ export default function BriefingPage() {
     });
   }, [currentOrg]);
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    toast({ title: "Link copied" });
-    setTimeout(() => setCopied(false), 2000);
+  const copyLink = async () => {
+    if (!currentOrg || !user) {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      toast({ title: "Link copied" });
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+    setSharing(true);
+    try {
+      const { data: linkData, error } = await supabase
+        .from('shared_links')
+        .insert({
+          org_id: currentOrg.id,
+          created_by: user.id,
+          label: 'Briefing share',
+          permissions: { monitoring: true, intelligence: true, operations: false, assets: false },
+        })
+        .select('token')
+        .single();
+      if (error || !linkData?.token) throw new Error(error?.message || 'Failed to create share link');
+      const shareUrl = `${window.location.origin}/shared/${linkData.token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast({ title: "Share link created", description: "Link copied to clipboard" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_err) {
+      // Fallback to current URL
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      toast({ title: "Link copied" });
+      setTimeout(() => setCopied(false), 2000);
+    } finally {
+      setSharing(false);
+    }
   };
 
   if (loading) {
@@ -222,9 +255,9 @@ export default function BriefingPage() {
         <p className="text-lg text-muted-foreground">Executive Intelligence Briefing</p>
         <p className="text-sm text-muted-foreground mt-1">{data.generatedAt} · Last 7 days</p>
         <div className="mt-4 flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" onClick={copyLink} className="gap-2">
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copied" : "Share Briefing Link"}
+          <Button variant="outline" size="sm" onClick={copyLink} disabled={sharing} className="gap-2">
+            {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {sharing ? "Creating link..." : copied ? "Copied" : "Share Briefing Link"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
             <Printer className="h-3.5 w-3.5" />

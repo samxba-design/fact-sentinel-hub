@@ -66,6 +66,9 @@ export default function RiskConsolePage() {
   const [counts, setCounts] = useState({ emergencies: 0, high: 0, falseClaims: 0, regulatory: 0, scams: 0, spikes: 0 });
   const [loading, setLoading] = useState(true);
   const [activeQueue, setActiveQueue] = useState<QueueFilter>(null);
+  const [mentionOffset, setMentionOffset] = useState(0);
+  const [hasMoreMentions, setHasMoreMentions] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -74,12 +77,12 @@ export default function RiskConsolePage() {
     Promise.all([
       supabase
         .from("mentions")
-        .select("id, content, source, severity, posted_at, flags")
+        .select("id, content, source, severity, posted_at, flags", { count: "exact" })
         .eq("org_id", currentOrg.id)
         .eq("mention_type", "brand")
         .in("severity", ["high", "critical"])
         .order("posted_at", { ascending: false })
-        .limit(50),
+        .range(0, 49),
       supabase
         .from("alerts")
         .select("id, type, status, payload, triggered_at")
@@ -89,6 +92,8 @@ export default function RiskConsolePage() {
     ]).then(([mentionsRes, alertsRes]) => {
       const items = mentionsRes.data || [];
       setMentions(items);
+      setMentionOffset(50);
+      setHasMoreMentions((mentionsRes.count ?? 0) > 50);
       setAlerts(alertsRes.data || []);
 
       let emergencies = 0, high = 0, falseClaims = 0, regulatory = 0, scams = 0;
@@ -107,8 +112,27 @@ export default function RiskConsolePage() {
     });
   }, [currentOrg]);
 
-  const dismissAlert = async (alertId: string) => {
-    const { error } = await supabase.from("alerts").update({ status: "dismissed" }).eq("id", alertId);
+  const loadMoreMentions = async () => {
+    if (!currentOrg || loadingMore) return;
+    setLoadingMore(true);
+    const { data, count } = await supabase
+      .from("mentions")
+      .select("id, content, source, severity, posted_at, flags", { count: "exact" })
+      .eq("org_id", currentOrg.id)
+      .eq("mention_type", "brand")
+      .in("severity", ["high", "critical"])
+      .order("posted_at", { ascending: false })
+      .range(mentionOffset, mentionOffset + 49);
+    if (data) {
+      setMentions(prev => [...prev, ...data]);
+      const newOffset = mentionOffset + 50;
+      setMentionOffset(newOffset);
+      setHasMoreMentions((count ?? 0) > newOffset);
+    }
+    setLoadingMore(false);
+  };
+
+  const dismissAlert = async (alertId: string) => {    const { error } = await supabase.from("alerts").update({ status: "dismissed" }).eq("id", alertId);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -376,6 +400,20 @@ export default function RiskConsolePage() {
             ))
           )}
         </div>
+        {/* Load more pagination */}
+        {hasMoreMentions && !activeQueue && (
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadMoreMentions}
+              disabled={loadingMore}
+              className="gap-2"
+            >
+              {loadingMore ? <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Loading...</> : "Load 50 more"}
+            </Button>
+          </div>
+        )}
       </Card>
       {/* Predictive Risk */}
       <PredictiveRiskWidget />

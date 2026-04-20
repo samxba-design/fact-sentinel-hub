@@ -34,7 +34,7 @@ const REGION_COORDS: Record<string, { lat: number; lng: number; label: string }>
   australia:      { lng: 133,   lat: -25,  label: "Australia" },
 };
 
-function inferRegion(mention: any): string {
+function inferRegion(mention: any): string | null {
   const text = (
     (mention.content || "") + " " +
     (mention.source || "") + " " +
@@ -54,7 +54,7 @@ function inferRegion(mention: any): string {
   if (/nigeria|kenya|south africa|africa/i.test(text)) return "africa";
   if (/thailand|vietnam|philippines|indonesia|malaysia/i.test(text)) return "southeast_asia";
   if (/argentina|chile|colombia|peru/i.test(text)) return "south_america";
-  return "us";
+  return null; // Unknown/global — do not plot on map
 }
 
 interface RegionData {
@@ -69,6 +69,7 @@ export default function ThreatMapPage() {
   const { currentOrg } = useOrg();
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState<RegionData[]>([]);
+  const [unknownCount, setUnknownCount] = useState(0);
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<RegionData | null>(null);
   const [zoom, setZoom] = useState(1.4);
@@ -88,9 +89,14 @@ export default function ThreatMapPage() {
       .then(({ data }) => {
         const items = data || [];
         const regionMap: Record<string, { total: number; negative: number; critical: number }> = {};
+        let unknownGlobal = 0;
 
         items.forEach(m => {
           const r = inferRegion(m);
+          if (r === null) {
+            unknownGlobal++;
+            return; // skip null — unknown/global, don't plot on map
+          }
           if (!regionMap[r]) regionMap[r] = { total: 0, negative: 0, critical: 0 };
           regionMap[r].total++;
           if (m.sentiment_label === "negative") regionMap[r].negative++;
@@ -107,6 +113,7 @@ export default function ThreatMapPage() {
           .sort((a, b) => b.total - a.total);
 
         setRegions(result);
+        setUnknownCount(unknownGlobal);
         setLoading(false);
       });
   }, [currentOrg]);
@@ -147,7 +154,7 @@ export default function ThreatMapPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="bg-card border-border p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Globe className="h-4 w-4" /> Regions Active
@@ -173,6 +180,12 @@ export default function ThreatMapPage() {
           <div className="text-lg font-bold text-card-foreground truncate">
             {loading ? "—" : topRegion?.coords.label || "None yet"}
           </div>
+        </Card>
+        <Card className="bg-card border-border p-4 md:col-span-4 lg:col-span-1">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <Globe className="h-4 w-4 text-muted-foreground" /> Unknown / Global
+          </div>
+          <div className="text-2xl font-bold text-muted-foreground">{loading ? "—" : unknownCount}</div>
         </Card>
       </div>
 

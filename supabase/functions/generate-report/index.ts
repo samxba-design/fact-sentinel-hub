@@ -5,13 +5,56 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
+const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+
+async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
+  if (GEMINI_KEY) {
+    try {
+      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+            },
+          }),
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        if (text) return text;
+      }
+    } catch (_) {}
+  }
+  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      messages,
+    }),
+  });
+  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
+  const d = await res.json();
+  return d.choices?.[0]?.message?.content ?? "";
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -117,38 +160,10 @@ Report sections to include: ${allSections.join(", ")}
 
 Generate the report content with these sections. Use markdown formatting with headers. Be data-driven and professional. Include actionable recommendations.`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "You are a professional analyst writing branded intelligence reports. Write in clear, executive-friendly language. Use markdown with proper headers (##), bullet points, and bold text. Be concise but thorough." },
-          { role: "user", content: aiPrompt },
-        ],
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const reportContent = aiData.choices?.[0]?.message?.content || "Report generation failed.";
+    const reportContent = await aiChat([
+      { role: "system", content: "You are a professional analyst writing branded intelligence reports. Write in clear, executive-friendly language. Use markdown with proper headers (##), bullet points, and bold text. Be concise but thorough." },
+      { role: "user", content: aiPrompt },
+    ]);
 
     return new Response(JSON.stringify({
       title: reportTitle,

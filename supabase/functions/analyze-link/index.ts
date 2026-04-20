@@ -6,6 +6,51 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
+const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+
+async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
+  if (GEMINI_KEY) {
+    try {
+      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+            },
+          }),
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        if (text) return text;
+      }
+    } catch (_) {}
+  }
+  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      messages,
+    }),
+  });
+  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
+  const d = await res.json();
+  return d.choices?.[0]?.message?.content ?? "";
+}
+
 const PAYWALL_INDICATORS = [
   "subscribe to read", "subscribers only", "premium content", "paywall",
   "sign in to continue reading", "this article is for subscribers",
@@ -312,7 +357,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY")!;
+    const lovableKey = LOVABLE_KEY;
     const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
 
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
@@ -435,28 +480,16 @@ Deno.serve(async (req) => {
       if (slugTitle && slugTitle.length > 8) {
         pageTitle = slugTitle;
         console.log(`[ANALYZE-LINK] Using URL slug title: "${pageTitle}"`);
-      } else if (markdown.length > 100 && lovableKey) {
+      } else if (markdown.length > 100) {
         // Ask AI to extract the real headline from content
         try {
-          const titleRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash-lite",
-              temperature: 0,
-              messages: [
-                { role: "system", content: "Extract the article/page headline from this content. Return ONLY the headline text, nothing else. If no headline is identifiable, return the main topic in 5-10 words." },
-                { role: "user", content: markdown.slice(0, 2000) },
-              ],
-            }),
-          });
-          if (titleRes.ok) {
-            const titleData = await titleRes.json();
-            const extracted = (titleData.choices?.[0]?.message?.content || "").trim().replace(/^["']|["']$/g, "");
-            if (extracted.length > 5 && extracted.length < 200) {
-              pageTitle = extracted;
-              console.log(`[ANALYZE-LINK] AI-extracted title: "${pageTitle}"`);
-            }
+          const extracted = (await aiChat([
+            { role: "system", content: "Extract the article/page headline from this content. Return ONLY the headline text, nothing else. If no headline is identifiable, return the main topic in 5-10 words." },
+            { role: "user", content: markdown.slice(0, 2000) },
+          ])).trim().replace(/^["']|["']$/g, "");
+          if (extracted.length > 5 && extracted.length < 200) {
+            pageTitle = extracted;
+            console.log(`[ANALYZE-LINK] AI-extracted title: "${pageTitle}"`);
           }
         } catch (e: any) {
           console.log("[ANALYZE-LINK] AI title extraction failed:", e.message);
@@ -525,52 +558,37 @@ Deno.serve(async (req) => {
 
             if (candidates.length > 0) {
               try {
-                const filterRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${lovableKey}`,
-                    "Content-Type": "application/json",
+                const rawFilter = await aiChat([
+                  {
+                    role: "system",
+                    content: `You are a strict relevance judge. Given an article title and search results, return ONLY indices of results that discuss the EXACT SAME specific story, event, or subject. Results must be directly about the same topic — not just sharing a vague theme, keyword, or industry. If a result is about a different story even if it mentions the same person/company, it is NOT relevant. Return a JSON array of integers like [0, 2]. If none are relevant, return [].`,
                   },
-                  body: JSON.stringify({
-                    model: "google/gemini-2.5-flash-lite",
-                    temperature: 0,
-                    messages: [
-                      {
-                        role: "system",
-                        content: `You are a strict relevance judge. Given an article title and search results, return ONLY indices of results that discuss the EXACT SAME specific story, event, or subject. Results must be directly about the same topic — not just sharing a vague theme, keyword, or industry. If a result is about a different story even if it mentions the same person/company, it is NOT relevant. Return a JSON array of integers like [0, 2]. If none are relevant, return [].`,
-                      },
-                      {
-                        role: "user",
-                        content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\nSource: ${domain}\n\nResults:\n${candidates.map((c, i) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
-                      },
-                    ],
-                  }),
-                });
-                if (filterRes.ok) {
-                  const filterData = await filterRes.json();
-                  const rawFilter = filterData.choices?.[0]?.message?.content || "[]";
-                  const jsonMatch = rawFilter.match(/\[[\s\S]*?\]/);
-                  const relevantIndices: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+                  {
+                    role: "user",
+                    content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\nSource: ${domain}\n\nResults:\n${candidates.map((c, i) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                  },
+                ]);
+                const jsonMatch = rawFilter.match(/\[[\s\S]*?\]/);
+                const relevantIndices: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
-                  const relevant = relevantIndices
-                    .filter(i => i >= 0 && i < candidates.length)
-                    .map(i => candidates[i]);
+                const relevant = relevantIndices
+                  .filter(i => i >= 0 && i < candidates.length)
+                  .map(i => candidates[i]);
 
-                  for (const result of relevant) {
-                    const resUrl = (result.url || "").toLowerCase();
-                    if (resUrl.includes("twitter.com") || resUrl.includes("x.com")) {
-                      socialPickup.push({ platform: "twitter", url: result.url, title: result.title, snippet: result.description });
-                    } else if (resUrl.includes("reddit.com")) {
-                      socialPickup.push({ platform: "reddit", url: result.url, title: result.title, snippet: result.description });
-                    } else if (resUrl.includes("linkedin.com")) {
-                      socialPickup.push({ platform: "linkedin", url: result.url, title: result.title, snippet: result.description });
-                    } else if (resUrl.includes("facebook.com")) {
-                      socialPickup.push({ platform: "facebook", url: result.url, title: result.title, snippet: result.description });
-                    } else if (resUrl.includes("youtube.com") || resUrl.includes("youtu.be")) {
-                      socialPickup.push({ platform: "youtube", url: result.url, title: result.title, snippet: result.description });
-                    } else {
-                      mediaPickup.push({ url: result.url, title: result.title, snippet: result.description, domain: new URL(result.url).hostname.replace("www.", "") });
-                    }
+                for (const result of relevant) {
+                  const resUrl = (result.url || "").toLowerCase();
+                  if (resUrl.includes("twitter.com") || resUrl.includes("x.com")) {
+                    socialPickup.push({ platform: "twitter", url: result.url, title: result.title, snippet: result.description });
+                  } else if (resUrl.includes("reddit.com")) {
+                    socialPickup.push({ platform: "reddit", url: result.url, title: result.title, snippet: result.description });
+                  } else if (resUrl.includes("linkedin.com")) {
+                    socialPickup.push({ platform: "linkedin", url: result.url, title: result.title, snippet: result.description });
+                  } else if (resUrl.includes("facebook.com")) {
+                    socialPickup.push({ platform: "facebook", url: result.url, title: result.title, snippet: result.description });
+                  } else if (resUrl.includes("youtube.com") || resUrl.includes("youtu.be")) {
+                    socialPickup.push({ platform: "youtube", url: result.url, title: result.title, snippet: result.description });
+                  } else {
+                    mediaPickup.push({ url: result.url, title: result.title, snippet: result.description, domain: new URL(result.url).hostname.replace("www.", "") });
                   }
                 }
               } catch (e: any) {
@@ -631,40 +649,25 @@ Deno.serve(async (req) => {
           let competingResults: any[] = [];
           if (otherResults.length > 0) {
             try {
-              const compFilterRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${lovableKey}`,
-                  "Content-Type": "application/json",
+              const rawIdx = await aiChat([
+                {
+                  role: "system",
+                  content: `You judge whether search results are about the SAME SPECIFIC story/topic as a given article. Return ONLY a JSON array of indices of results that cover the same specific event, claim, or subject. Not just same industry/company — must be the same story. If none match, return [].`,
                 },
-                body: JSON.stringify({
-                  model: "google/gemini-2.5-flash-lite",
-                  temperature: 0,
-                  messages: [
-                    {
-                      role: "system",
-                      content: `You judge whether search results are about the SAME SPECIFIC story/topic as a given article. Return ONLY a JSON array of indices of results that cover the same specific event, claim, or subject. Not just same industry/company — must be the same story. If none match, return [].`,
-                    },
-                    {
-                      role: "user",
-                      content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\n\nResults:\n${otherResults.map((c: any, i: number) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
-                    },
-                  ],
-                }),
-              });
-              if (compFilterRes.ok) {
-                const compFilterData = await compFilterRes.json();
-                const rawIdx = compFilterData.choices?.[0]?.message?.content || "[]";
-                const idxMatch = rawIdx.match(/\[[\s\S]*?\]/);
-                const relevantIdx: number[] = idxMatch ? JSON.parse(idxMatch[0]) : [];
-                competingResults = relevantIdx
-                  .filter(i => i >= 0 && i < otherResults.length)
-                  .map(i => ({
-                    title: otherResults[i].title,
-                    url: otherResults[i].url,
-                    domain: (() => { try { return new URL(otherResults[i].url).hostname.replace("www.", ""); } catch { return otherResults[i].url; } })(),
-                  }));
-              }
+                {
+                  role: "user",
+                  content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\n\nResults:\n${otherResults.map((c: any, i: number) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                },
+              ]);
+              const idxMatch = rawIdx.match(/\[[\s\S]*?\]/);
+              const relevantIdx: number[] = idxMatch ? JSON.parse(idxMatch[0]) : [];
+              competingResults = relevantIdx
+                .filter(i => i >= 0 && i < otherResults.length)
+                .map(i => ({
+                  title: otherResults[i].title,
+                  url: otherResults[i].url,
+                  domain: (() => { try { return new URL(otherResults[i].url).hostname.replace("www.", ""); } catch { return otherResults[i].url; } })(),
+                }));
             } catch (e: any) {
               console.log("[ANALYZE-LINK] Competing filter failed:", e.message);
             }
@@ -698,19 +701,10 @@ Deno.serve(async (req) => {
 
       // 4b: Search keyword discovery — extract keywords via AI, then verify in search
       try {
-        const kwRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${lovableKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            temperature: 0,
-            messages: [
-              {
-                role: "system",
-                content: `You extract search keywords that would lead someone to find THIS SPECIFIC ARTICLE on Google — not the website's homepage or other articles on the same site.
+        const rawKw = await aiChat([
+          {
+            role: "system",
+            content: `You extract search keywords that would lead someone to find THIS SPECIFIC ARTICLE on Google — not the website's homepage or other articles on the same site.
 
 CRITICAL RULES:
 - Keywords MUST be about the specific story/topic of THIS article, NOT about the publication (e.g. never "new york times", "nytimes", "breaking news", "homepage")
@@ -720,20 +714,14 @@ CRITICAL RULES:
 - Each keyword phrase should be 2-6 words
 
 Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about Binance regulatory issues: ["binance SEC lawsuit", "binance crypto regulation 2025", "CZ binance legal troubles", "crypto exchange compliance crackdown"]. Return ONLY the JSON array.`,
-              },
-              {
-                role: "user",
-                content: `Title: ${pageTitle}\nDescription: ${pageDescription}\nContent (first 1500 chars): ${markdown.slice(0, 1500)}`,
-              },
-            ],
-          }),
-        });
-        
-        if (kwRes.ok) {
-          const kwData = await kwRes.json();
-          const rawKw = kwData.choices?.[0]?.message?.content || "[]";
-          const jsonMatch = rawKw.match(/\[[\s\S]*?\]/);
-          const extractedKeywords: string[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          },
+          {
+            role: "user",
+            content: `Title: ${pageTitle}\nDescription: ${pageDescription}\nContent (first 1500 chars): ${markdown.slice(0, 1500)}`,
+          },
+        ]);
+        const jsonMatch = rawKw.match(/\[[\s\S]*?\]/);
+        const extractedKeywords: string[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
           
           if (extractedKeywords.length > 0) {
             console.log("[ANALYZE-LINK] Extracted search keywords:", extractedKeywords.join(", "));
@@ -811,7 +799,6 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
             
             console.log(`[ANALYZE-LINK] Search discovery: ${searchDiscovery.surfacing_count}/${searchDiscovery.total_verified} keywords surface the article`);
           }
-        }
       } catch (e: any) {
         console.log("[ANALYZE-LINK] Search keyword discovery failed:", e.message);
       }
@@ -880,90 +867,35 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
       ? `\nVerified media coverage: ${mediaPickup.map(m => `${m.domain}: ${m.title}`).join(", ")}`
       : "\nNo additional media coverage found.";
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        temperature: 0.15,
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert media intelligence analyst. Analyze the article content thoroughly and return a JSON object. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.
+    const analysisSystemPrompt = `You are an expert media intelligence analyst. Analyze the article content thoroughly and return a JSON object. Be precise — if information is unknown say "Unknown" or null. Never fabricate data.
 
 IMPORTANT: If the content appears to be from a paywalled or access-restricted article with only partial/limited text available, clearly state this in the summary (e.g., "This is a paywalled article. Based on the available excerpt:..."). For sections where you cannot make accurate assessments due to limited content, use null values or state "Insufficient content — paywalled article" rather than guessing.
 
 Return ONLY valid JSON (no markdown fences, no extra text) with this exact structure:
-{
-  "headline": "article headline",
-  "summary": "4-6 sentence detailed summary",
-  "content_breakdown": {
-    "main_topic": "primary subject",
-    "key_points": ["point1", "point2", "point3", "point4"],
-    "tone": "neutral reporting|investigative|promotional|opinion|analytical",
-    "target_audience": "who this is for"
-  },
-  "brand_impact": {
-    "brands_mentioned": [{"name": "X", "context": "how discussed", "sentiment_toward": "positive|negative|neutral|mixed"}],
-    "overall_brand_risk": "none|low|medium|high|critical",
-    "brand_opportunities": ["opportunity"],
-    "brand_threats": ["threat"],
-    "reputation_implications": "what this means for brands"
-  },
-  "reach_and_impact": {
-    "estimated_reach": "audience estimate",
-    "virality_potential": "low|medium|high",
-    "virality_reasoning": "why",
-    "shareability_factors": ["factor"]
-  },
-  "sentiment": {"label": "positive|negative|neutral|mixed", "score": 0.5, "confidence": 80, "reasoning": "why"},
-  "narratives": ["narrative thread"],
-  "claims": [{"text": "claim", "category": "fact|opinion|allegation|statistic", "verifiable": true}],
-  "key_entities": [{"name": "entity", "role": "their role", "sentiment_toward": "positive|negative|neutral"}],
-  "potential_impact": {"level": "low|medium|high|critical", "reasoning": "why", "affected_parties": ["who"]},
-  "regional_scope": {"primary_region": "region", "relevant_regions": ["region"], "is_global": false},
-  "content_type": "news|opinion|analysis|press_release|blog|report|interview|other",
-  "publication_date": "ISO date or null",
-  "author": "name or null",
-  "reliability": {"score": 70, "factors": ["factor"], "source_type": "mainstream|independent|trade|social|unknown"},
-  "recommended_actions": ["action"]
-}`,
-          },
-          {
-            role: "user",
-            content: `Analyze this content from ${formattedUrl}:\n\nTitle: ${pageTitle}\nDescription: ${pageDescription}\n${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}${socialContext}${mediaContext}\n\nContent:\n${contentForAI}`,
-          },
-        ],
-      }),
-    });
+{"headline":"article headline","summary":"4-6 sentence detailed summary","content_breakdown":{"main_topic":"primary subject","key_points":["point1","point2"],"tone":"neutral reporting|investigative|promotional|opinion|analytical","target_audience":"who this is for"},"brand_impact":{"brands_mentioned":[{"name":"X","context":"how discussed","sentiment_toward":"positive|negative|neutral|mixed"}],"overall_brand_risk":"none|low|medium|high|critical","brand_opportunities":["opportunity"],"brand_threats":["threat"],"reputation_implications":"what this means for brands"},"reach_and_impact":{"estimated_reach":"audience estimate","virality_potential":"low|medium|high","virality_reasoning":"why","shareability_factors":["factor"]},"sentiment":{"label":"positive|negative|neutral|mixed","score":0.5,"confidence":80,"reasoning":"why"},"narratives":["narrative thread"],"claims":[{"text":"claim","category":"fact|opinion|allegation|statistic","verifiable":true}],"key_entities":[{"name":"entity","role":"their role","sentiment_toward":"positive|negative|neutral"}],"potential_impact":{"level":"low|medium|high|critical","reasoning":"why","affected_parties":["who"]},"regional_scope":{"primary_region":"region","relevant_regions":["region"],"is_global":false},"content_type":"news|opinion|analysis|press_release|blog|report|interview|other","publication_date":"ISO date or null","author":"name or null","reliability":{"score":70,"factors":["factor"],"source_type":"mainstream|independent|trade|social|unknown"},"recommended_actions":["action"]}`;
+    const analysisUserPrompt = `Analyze this content from ${formattedUrl}:\n\nTitle: ${pageTitle}\nDescription: ${pageDescription}\n${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}${socialContext}${mediaContext}\n\nContent:\n${contentForAI}`;
 
     let analysis: any = {};
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      // Try tool call first, then content
-      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-      const raw = toolCall?.function?.arguments || aiData.choices?.[0]?.message?.content || "";
-      if (raw) {
-        const parsed = extractJson(raw);
-        if (parsed) {
-          analysis = parsed;
-        } else {
-          try { analysis = JSON.parse(raw); } catch {
-            analysis = { summary: raw.slice(0, 500), error: "parse_error" };
-          }
+    try {
+      const raw = await aiChat([
+        { role: "system", content: analysisSystemPrompt },
+        { role: "user", content: analysisUserPrompt },
+      ], true);
+      const parsed = extractJson(raw);
+      if (parsed) {
+        analysis = parsed;
+      } else {
+        try { analysis = JSON.parse(raw); } catch {
+          analysis = { summary: raw.slice(0, 500), error: "parse_error" };
         }
       }
       console.log("[ANALYZE-LINK] AI analysis keys:", Object.keys(analysis).join(", "));
-    } else {
-      const errText = await aiRes.text();
-      console.log("[ANALYZE-LINK] AI request failed:", aiRes.status, errText.slice(0, 300));
-      analysis = { summary: "AI analysis temporarily unavailable. Content was scraped successfully.", error: `ai_${aiRes.status}` };
+    } catch (aiErr: any) {
+      console.log("[ANALYZE-LINK] AI request failed:", aiErr.message);
+      analysis = { summary: "AI analysis temporarily unavailable. Content was scraped successfully.", error: "ai_failed" };
     }
 
-    const knownUnknown = {
+        const knownUnknown = {
       content_accessible: scrapeSuccess && markdown.length > 100,
       paywall_status: paywallResult.is_paywalled ? `Paywalled (${paywallResult.paywall_type})` : "Accessible",
       content_source: contentSource,

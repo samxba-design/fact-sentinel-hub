@@ -367,47 +367,46 @@ export default function DashboardPage() {
     }, 2000);
   }, [currentOrg, rangeDays]);
 
-  // Live polling for active scans — update dashboard real-time
+  // Supabase Realtime subscription for scan_runs + 30s safety interval
   useEffect(() => {
     if (!currentOrg) return;
-    
-    const pollActiveScan = setInterval(async () => {
-      const { data: activeScan } = await supabase
-        .from("scan_runs")
-        .select("id, status, total_mentions, negative_pct, emergencies_count, finished_at")
-        .eq("org_id", currentOrg.id)
-        .eq("status", "running")
-        .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (activeScan?.finished_at) {
-        // Scan just finished — refresh the full dashboard
-        const now = new Date();
-        const rangeAgo = subDays(now, rangeDays).toISOString();
-        
-        Promise.all([
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-          supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
-        ]).then(([total, neg, emg, mentionsRaw]) => {
-          setTotalMentions(total.count ?? 0);
-          setNegativeMentions(neg.count ?? 0);
-          setEmergencies(emg.count ?? 0);
-          const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
-          setVolumeData(vd);
-          setSentimentData(sd);
-          setSourceData(srd);
-          const positiveCount = sd.find(s => s.name === "positive")?.value ?? 0;
-          setPositiveMentions(positiveCount);
-        });
-        
-        clearInterval(pollActiveScan);
-      }
-    }, 5000); // Poll every 5 seconds during active scans
-    
-    return () => clearInterval(pollActiveScan);
+
+    const loadDashboardData = () => {
+      const now = new Date();
+      const rangeAgo = subDays(now, rangeDays).toISOString();
+      Promise.all([
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+      ]).then(([total, neg, emg, mentionsRaw]) => {
+        setTotalMentions(total.count ?? 0);
+        setNegativeMentions(neg.count ?? 0);
+        setEmergencies(emg.count ?? 0);
+        const { volumeData: vd, sentimentData: sd, sourceData: srd } = buildChartData(mentionsRaw.data || [], rangeDays);
+        setVolumeData(vd);
+        setSentimentData(sd);
+        setSourceData(srd);
+        const positiveCount = sd.find(s => s.name === "positive")?.value ?? 0;
+        setPositiveMentions(positiveCount);
+      });
+    };
+
+    // Realtime subscription on scan_runs
+    const channel = supabase
+      .channel(`scan-runs:${currentOrg.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scan_runs', filter: `org_id=eq.${currentOrg.id}` }, () => {
+        loadDashboardData();
+      })
+      .subscribe();
+
+    // 30s safety interval fallback
+    const safetyInterval = setInterval(loadDashboardData, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(safetyInterval);
+    };
   }, [currentOrg, rangeDays]);
 
   const riskScore = Math.min(100, Math.round((negativeMentions / Math.max(totalMentions, 1)) * 100 + emergencies * 10));

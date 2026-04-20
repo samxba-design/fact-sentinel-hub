@@ -7,6 +7,53 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
+const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+
+async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
+  // Try Gemini direct first
+  if (GEMINI_KEY) {
+    try {
+      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+            },
+          }),
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        if (text) return text;
+      }
+    } catch (_) {}
+  }
+  // Fallback to Lovable gateway
+  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      messages,
+    }),
+  });
+  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
+  const d = await res.json();
+  return d.choices?.[0]?.message?.content ?? "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,7 +62,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -84,28 +130,10 @@ Deno.serve(async (req) => {
       `[${i + 1}] ${m.source} | ${m.sentiment_label || "neutral"} | ${m.severity || "low"} | ${(m.content || "").slice(0, 300)}`
     ).join("\n");
 
-    if (!lovableApiKey) {
-      return new Response(
-        JSON.stringify({ error: "LOVABLE_API_KEY not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Call AI to cluster mentions into narratives
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${lovableApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a narrative intelligence analyst. Given a list of mentions, identify 2-6 distinct narrative themes or storylines. Each narrative should represent a coherent story or talking point that appears across multiple mentions.
+    const systemPrompt = `You are a narrative intelligence analyst. Given a list of mentions, identify 2-6 distinct narrative themes or storylines. Each narrative should represent a coherent story or talking point that appears across multiple mentions.
 
-Return a JSON array of narratives. Each must have:
+Return a JSON object with a "narratives" array. Each narrative must have:
 - "name": short descriptive name (3-8 words)
 - "description": 1-2 sentence description of the narrative
 - "confidence": 0-100 (how clear the pattern is)
@@ -113,25 +141,11 @@ Return a JSON array of narratives. Each must have:
 - "example_phrases": 2-3 short representative phrases from the mentions
 - "status": "active" if ongoing, "emerging" if just starting
 
-Only return narratives with at least 2 mentions. Focus on reputation-relevant themes.`,
-          },
-          {
-            role: "user",
-            content: `Analyze these ${mentions.length} mentions and identify narrative clusters:\n\n${mentionSummaries}`,
-          },
-        ],
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      }),
-    });
+Only return narratives with at least 2 mentions. Focus on reputation-relevant themes.`;
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      throw new Error(`AI API error [${aiResponse.status}]: ${errText}`);
-    }
+    const userPrompt = `Analyze these ${mentions.length} mentions and identify narrative clusters:\n\n${mentionSummaries}`;
 
-    const aiData = await aiResponse.json();
-    const rawContent = aiData.choices?.[0]?.message?.content || "{}";
+    const rawContent = await aiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
 
     let narratives: any[] = [];
     try {

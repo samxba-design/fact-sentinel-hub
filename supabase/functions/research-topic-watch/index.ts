@@ -6,6 +6,27 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ── Retry with exponential backoff ────────────────────────────────────────────
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, baseDelayMs = 1000): Promise<T> {
+  let lastError: any;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastError = e;
+      const isRateLimit = e.message?.includes("429") || e.message?.includes("rate limit") || e.message?.includes("too many");
+      if (!isRateLimit && i > 0) throw e; // Only retry on rate limits after first attempt
+      if (i < retries - 1) {
+        const delay = baseDelayMs * Math.pow(2, i) + Math.random() * 500;
+        console.log(`[retry] attempt ${i + 1} failed, retrying in ${Math.round(delay)}ms:`, e.message);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function clean(t: string) {
@@ -112,11 +133,12 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+  const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
   const braveKey = Deno.env.get("BRAVE_SEARCH_API_KEY") ?? "";
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
 
   try {
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
+    if (!lovableKey && !geminiKey) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY.");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
@@ -175,7 +197,7 @@ Generate 6-8 diverse search queries covering: (1) the original event, (2) entity
 
     const searchResults = await Promise.all(
       allQueries.map(async (q: any) => {
-        const results = await braveSearch(q.query, braveKey, 8, "pm");
+        const results = await withRetry(() => braveSearch(q.query, braveKey, 8, "pm"));
         return { query: q.query, angle: q.angle, results };
       })
     );
@@ -229,7 +251,7 @@ Sources to evaluate:\n${allLinks.map((l, i) => `[${i}] ${l.title} — ${l.snippe
 
     const scraped = await Promise.all(
       sourcesToScrape.map(async (link: any) => {
-        const content = await scrapeUrl(link.url, firecrawlKey, 2500);
+        const content = await withRetry(() => scrapeUrl(link.url, firecrawlKey, 2500));
         return {
           ...link,
           full_content: content || link.snippet,

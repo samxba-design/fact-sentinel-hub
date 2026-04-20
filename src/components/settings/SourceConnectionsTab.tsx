@@ -122,6 +122,36 @@ const PROVIDERS: ProviderConfig[] = [
       "AI-powered sentiment analysis on video content and comments",
     ],
   },
+  {
+    id: "google-ai",
+    label: "Google AI (Gemini)",
+    icon: "✦",
+    description: "Powers AI analysis, YouTube video understanding via Gemini, and Topic Watch intelligence.",
+    pricingNote: "Free tier available — Google AI Studio provides generous free quota. No credit card required to start.",
+    signupUrl: "https://aistudio.google.com/app/apikey",
+    signupLabel: "Get Free API Key (Google AI Studio)",
+    keys: [
+      {
+        name: "api_key",
+        label: "API Key",
+        placeholder: "AIza...",
+        helpText: "Found at aistudio.google.com → Get API Key",
+      },
+    ],
+    instructions: [
+      "Go to aistudio.google.com and sign in with your Google account",
+      "Click 'Get API Key' in the top left",
+      "Click 'Create API Key' and select a Google Cloud project (or create new)",
+      "Copy the generated API key and paste it below",
+      "This key is stored securely and used for AI-powered features",
+    ],
+    whatYouGet: [
+      "Gemini-powered AI analysis of mentions, links, and content",
+      "YouTube video understanding from title and description metadata",
+      "Topic Watch intelligence research and synthesis",
+      "Faster AI responses with direct Gemini access (no gateway dependency)",
+    ],
+  },
 ];
 
 interface StoredKey {
