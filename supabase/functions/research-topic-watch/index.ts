@@ -99,26 +99,33 @@ async function scrapeUrl(url: string, firecrawlKey: string, maxChars = 3000): Pr
 // ── AI call helper ────────────────────────────────────────────────────────────
 
 async function aiCall(lovableKey: string, systemPrompt: string, userPrompt: string, jsonMode = true): Promise<any> {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-  if (!res.ok) throw new Error(`AI call failed: ${res.status}`);
+  const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
+  if (!geminiKey) throw new Error("GOOGLE_API_KEY not set in Supabase Edge Function secrets.");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(45000),
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        generationConfig: {
+          temperature: 0.1,
+          ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+        },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`);
+  }
   const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content ?? "{}";
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? (jsonMode ? "{}" : "");
+  if (!raw) throw new Error("Gemini returned empty response");
   if (!jsonMode) return raw;
   try { return JSON.parse(raw); }
-  catch { 
-    // Strip markdown fences if present
+  catch {
     const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
     try { return JSON.parse(stripped); }
     catch { return { raw }; }

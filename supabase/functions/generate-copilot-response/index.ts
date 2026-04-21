@@ -34,7 +34,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -106,36 +106,8 @@ Deno.serve(async (req) => {
 
     const narrativeBlock = narrative_context ? `\nNarrative context: ${narrative_context}` : "";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        tools: [{
-          type: "function",
-          function: {
-            name: "generate_responses",
-            description: "Generate response variants for a specific platform/format",
-            parameters: {
-              type: "object",
-              properties: {
-                variants: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "2-3 response variants, each complete and ready to use",
-                },
-              },
-              required: ["variants"],
-              additionalProperties: false,
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "generate_responses" } },
-        messages: [
-          {
+    const responseText = await aiChat([
+      {
             role: "system",
             content: `You are a crisis communications AI copilot for "${org?.name || "the organization"}" (${org?.industry || "technology"}).
 
@@ -158,9 +130,7 @@ RULES:
             role: "user",
             content: `Situation to respond to:\n\n${context}`,
           },
-        ],
-      }),
-    });
+    ], true);
 
     if (!response.ok) {
       const status = response.status;

@@ -34,7 +34,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -83,31 +83,17 @@ Deno.serve(async (req) => {
       .map(m => m.content!.slice(0, 200))
       .join("\n---\n");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a competitive intelligence analyst. Given a company's profile, existing keywords, and recent mention samples, identify key competitors. 
+    const systemPrompt = `You are a competitive intelligence analyst. Given a company's profile, existing keywords, and recent mention samples, identify key competitors.
 Focus on:
 1. Direct competitors in the same industry/market
 2. Companies frequently mentioned alongside this brand in the mention samples
 3. Emerging competitors or disruptors in their space
 
-Do NOT suggest companies already tracked. Be specific with company names - use their commonly known brand name.
-Provide a confidence score (0-1) and reasoning for each suggestion.`,
-          },
-          {
-            role: "user",
-            content: `Company: ${org.name}
+Do NOT suggest companies already tracked. Return ONLY valid JSON: {"competitors":[{"name":"...","domain":"...","reason":"...","confidence":0.8,"category":"direct|indirect|emerging|mentioned"}]}`;
+
+    const userPrompt = `Company: ${org.name}
 Domain: ${org.domain || "unknown"}
-Industry: ${org.industry || "unknown"}  
+Industry: ${org.industry || "unknown"}
 Regions: ${(org.regions || []).join(", ") || "Global"}
 Languages: ${(org.languages || []).join(", ") || "English"}
 
@@ -115,66 +101,20 @@ Already tracked keywords: ${existingKeywords.join(", ") || "none"}
 Already tracked competitors: ${existingCompetitors.join(", ") || "none"}
 
 Recent mention samples:
-${mentionSamples || "No mentions yet"}`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "suggest_competitors",
-              description: "Return a list of suggested competitors with reasoning",
-              parameters: {
-                type: "object",
-                properties: {
-                  competitors: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string", description: "Company/brand name" },
-                        domain: { type: "string", description: "Website domain if known" },
-                        reason: { type: "string", description: "Why this is a competitor" },
-                        confidence: { type: "number", description: "Confidence score 0-1" },
-                        category: { type: "string", enum: ["direct", "indirect", "emerging", "mentioned"], description: "Type of competitive relationship" },
-                      },
-                      required: ["name", "reason", "confidence", "category"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["competitors"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "suggest_competitors" } },
-      }),
-    });
+${mentionSamples || "No mentions yet"}`;
 
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
+    const rawText = await aiChat([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ], true);
+
+    let result: any;
+    try {
+      result = JSON.parse(rawText);
+    } catch {
+      const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      result = JSON.parse(stripped);
     }
-
-    const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      throw new Error("No suggestions generated");
-    }
-
-    const result = JSON.parse(toolCall.function.arguments);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -34,7 +34,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -118,51 +118,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        temperature: 0.3,
-        tools: [{
-          type: "function",
-          function: {
-            name: "source_intelligence",
-            description: "Generate an intelligence profile for a media source/domain",
-            parameters: {
-              type: "object",
-              properties: {
-                identity: { type: "string", description: "1-2 sentence summary of what this source/outlet is" },
-                audience: { type: "string", description: "Who reads/follows this source" },
-                credibility: { type: "string", enum: ["high", "medium", "low", "unknown"] },
-                reach_estimate: { type: "string", description: "Rough estimate of reach/influence" },
-                bias_tendency: { type: "string", description: "Any known editorial bias or tendency" },
-                competitor_connections: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      competitor: { type: "string" },
-                      relationship: { type: "string" },
-                    },
-                    required: ["competitor", "relationship"],
-                  },
-                },
-                key_topics: { type: "array", items: { type: "string" } },
-                risk_assessment: { type: "string" },
-                recommendation: { type: "string" },
-              },
-              required: ["identity", "audience", "credibility", "reach_estimate", "key_topics", "risk_assessment", "recommendation"],
-              additionalProperties: false,
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "source_intelligence" } },
-        messages: [
-          {
+    const responseText = await aiChat([
+      {
             role: "system",
             content: `You are a media intelligence analyst. Given a domain/source and internal monitoring data, produce a concise intelligence profile.`,
           },
@@ -182,9 +139,7 @@ Internal monitoring data:
 Sample content from this source:
 ${contentSamples.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`,
           },
-        ],
-      }),
-    });
+    ], true);
 
     if (!response.ok) {
       const status = response.status;

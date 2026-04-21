@@ -35,7 +35,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -78,64 +78,14 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Step 1: Extract claims using AI tool calling
-    const claimRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
+    const claimResText = await aiChat([
+      {
             role: "system",
             content:
               "You are a claim extraction engine. Extract distinct factual claims, accusations, or questions from the given text. Each claim should be a short statement. Also categorize each claim.",
           },
           { role: "user", content: input_text },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_claims",
-              description: "Extract claims from text",
-              parameters: {
-                type: "object",
-                properties: {
-                  claims: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        claim_text: { type: "string" },
-                        category: {
-                          type: "string",
-                          enum: [
-                            "Security",
-                            "Compliance",
-                            "Product",
-                            "Support",
-                            "Leadership",
-                            "Fees/Pricing",
-                            "Regulatory",
-                            "Partnerships",
-                            "General",
-                          ],
-                        },
-                      },
-                      required: ["claim_text", "category"],
-                    },
-                  },
-                },
-                required: ["claims"],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_claims" } },
-      }),
-    });
+    ], true);
 
     if (!claimRes.ok) {
       const status = claimRes.status;
@@ -186,16 +136,8 @@ Deno.serve(async (req) => {
     const templates = templatesRes.data || [];
 
     // Step 3: Use AI to match claims to facts
-    const matchRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
+    const matchResText = await aiChat([
+      {
             role: "system",
             content: `You are a fact-matching engine for a strict response system. Given a list of claims extracted from negative text and a library of approved facts, determine which approved facts can address each claim. Only match facts that DIRECTLY address the claim. If no fact addresses a claim, mark it as unmatched. Also select the best template if any match the scenario.\n\nApproved Facts:\n${JSON.stringify(facts.map((f) => ({ id: f.id, title: f.title, statement: f.statement_text, category: f.category })))}\n\nApproved Templates:\n${JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, scenario: t.scenario_type, tone: t.tone, platform: t.platform_length })))}\n\nResponse intent: ${intent || "general"}\nPlatform: ${platform || "general"}`,
           },
@@ -203,43 +145,7 @@ Deno.serve(async (req) => {
             role: "user",
             content: `Claims to address:\n${JSON.stringify(claims)}`,
           },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "match_facts",
-              description: "Match claims to approved facts and select template",
-              parameters: {
-                type: "object",
-                properties: {
-                  matched_fact_ids: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "IDs of approved facts that address the claims",
-                  },
-                  unmatched_claims: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Claim texts that have no matching approved fact",
-                  },
-                  selected_template_id: {
-                    type: "string",
-                    description: "ID of the best matching template, or empty string if none",
-                  },
-                  all_claims_covered: {
-                    type: "boolean",
-                    description: "True only if every claim has at least one matching approved fact",
-                  },
-                },
-                required: ["matched_fact_ids", "unmatched_claims", "selected_template_id", "all_claims_covered"],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "match_facts" } },
-      }),
-    });
+    ], true);
 
     if (!matchRes.ok) throw new Error(`AI match error: ${matchRes.status}`);
 
@@ -313,16 +219,8 @@ Deno.serve(async (req) => {
       ? `\nUse this approved template structure:\n${selectedTemplate.template_text}`
       : "";
 
-    const draftRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
+    const draftResText = await aiChat([
+      {
             role: "system",
             content: `You are a strict corporate response drafter. You MUST ONLY use the approved facts provided below verbatim or near-verbatim. Do NOT add any claims, statistics, or information not present in the approved facts. Do NOT paraphrase the approved facts — use them as written.\n\nApproved facts:\n${factsBlock}${templateBlock}\n\nPlatform: ${platform || "general"}\nIntent: ${intent || "clarify"}\n\nRules:\n1. Use approved fact text verbatim.\n2. Include source links where available.\n3. Be professional and concise.\n4. Do NOT invent or assume any information.\n5. Generate 2 variants if possible, both strictly using approved facts only.`,
           },
@@ -330,9 +228,7 @@ Deno.serve(async (req) => {
             role: "user",
             content: `Draft a response to this:\n\n${input_text}`,
           },
-        ],
-      }),
-    });
+    ], true);
 
     if (!draftRes.ok) throw new Error(`AI draft error: ${draftRes.status}`);
 

@@ -32,7 +32,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -56,16 +56,8 @@ Deno.serve(async (req) => {
     const { company_name, domain, industry, regions, languages } = await req.json();
     if (!company_name) throw new Error("Missing company_name");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
+    const responseText = await aiChat([
+      {
             role: "system",
             content: `You are a tracking profile builder for an enterprise brand monitoring platform. Given a company name, domain, industry, regions, and languages, generate a comprehensive monitoring profile. Be thorough and realistic. Include confidence scores (0-1) and evidence/reasoning for each suggestion.`,
           },
@@ -73,118 +65,7 @@ Deno.serve(async (req) => {
             role: "user",
             content: `Build a monitoring profile for:\nCompany: ${company_name}\nDomain: ${domain || "unknown"}\nIndustry: ${industry || "unknown"}\nRegions: ${(regions || []).join(", ") || "Global"}\nLanguages: ${(languages || []).join(", ") || "English"}`,
           },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "build_profile",
-              description: "Generate a comprehensive tracking profile",
-              parameters: {
-                type: "object",
-                properties: {
-                  aliases: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        confidence: { type: "number" },
-                        evidence: { type: "string" },
-                      },
-                      required: ["value", "confidence", "evidence"],
-                    },
-                  },
-                  brand_keywords: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        confidence: { type: "number" },
-                      },
-                      required: ["value", "confidence"],
-                    },
-                  },
-                  product_keywords: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        confidence: { type: "number" },
-                      },
-                      required: ["value", "confidence"],
-                    },
-                  },
-                  risk_keywords: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        confidence: { type: "number" },
-                      },
-                      required: ["value", "confidence"],
-                    },
-                  },
-                  topics: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        description: { type: "string" },
-                      },
-                      required: ["name", "description"],
-                    },
-                  },
-                  narratives: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        description: { type: "string" },
-                        example_phrases: { type: "array", items: { type: "string" } },
-                        confidence: { type: "number" },
-                      },
-                      required: ["name", "description", "confidence"],
-                    },
-                  },
-                  people: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        title: { type: "string" },
-                        tier: { type: "string", enum: ["executive", "spokesperson", "security", "compliance", "product", "other"] },
-                        confidence: { type: "number" },
-                      },
-                      required: ["name", "tier", "confidence"],
-                    },
-                  },
-                  sources: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        type: { type: "string", enum: ["news", "reddit", "twitter", "app_store_ios", "app_store_google", "forums"] },
-                        reason: { type: "string" },
-                      },
-                      required: ["type", "reason"],
-                    },
-                  },
-                },
-                required: ["aliases", "brand_keywords", "product_keywords", "risk_keywords", "topics", "narratives", "people", "sources"],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "build_profile" } },
-      }),
-    });
+    ], true);
 
     if (!response.ok) {
       const status = response.status;

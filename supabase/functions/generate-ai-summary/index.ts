@@ -37,7 +37,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
     } catch (_) {}
   }
   // Fallback to Lovable gateway
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -114,41 +114,10 @@ Deno.serve(async (req) => {
 
       if (LOVABLE_KEY) {
         try {
-          const extractRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              temperature: 0.2,
-              tools: [{
-                type: "function",
-                function: {
-                  name: "extract_mention_data",
-                  description: "Extract structured mention data from article/post content",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      summary: { type: "string", description: "2-3 sentence summary of the article/post focusing on the key claims and events" },
-                      sentiment: { type: "string", enum: ["positive", "negative", "neutral", "mixed"], description: "Overall sentiment" },
-                      severity: { type: "string", enum: ["low", "medium", "high", "critical"], description: "Reputational risk severity" },
-                      author: { type: "string", description: "Author name if identifiable" },
-                      published_date: { type: "string", description: "Published date in ISO format if identifiable, otherwise null" },
-                    },
-                    required: ["summary", "sentiment", "severity"],
-                    additionalProperties: false,
-                  },
-                },
-              }],
-              tool_choice: { type: "function", function: { name: "extract_mention_data" } },
-              messages: [
-                { role: "system", content: "Extract structured data from this article/post. Focus on the actual content, not navigation or boilerplate. Be accurate with sentiment and severity assessment." },
+          const extractResText = await aiChat([
+            { role: "system", content: "Extract structured data from this article/post. Focus on the actual content, not navigation or boilerplate. Be accurate with sentiment and severity assessment." },
                 { role: "user", content: `URL: ${url || "unknown"}\nTitle: ${title || "unknown"}\n\nContent:\n${cleaned.slice(0, 3000)}` },
-              ],
-            }),
-          });
+          ], true);
 
           if (extractRes.ok) {
             const extractData = await extractRes.json();

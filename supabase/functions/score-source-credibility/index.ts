@@ -34,7 +34,7 @@ async function aiChat(messages: Array<{role: string; content: string}>, jsonMode
       }
     } catch (_) {}
   }
-  if (!LOVABLE_KEY) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
+  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
@@ -104,48 +104,8 @@ Deno.serve(async (req) => {
       source_types: [...stats.sources].join(", "),
     }));
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        tools: [{
-          type: "function",
-          function: {
-            name: "score_sources",
-            description: "Score source credibility for each domain",
-            parameters: {
-              type: "object",
-              properties: {
-                scores: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      domain: { type: "string" },
-                      credibility_score: { type: "number", description: "0-100 credibility score" },
-                      credibility_label: { type: "string", enum: ["high", "medium", "low", "unknown"] },
-                      bias_direction: { type: "string", description: "e.g. neutral, consumer-advocacy, industry-friendly, sensationalist" },
-                      accuracy_rating: { type: "string", enum: ["reliable", "mostly_reliable", "mixed", "unreliable", "unknown"] },
-                      category: { type: "string", description: "e.g. mainstream news, trade publication, blog, social media, forum, review site" },
-                      risk_level: { type: "string", enum: ["low", "medium", "high"] },
-                      reasoning: { type: "string", description: "1-2 sentence explanation" },
-                    },
-                    required: ["domain", "credibility_score", "credibility_label", "bias_direction", "accuracy_rating", "category", "risk_level", "reasoning"],
-                  },
-                },
-              },
-              required: ["scores"],
-              additionalProperties: false,
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "score_sources" } },
-        messages: [
-          {
+    const responseText = await aiChat([
+      {
             role: "system",
             content: "You are a media credibility analyst. Score each domain for credibility, bias, and accuracy based on your knowledge of the publication and the internal monitoring data provided. Be objective and evidence-based.",
           },
@@ -153,9 +113,7 @@ Deno.serve(async (req) => {
             role: "user",
             content: `Score credibility for these sources:\n${JSON.stringify(domainSummaries, null, 2)}`,
           },
-        ],
-      }),
-    });
+    ], true);
 
     if (!response.ok) {
       const status = response.status;

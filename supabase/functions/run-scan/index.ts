@@ -962,20 +962,10 @@ async function analyzeWithAI(
     let batchOk = false;
 
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${lovableKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(45000),
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          temperature: 0.1,
-          messages: [
-            {
-              role: "system",
-              content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
+      const resText = await geminiChat(geminiKey, [
+        {
+          role: "system",
+          content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
 - relevant: boolean — true if this mention genuinely discusses "${brandName}" as a brand, product, or company. Mark FALSE only for: HTTP error pages (403/404/500 in the content), login walls, cookie notices, Wikipedia/reference descriptions, empty content. Do NOT mark false just because a video is a tutorial or educational — tutorials that mention the brand are relevant.
 - sentiment_label: "positive"|"negative"|"neutral"|"mixed" — base this on actual tone/opinion expressed, not just the topic. A tutorial showing how to use ${brandName} is neutral or positive, not negative.
 - sentiment_score: number from -1.0 to 1.0
@@ -989,28 +979,24 @@ IMPORTANT for YouTube videos (source="youtube"):
 - Do not confuse a missing/short transcript with an error page.
 - A YouTube tutorial about how to use ${brandName} is relevant=true, sentiment neutral/positive, severity low.
 Return ONLY valid JSON: {"analyses":[...]}`,
-            },
-            {
-              role: "user",
-              content: `Analyze ${batch.length} mentions for "${brandName}":\n${JSON.stringify(
-                batch.map((r, idx) => ({
-                  idx,
-                  source: r.source,
-                  title: r.title,
-                  // YouTube with transcript gets much more content — don't truncate it heavily
-                  content: r.source === "youtube" && r.has_transcript
-                    ? r.content.slice(0, 2500)
-                    : r.content.slice(0, 400),
-                }))
-              )}`,
-            },
-          ],
-        }),
-      });
-
+        },
+        {
+          role: "user",
+          content: `Analyze ${batch.length} mentions for "${brandName}":\n${JSON.stringify(
+            batch.map((r, idx) => ({
+              idx,
+              source: r.source,
+              title: r.title,
+              content: r.source === "youtube" && r.has_transcript
+                ? r.content.slice(0, 2500)
+                : r.content.slice(0, 400),
+            }))
+          )}`,
+        },
+      ], true, 45000);
+      const res = { ok: true, resText };
       if (res.ok) {
-        const data = await res.json();
-        let raw = data.choices?.[0]?.message?.content || "{}";
+        let raw = res.resText || "{}";
         // Strip markdown code fences if present
         raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
         try {
@@ -1681,31 +1667,17 @@ Deno.serve(async (req) => {
             i, source: m.source, content: (m.content || "").slice(0, 200),
           }));
 
-          const nRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-            signal: AbortSignal.timeout(35000),
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              temperature: 0.3,
-              messages: [
-                {
-                  role: "system",
-                  content: `Cluster mentions into 2-5 narrative themes. Return ONLY valid JSON:
+          const rawN = await geminiChat(geminiKey, [
+            {
+              role: "system",
+              content: `Cluster mentions into 2-5 narrative themes. Return ONLY valid JSON:
 {"narratives":[{"name":"...","description":"...","status":"active","confidence":0.8,"example_phrases":["..."],"mention_indices":[0,1,2]}]}`,
-                },
-                {
-                  role: "user",
-                  content: `Cluster ${sample.length} mentions for "${brandName}":\n${JSON.stringify(sample)}`,
-                },
-              ],
-            }),
-          });
-
-          if (!nRes.ok) return;
-          const nData = await nRes.json();
-          let rawN = nData.choices?.[0]?.message?.content || "{}";
-          rawN = rawN.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+            },
+            {
+              role: "user",
+              content: `Cluster ${sample.length} mentions for "${brandName}":\n${JSON.stringify(sample)}`,
+            },
+          ], true, 35000);
 
           const parsed = JSON.parse(rawN);
           for (const c of (parsed.narratives || [])) {
