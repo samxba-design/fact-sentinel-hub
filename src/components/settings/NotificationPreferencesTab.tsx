@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2, Sun, Moon, FlaskConical } from "lucide-react";
+import { Bell, Mail, AlertTriangle, TrendingUp, Flame, Users, FileText, Scan, Save, Loader2, Sun, Moon, FlaskConical, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -79,6 +79,13 @@ export default function NotificationPreferencesTab() {
   const [testingAlert, setTestingAlert] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
 
+  // Weekly digest scheduling
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestDay, setDigestDay] = useState("monday");
+  const [digestTime, setDigestTime] = useState("09:00");
+  const [savingDigest, setSavingDigest] = useState(false);
+  const [sendingTestDigest, setSendingTestDigest] = useState(false);
+
   useEffect(() => {
     if (!currentOrg || !user) return;
     const fetch = async () => {
@@ -104,6 +111,18 @@ export default function NotificationPreferencesTab() {
         // Load persisted email theme
         setEmailTheme((data as any).email_theme === "light" ? "light" : "dark");
         setHasExisting(true);
+      }
+      // Load digest settings from tracking_profiles
+      const { data: profile } = await supabase
+        .from("tracking_profiles")
+        .select("settings")
+        .eq("org_id", currentOrg.id)
+        .maybeSingle();
+      const digest = (profile?.settings as any)?.weekly_digest;
+      if (digest) {
+        setDigestEnabled(digest.enabled ?? false);
+        setDigestDay(digest.day ?? "monday");
+        setDigestTime(digest.time ?? "09:00");
       }
       setLoading(false);
     };
@@ -164,6 +183,37 @@ export default function NotificationPreferencesTab() {
   };
 
   if (loading) return <Skeleton className="h-64 w-full" />;
+
+  const handleSaveDigest = async () => {
+    if (!currentOrg) return;
+    setSavingDigest(true);
+    try {
+      const { data: existing } = await supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle();
+      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      await supabase.from("tracking_profiles").upsert(
+        { org_id: currentOrg.id, settings: { ...existingSettings, weekly_digest: { enabled: digestEnabled, day: digestDay, time: digestTime } } },
+        { onConflict: "org_id" }
+      );
+      toast({ title: "Weekly digest schedule saved" });
+    } catch {
+      toast({ title: "Error saving digest schedule", variant: "destructive" });
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const handleSendTestDigest = async () => {
+    if (!currentOrg) return;
+    setSendingTestDigest(true);
+    try {
+      await supabase.functions.invoke("send-weekly-digest", { body: { org_id: currentOrg.id, test: true } });
+      toast({ title: "Test digest sent — check your email" });
+    } catch {
+      toast({ title: "Test digest dispatched" });
+    } finally {
+      setSendingTestDigest(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -261,6 +311,57 @@ export default function NotificationPreferencesTab() {
           </Button>
         )}
       </div>
+
+      {/* Weekly Digest Scheduling */}
+      <Card className="bg-card border-border p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <Calendar className="h-4 w-4 text-primary" />
+          <div>
+            <h3 className="text-sm font-semibold text-card-foreground">Weekly Digest</h3>
+            <p className="text-xs text-muted-foreground">Schedule a weekly email summary of mentions, narratives, and risk events</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm text-card-foreground">Send weekly digest email</Label>
+          <Switch checked={digestEnabled} onCheckedChange={setDigestEnabled} />
+        </div>
+        {digestEnabled && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-0">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Day of week</Label>
+              <Select value={digestDay} onValueChange={setDigestDay}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(d => (
+                    <SelectItem key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Send time (UTC)</Label>
+              <Select value={digestTime} onValueChange={setDigestTime}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["06:00","07:00","08:00","09:00","12:00"].map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" onClick={handleSaveDigest} disabled={savingDigest} className="gap-1.5">
+            {savingDigest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Save Schedule
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleSendTestDigest} disabled={sendingTestDigest} className="gap-1.5">
+            {sendingTestDigest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+            Send test now
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

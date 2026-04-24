@@ -197,13 +197,27 @@ export default function EntityDetailPage() {
 
   return (
     <div className="space-y-4 animate-fade-up">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/entities")} className="gap-1.5 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" /> Entities
-        </Button>
-        <span className="text-muted-foreground">/</span>
-        <span className="text-sm text-foreground font-medium">{entity.display_name || entity.handle || entity.url || entity.id.slice(0, 8)}</span>
+      {/* Breadcrumb + header actions */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/entities")} className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-3.5 w-3.5" /> Entities
+          </Button>
+          <span className="text-muted-foreground">/</span>
+          <span className="text-sm text-foreground font-medium">{entity.display_name || entity.handle || entity.url || entity.id.slice(0, 8)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {entity.updated_at && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Last updated {formatDistanceToNow(new Date(entity.updated_at), { addSuffix: true })}
+            </span>
+          )}
+          <Button size="sm" variant="outline" onClick={handleReEnrich} disabled={enriching}>
+            {enriching ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+            Re-enrich
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">

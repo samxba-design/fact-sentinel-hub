@@ -7,10 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Bell, BellRing, Check, X, AlertTriangle, TrendingUp, Siren, Zap,
   Settings2, Activity, Clock, Shield, Save, Loader2, ExternalLink,
-  Filter, ChevronRight, Eye, Info, Pause, Play,
+  Filter, ChevronRight, Eye, Info, Pause, Play, ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -104,6 +107,21 @@ export default function AlertsPage() {
   const [saving, setSaving] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
 
+  // Bulk selection
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelect = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const clearAll = () => setSelected(new Set());
+
+  // Threshold state
+  const [thresholdsOpen, setThresholdsOpen] = useState(false);
+  const [volumeThreshold, setVolumeThreshold] = useState(50);
+  const [negativeThreshold, setNegativeThreshold] = useState(30);
+  const [savingThresholds, setSavingThresholds] = useState(false);
+
   useEffect(() => {
     if (!currentOrg) return;
     setLoading(true);
@@ -117,7 +135,7 @@ export default function AlertsPage() {
         .limit(100),
       supabase
         .from("tracking_profiles")
-        .select("scan_schedule, alert_emails, quiet_hours_start, quiet_hours_end")
+        .select("scan_schedule, alert_emails, quiet_hours_start, quiet_hours_end, settings")
         .eq("org_id", currentOrg.id)
         .maybeSingle(),
     ]).then(([alertsRes, configRes]) => {
@@ -127,6 +145,11 @@ export default function AlertsPage() {
         setAlertEmails((configRes.data.alert_emails || []).join(", "));
         setQuietStart(configRes.data.quiet_hours_start);
         setQuietEnd(configRes.data.quiet_hours_end);
+        const thresholds = (configRes.data.settings as any)?.alert_thresholds;
+        if (thresholds) {
+          setVolumeThreshold(thresholds.volume_spike ?? 50);
+          setNegativeThreshold(thresholds.negative_surge ?? 30);
+        }
       }
       setConfigLoaded(true);
       setLoading(false);
@@ -140,6 +163,49 @@ export default function AlertsPage() {
     } else {
       setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status } : a));
       toast({ title: status === "dismissed" ? "Alert dismissed" : "Alert acknowledged" });
+    }
+  };
+
+  const bulkUpdateStatus = async (status: string) => {
+    if (selected.size === 0) return;
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("alerts").update({ status }).in("id", ids);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setAlerts(prev => prev.map(a => ids.includes(a.id) ? { ...a, status } : a));
+      setSelected(new Set());
+      toast({ title: `${ids.length} alert${ids.length !== 1 ? "s" : ""} ${status}` });
+    }
+  };
+
+  const dismissAllActive = async () => {
+    const activeIds = alerts.filter(a => a.status === "active" || a.status === "new").map(a => a.id);
+    if (activeIds.length === 0) return;
+    const { error } = await supabase.from("alerts").update({ status: "dismissed" }).in("id", activeIds);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setAlerts(prev => prev.map(a => activeIds.includes(a.id) ? { ...a, status: "dismissed" } : a));
+      toast({ title: `${activeIds.length} alerts dismissed` });
+    }
+  };
+
+  const saveThresholds = async () => {
+    if (!currentOrg) return;
+    setSavingThresholds(true);
+    try {
+      const { data: existing } = await supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle();
+      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      await supabase.from("tracking_profiles").upsert(
+        { org_id: currentOrg.id, settings: { ...existingSettings, alert_thresholds: { volume_spike: volumeThreshold, negative_surge: negativeThreshold } } },
+        { onConflict: "org_id" }
+      );
+      toast({ title: "Alert thresholds saved" });
+    } catch {
+      toast({ title: "Error saving thresholds", variant: "destructive" });
+    } finally {
+      setSavingThresholds(false);
     }
   };
 
@@ -173,6 +239,8 @@ export default function AlertsPage() {
     if (filterStatus === "all") return true;
     return a.status === filterStatus;
   });
+
+  const selectAll = () => setSelected(new Set(filteredAlerts.filter(a => a.status === "active" || a.status === "new").map(a => a.id)));
 
   const activeCount = alerts.filter(a => a.status === "active" || a.status === "new").length;
   const isPaused = scanSchedule === "paused";
@@ -225,6 +293,11 @@ export default function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {filterStatus === "active" && activeCount > 0 && (
+            <Button variant="outline" size="sm" onClick={dismissAllActive} className="gap-1.5 text-muted-foreground">
+              <X className="h-3.5 w-3.5" /> Dismiss All Active
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => navigate("/risk-console")} className="gap-1.5">
             <Shield className="h-3.5 w-3.5" /> Risk Console
           </Button>
@@ -233,6 +306,50 @@ export default function AlertsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Alert Thresholds Collapsible */}
+      <Collapsible open={thresholdsOpen} onOpenChange={setThresholdsOpen}>
+        <Card className="bg-card border-border p-4">
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center justify-between w-full text-sm font-medium text-card-foreground">
+              ⚙️ Alert Thresholds
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${thresholdsOpen ? "rotate-180" : ""}`} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="pt-4 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  Volume spike threshold: {volumeThreshold}%
+                  <InfoTooltip text="Alert fires when new mention volume exceeds this percentage above your recent average." />
+                </Label>
+                <Slider
+                  value={[volumeThreshold]}
+                  onValueChange={([v]) => setVolumeThreshold(v)}
+                  min={10} max={200} step={5}
+                  className="w-full max-w-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  Negative surge threshold: {negativeThreshold}%
+                  <InfoTooltip text="Alert fires when negative mentions exceed this percentage of total mentions." />
+                </Label>
+                <Slider
+                  value={[negativeThreshold]}
+                  onValueChange={([v]) => setNegativeThreshold(v)}
+                  min={10} max={100} step={5}
+                  className="w-full max-w-xs"
+                />
+              </div>
+              <Button size="sm" onClick={saveThresholds} disabled={savingThresholds} className="gap-1.5">
+                {savingThresholds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save Thresholds
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <PageGuide
         title="How Alerts & Monitoring Works"
@@ -416,7 +533,7 @@ export default function AlertsPage() {
       )}
 
       {/* Filter */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <div className="flex items-center rounded-lg border border-border bg-card overflow-hidden">
           {(["all", "active", "acknowledged", "dismissed"] as FilterStatus[]).map(s => (
@@ -431,7 +548,26 @@ export default function AlertsPage() {
             </button>
           ))}
         </div>
+        {filteredAlerts.some(a => a.status === "active" || a.status === "new") && (
+          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={selectAll}>Select all active</Button>
+        )}
+        {selected.size > 0 && (
+          <Button size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground" onClick={clearAll}>Clear selection</Button>
+        )}
       </div>
+
+      {/* Bulk actions bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+          <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+          <Button size="sm" variant="outline" onClick={() => bulkUpdateStatus("dismissed")} className="gap-1.5 h-7 text-xs">
+            <X className="h-3 w-3" /> Dismiss selected ({selected.size})
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkUpdateStatus("acknowledged")} className="gap-1.5 h-7 text-xs">
+            <Check className="h-3 w-3" /> Acknowledge selected ({selected.size})
+          </Button>
+        </div>
+      )}
 
       {/* Alert List */}
       <Card className="bg-card border-border p-5">
@@ -460,9 +596,15 @@ export default function AlertsPage() {
                 <div
                   key={alert.id}
                   className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
+                    selected.has(alert.id) ? "bg-primary/5 border-primary/30" :
                     isActive ? "bg-muted/30 border-border hover:bg-muted/50" : "bg-muted/10 border-border/50 opacity-70"
                   }`}
                 >
+                  <Checkbox
+                    checked={selected.has(alert.id)}
+                    onCheckedChange={() => toggleSelect(alert.id)}
+                    className="mt-1 shrink-0"
+                  />
                   <div className={`p-2 rounded-lg mt-0.5 ${
                     alert.type === "critical_mention" || alert.type === "viral_risk" ? "bg-sentinel-red/10" :
                     alert.type === "negative_spike" ? "bg-sentinel-amber/10" : "bg-primary/10"
