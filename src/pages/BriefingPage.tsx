@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain, Printer, Loader2 } from "lucide-react";
+import { Shield, TrendingUp, TrendingDown, AlertTriangle, Siren, Network, ExternalLink, Copy, Check, Brain, Printer, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import SmartDigestDialog from "@/components/briefing/SmartDigestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -13,6 +13,8 @@ import { format, subDays } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import PageGuide from "@/components/PageGuide";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SENTIMENT_COLORS: Record<string, string> = {
   negative: "hsl(0, 84%, 60%)",
@@ -94,6 +96,12 @@ export default function BriefingPage() {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [data, setData] = useState<any>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestFreq, setDigestFreq] = useState("weekly");
+  const [digestTime, setDigestTime] = useState("08:00");
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [sendingNow, setSendingNow] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -154,6 +162,56 @@ export default function BriefingPage() {
       setLoading(false);
     });
   }, [currentOrg]);
+
+  // Load saved schedule on mount
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase
+      .from("tracking_profiles")
+      .select("settings")
+      .eq("org_id", currentOrg.id)
+      .maybeSingle()
+      .then(({ data: tp }) => {
+        const schedule = (tp?.settings as any)?.digest_schedule;
+        if (schedule) {
+          setDigestEnabled(schedule.enabled ?? false);
+          setDigestFreq(schedule.frequency ?? "weekly");
+          setDigestTime(schedule.time ?? "08:00");
+        }
+      });
+  }, [currentOrg]);
+
+  const saveSchedule = async () => {
+    if (!currentOrg) return;
+    setSavingSchedule(true);
+    try {
+      const { data: tp } = await supabase
+        .from("tracking_profiles")
+        .select("settings")
+        .eq("org_id", currentOrg.id)
+        .maybeSingle();
+      const newSettings = { ...((tp?.settings as any) || {}), digest_schedule: { enabled: digestEnabled, frequency: digestFreq, time: digestTime } };
+      await supabase.from("tracking_profiles").upsert({ org_id: currentOrg.id, settings: newSettings });
+      toast({ title: "Schedule saved" });
+    } catch (err: any) {
+      toast({ title: "Error saving schedule", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const sendDigestNow = async () => {
+    if (!currentOrg) return;
+    setSendingNow(true);
+    try {
+      await supabase.functions.invoke("send-digest", { body: { org_id: currentOrg.id } });
+      toast({ title: "Digest sent", description: "Your briefing digest has been sent." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSendingNow(false);
+    }
+  };
 
   const copyLink = async () => {
     if (!currentOrg || !user) {
@@ -383,6 +441,61 @@ export default function BriefingPage() {
                   }`}>{e.priority}</Badge>
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+      </motion.div>
+
+      {/* Schedule Briefings */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <Card className="bg-card border-border p-5">
+          <button
+            className="flex items-center justify-between w-full text-left"
+            onClick={() => setScheduleOpen(o => !o)}
+          >
+            <h3 className="text-sm font-medium text-card-foreground">Schedule Briefings</h3>
+            {scheduleOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {scheduleOpen && (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Send scheduled briefings</span>
+                <Switch checked={digestEnabled} onCheckedChange={setDigestEnabled} />
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Frequency</span>
+                  <Select value={digestFreq} onValueChange={setDigestFreq}>
+                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Time</span>
+                  <Select value={digestTime} onValueChange={setDigestTime}>
+                    <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="06:00">06:00</SelectItem>
+                      <SelectItem value="07:00">07:00</SelectItem>
+                      <SelectItem value="08:00">08:00</SelectItem>
+                      <SelectItem value="09:00">09:00</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveSchedule} disabled={savingSchedule}>
+                  {savingSchedule ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                  Save Schedule
+                </Button>
+                <Button size="sm" variant="outline" onClick={sendDigestNow} disabled={sendingNow}>
+                  {sendingNow ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                  Send Now
+                </Button>
+              </div>
             </div>
           )}
         </Card>

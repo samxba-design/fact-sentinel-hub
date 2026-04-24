@@ -4,8 +4,9 @@ import { useTopicWatchDetail, getBinanceImpactLabel, updateTopicWatch } from "@/
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Crosshair, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Crosshair, TrendingUp, TrendingDown, AlertTriangle, Pencil } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,6 +14,8 @@ import {
 } from "recharts";
 import StoryArcTimeline from "@/components/StoryArcTimeline";
 import ThreatResearchPanel from "@/components/ThreatResearchPanel";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 type Range = "24h" | "48h" | "7d";
 
@@ -22,7 +25,11 @@ export default function TopicWatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { watch, snapshots, loading } = useTopicWatchDetail(id);
+  const { toast } = useToast();
   const [range, setRange] = useState<Range>("48h");
+  const [editingQuery, setEditingQuery] = useState(false);
+  const [editedQuery, setEditedQuery] = useState("");
+  const [savingQuery, setSavingQuery] = useState(false);
 
   if (loading) return (
     <div className="p-6 space-y-4">
@@ -37,6 +44,19 @@ export default function TopicWatchDetailPage() {
       Watch not found. <button className="text-primary hover:underline" onClick={() => navigate("/topic-watch")}>Back to watches</button>
     </div>
   );
+
+  const saveKeywords = async () => {
+    if (!id) return;
+    setSavingQuery(true);
+    const { error } = await supabase.from("topic_watches").update({ query: editedQuery }).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setEditingQuery(false);
+      toast({ title: "Keywords updated" });
+    }
+    setSavingQuery(false);
+  };
 
   const now = Date.now();
   const cutoff = new Date(now - RANGE_HOURS[range] * 3600 * 1000).toISOString();
@@ -84,6 +104,25 @@ export default function TopicWatchDetailPage() {
               <span key={t} className="text-[10px] px-1.5 py-0.5 bg-muted/40 text-muted-foreground rounded-full">{t.trim()}</span>
             ))}
           </div>
+          {/* Keyword Editor */}
+          {!editingQuery ? (
+            <Button size="sm" variant="ghost" className="h-6 text-[11px] mt-1 text-muted-foreground hover:text-primary px-1.5" onClick={() => { setEditedQuery(watch.query || ""); setEditingQuery(true); }}>
+              <Pencil className="h-3 w-3 mr-1" /> Edit Keywords
+            </Button>
+          ) : (
+            <div className="mt-2 space-y-2">
+              <Textarea
+                value={editedQuery}
+                onChange={e => setEditedQuery(e.target.value)}
+                className="text-xs min-h-[60px] bg-muted/40 border-border"
+                placeholder="Comma-separated keywords..."
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveKeywords} disabled={savingQuery}>{savingQuery ? "Saving…" : "Save"}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingQuery(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           {(["24h", "48h", "7d"] as Range[]).map(r => (

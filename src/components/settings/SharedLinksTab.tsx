@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import InfoTooltip from "@/components/InfoTooltip";
+import { format } from "date-fns";
 
 interface SharedLinkPermissions {
   monitoring: boolean;
@@ -32,6 +33,7 @@ interface SharedLink {
   permissions: SharedLinkPermissions;
   is_active: boolean;
   created_at: string;
+  expires_at?: string | null;
 }
 
 const PERMISSION_GROUPS = [
@@ -302,6 +304,11 @@ export default function SharedLinksTab() {
         </div>
       ) : (
         <div className="space-y-2">
+          {/* Security warning banner */}
+          <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 mb-4 text-xs text-amber-400">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>Shared links are public — treat them like passwords. Anyone with the link can view your organization's data.</span>
+          </div>
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">
             Active Links ({links.filter(l => l.is_active).length} of {links.length})
           </Label>
@@ -335,6 +342,10 @@ export default function SharedLinksTab() {
                     <span className="text-[10px] text-muted-foreground">•</span>
                     <span className="text-[10px] text-muted-foreground">
                       Created {new Date(link.created_at).toLocaleDateString()}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">•</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Expires: {link.expires_at ? format(new Date(link.expires_at), "MMM d, yyyy") : "Never"}
                     </span>
                   </div>
                   {/* Permission pills */}
