@@ -319,7 +319,7 @@ export default function MentionDetailPage() {
           ? "fresh scrape"
           : "cached content";
       toast({
-        title: "Rescan complete",
+        title: "Re-analysis complete — sentiment and severity updated",
         description: `${data.updated.sentiment_label} · ${data.updated.severity} · ${method}`,
       });
     } catch (e: any) {

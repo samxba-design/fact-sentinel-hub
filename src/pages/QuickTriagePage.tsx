@@ -336,14 +336,13 @@ export default function QuickTriagePage() {
           </div>
 
           {/* Keyboard hint */}
-          <div className="flex items-center gap-2 justify-center text-[10px] text-muted-foreground/60 flex-wrap">
-            <Keyboard className="h-3 w-3" />
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">A</kbd> keep</span>
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">I</kbd> ignore</span>
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">S</kbd> snooze</span>
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">V</kbd> resolve</span>
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">R</kbd> respond</span>
-            <span><kbd className="bg-muted px-1 rounded text-[9px]">←/→</kbd> navigate</span>
+          <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+            {[["A","Keep"],["I","Ignore"],["R","Respond"],["S","Snooze"],["←","Prev"],["→","Next"]].map(([key, label]) => (
+              <span key={key} className="flex items-center gap-1 text-xs text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted font-mono text-xs">{key}</kbd>
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       ) : null}

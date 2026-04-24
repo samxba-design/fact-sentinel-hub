@@ -114,7 +114,11 @@ export default function PersonDetailPage() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       setOrgPerson({ ...orgPerson, tier: newTier });
-      toast({ title: "Tier updated" });
+      toast({ title: "Tier updated — profile refresh queued." });
+      // Fire-and-forget: trigger profile refresh
+      supabase.functions.invoke("generate-profile", {
+        body: { person_id: id, org_id: currentOrg.id },
+      }).catch(() => {/* silent */});
     }
   };
 
