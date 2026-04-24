@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useOrg } from "@/contexts/OrgContext";
+import { useNavigate } from "react-router-dom";
 import { useAmplifierRadar, type AmplifierProfile } from "@/hooks/useAmplifierRadar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

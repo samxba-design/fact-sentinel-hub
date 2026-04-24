@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useOrg } from "@/contexts/OrgContext";
+import { useNavigate } from "react-router-dom";
 import { useContagionData, useAllTopicWatches } from "@/hooks/useContagionData";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GitBranch, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
 import {
@@ -31,6 +33,7 @@ export default function ContagionMapPage() {
   const [selectedId, setSelectedId] = useState<string>("");
   const [days, setDays] = useState<Days>(7);
 
+  const navigate = useNavigate();
   const activeId = selectedId || watches[0]?.id;
   const { series, bridgePosts, watchQuery, loading } = useContagionData(activeId, currentOrg?.id, days);
 
@@ -96,6 +99,13 @@ export default function ContagionMapPage() {
 
       {loading ? (
         <Skeleton className="h-64 w-full rounded-xl" />
+      ) : series.length < 10 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+          <AlertTriangle className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Not enough data yet</p>
+          <p className="text-xs text-muted-foreground">You need at least 10 mentions to generate this view. Run a scan to get started.</p>
+          <Button size="sm" onClick={() => navigate("/scans")}>Go to Scans</Button>
+        </div>
       ) : (
         <>
           {/* Interpretation + acceleration */}

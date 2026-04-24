@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useOrg } from "@/contexts/OrgContext";
+import { useNavigate } from "react-router-dom";
 import { useCoAssociation, type CoAssociationEntity } from "@/hooks/useCoAssociation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from "lucide-react";
+import { Link2, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Slider } from "@/components/ui/slider";
 
@@ -95,6 +97,7 @@ function AssociationCard({ entity }: { entity: CoAssociationEntity }) {
 
 export default function CoAssociationPage() {
   const { currentOrg } = useOrg();
+  const navigate = useNavigate();
   const [days, setDays] = useState(30);
   const [minCoOcc, setMinCoOcc] = useState(3);
   const { entities, risingRisks, loading } = useCoAssociation(currentOrg?.id, days, minCoOcc);
@@ -148,6 +151,13 @@ export default function CoAssociationPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
+        </div>
+      ) : entities.length < 10 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+          <AlertTriangle className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Not enough data yet</p>
+          <p className="text-xs text-muted-foreground">You need at least 10 mentions to generate this view. Run a scan to get started.</p>
+          <Button size="sm" onClick={() => navigate("/scans")}>Go to Scans</Button>
         </div>
       ) : entities.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
