@@ -12,6 +12,8 @@ import {
   X, ArrowRight, ArrowLeft, Shield, Scan, MessageSquareWarning,
   Brain, Zap, Target, BarChart3, CheckCircle2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrg } from "@/contexts/OrgContext";
 
 const TOUR_KEY = "factsent_tour_v2_completed";
 
@@ -107,21 +109,67 @@ export default function OnboardingTour({ forceShow, onClose }: Props) {
   const [show, setShow] = useState(false);
   const [step, setStep] = useState(0);
   const navigate = useNavigate();
+  const { currentOrg } = useOrg();
 
   useEffect(() => {
     if (forceShow) { setShow(true); setStep(0); return; }
-    const completed = localStorage.getItem(TOUR_KEY);
-    if (!completed) {
+    // Check localStorage first (fast path)
+    const localCompleted = localStorage.getItem(TOUR_KEY);
+    if (localCompleted) return;
+
+    // Check DB for tour completion
+    const checkDb = async () => {
+      if (!currentOrg) {
+        // No org yet — show after delay
+        const t = setTimeout(() => setShow(true), 1200);
+        return () => clearTimeout(t);
+      }
+      try {
+        const { data } = await supabase
+          .from("tracking_profiles")
+          .select("settings")
+          .eq("org_id", currentOrg.id)
+          .maybeSingle();
+        if ((data?.settings as any)?.tour_v2_completed === true) {
+          localStorage.setItem(TOUR_KEY, "true");
+          return;
+        }
+      } catch {
+        // ignore
+      }
       const t = setTimeout(() => setShow(true), 1200);
       return () => clearTimeout(t);
+    };
+
+    checkDb();
+  }, [forceShow, currentOrg]);
+
+  const persistCompletion = useCallback(async () => {
+    localStorage.setItem(TOUR_KEY, "true");
+    if (!currentOrg) return;
+    try {
+      const { data: existing } = await supabase
+        .from("tracking_profiles")
+        .select("settings")
+        .eq("org_id", currentOrg.id)
+        .maybeSingle();
+      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      await supabase
+        .from("tracking_profiles")
+        .upsert(
+          { org_id: currentOrg.id, settings: { ...existingSettings, tour_v2_completed: true } },
+          { onConflict: "org_id" }
+        );
+    } catch {
+      // silent — localStorage is the fallback
     }
-  }, [forceShow]);
+  }, [currentOrg]);
 
   const dismiss = useCallback(() => {
     setShow(false);
-    localStorage.setItem(TOUR_KEY, "true");
+    persistCompletion();
     onClose?.();
-  }, [onClose]);
+  }, [onClose, persistCompletion]);
 
   const next = () => {
     if (step < STEPS.length - 1) setStep(s => s + 1);

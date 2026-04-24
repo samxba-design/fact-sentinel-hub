@@ -265,7 +265,7 @@ function ThreatStatusBanner({ emergencies, negativeMentions, totalMentions, posi
 export default function DashboardPage() {
   const { currentOrg } = useOrg();
   const navigate = useNavigate();
-  const { widgets, toggleWidget, reorderWidgets, resetLayout } = useDashboardLayout();
+  const { widgets, toggleWidget, reorderWidgets, resetLayout } = useDashboardLayout(currentOrg?.id);
   const [loading, setLoading] = useState(true);
   const [totalMentions, setTotalMentions] = useState(0);
   const [negativeMentions, setNegativeMentions] = useState(0);

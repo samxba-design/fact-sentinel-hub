@@ -6,6 +6,7 @@ import { Globe, Zap, AlertTriangle, TrendingUp, ZoomIn, ZoomOut, RefreshCw } fro
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
 import PageGuide from "@/components/PageGuide";
+import InfoTooltip from "@/components/InfoTooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -74,6 +75,7 @@ export default function ThreatMapPage() {
   const [selectedRegion, setSelectedRegion] = useState<RegionData | null>(null);
   const [zoom, setZoom] = useState(1.4);
   const [center, setCenter] = useState<[number, number]>([10, 20]);
+  const [mapError, setMapError] = useState(false);
 
   useEffect(() => {
     if (!currentOrg) return;
@@ -145,7 +147,10 @@ export default function ThreatMapPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Threat Geography</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            Threat Geography
+            <InfoTooltip text="Geographic data is estimated from mention text — exact locations may not be accurate." />
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">Geographic heatmap of mention origins and emerging threats</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => { setZoom(1.4); setCenter([10, 20]); }}>
@@ -193,6 +198,12 @@ export default function ThreatMapPage() {
       <Card className="bg-[#0d1117] border-border overflow-hidden relative">
         {loading ? (
           <Skeleton className="w-full h-[500px] rounded-none" />
+        ) : mapError ? (
+          <div className="flex flex-col items-center justify-center h-[500px] text-center space-y-3">
+            <Globe className="h-10 w-10 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-foreground">Map data unavailable — check your connection</p>
+            <p className="text-xs text-muted-foreground">Could not load world map data. The map pins will still appear once data loads.</p>
+          </div>
         ) : (
           <div className="relative">
             {/* Zoom controls */}
@@ -226,7 +237,7 @@ export default function ThreatMapPage() {
                 <Graticule stroke="#1f2937" strokeWidth={0.3} />
 
                 {/* Countries */}
-                <Geographies geography={GEO_URL}>
+                <Geographies geography={GEO_URL} onError={() => setMapError(true)}>
                   {({ geographies }) =>
                     geographies.map(geo => (
                       <Geography

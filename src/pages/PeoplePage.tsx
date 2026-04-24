@@ -12,6 +12,7 @@ import EmptyState from "@/components/EmptyState";
 import PageGuide from "@/components/PageGuide";
 import InfluencerLeaderboard from "@/components/people/InfluencerLeaderboard";
 import WatchlistDiscoveryWidget from "@/components/people/WatchlistDiscoveryWidget";
+import InfoTooltip from "@/components/InfoTooltip";
 
 interface PersonRow {
   person_id: string;
@@ -64,17 +65,30 @@ export default function PeoplePage() {
   // Build leaderboard data
   const leaderboardPeople = people
     .filter(p => p.people)
-    .map(p => ({
-      person_id: p.person_id,
-      name: p.people.name,
-      tier: p.tier,
-      follower_count: p.people.follower_count,
-      impact_score: p.impact_score || calculateImpactScore(p),
-      reach_multiplier: p.reach_multiplier || calculateReachMultiplier(p.people.follower_count),
-      sentiment_impact: p.sentiment_impact,
-      mention_count: p.mention_count,
-      negative_ratio: p.negative_ratio,
-    }));
+    .map(p => {
+      const score = p.impact_score || calculateImpactScore(p);
+      // Fire-and-forget: persist computed score back to DB
+      if (!p.impact_score && score > 0) {
+        const existingMeta = (p as any).metadata || {};
+        supabase
+          .from("org_people")
+          .update({ metadata: { ...existingMeta, impact_score: score } } as any)
+          .eq("id", p.person_id)
+          .then()
+          .catch(() => {/* silent */});
+      }
+      return {
+        person_id: p.person_id,
+        name: p.people.name,
+        tier: p.tier,
+        follower_count: p.people.follower_count,
+        impact_score: score,
+        reach_multiplier: p.reach_multiplier || calculateReachMultiplier(p.people.follower_count),
+        sentiment_impact: p.sentiment_impact,
+        mention_count: p.mention_count,
+        negative_ratio: p.negative_ratio,
+      };
+    });
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -183,8 +197,10 @@ export default function PeoplePage() {
                   </div>
                 </div>
                 {(p.impact_score || 0) > 0 && (
-                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-mono">
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary font-mono flex items-center gap-1">
                     Impact: {Math.round(p.impact_score || 0)}
+                    <span className="text-muted-foreground">(est.)</span>
+                    <InfoTooltip text="Computed locally from follower count and mention frequency. Not backed by server-side scoring." />
                   </Badge>
                 )}
               </div>

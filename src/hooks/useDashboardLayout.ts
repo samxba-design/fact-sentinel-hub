@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface DashboardWidget {
   id: string;
@@ -23,36 +24,84 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
 
 const STORAGE_KEY = "sentiwatch_dashboard_layout_v2"; // bumped version to clear old layout
 
+function mergeWithDefaults(saved: DashboardWidget[]): DashboardWidget[] {
+  const savedMap = new Map(saved.map(w => [w.id, w]));
+  return DEFAULT_WIDGETS.map(dw => ({
+    ...dw,
+    visible: savedMap.get(dw.id)?.visible ?? dw.visible,
+    order: savedMap.get(dw.id)?.order ?? dw.order,
+  })).sort((a, b) => a.order - b.order);
+}
+
 function loadLayout(): DashboardWidget[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as DashboardWidget[];
-      const savedMap = new Map(parsed.map(w => [w.id, w]));
-      return DEFAULT_WIDGETS.map(dw => ({
-        ...dw,
-        visible: savedMap.get(dw.id)?.visible ?? dw.visible,
-        order: savedMap.get(dw.id)?.order ?? dw.order,
-      })).sort((a, b) => a.order - b.order);
+      return mergeWithDefaults(parsed);
     }
   } catch {}
   return DEFAULT_WIDGETS;
 }
 
-export function useDashboardLayout() {
+export function useDashboardLayout(orgId?: string) {
   const [widgets, setWidgets] = useState<DashboardWidget[]>(loadLayout);
+  const dbWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = useCallback((updated: DashboardWidget[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  // Fetch from DB when orgId is available
+  useEffect(() => {
+    if (!orgId) return;
+    supabase
+      .from("tracking_profiles")
+      .select("settings")
+      .eq("org_id", orgId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const dbLayout = (data?.settings as any)?.dashboard_layout_v2;
+        if (dbLayout && Array.isArray(dbLayout)) {
+          setWidgets(mergeWithDefaults(dbLayout));
+        }
+      });
+  }, [orgId]);
+
+  const persistToDb = useCallback((updated: DashboardWidget[], currentOrgId: string) => {
+    if (dbWriteTimer.current) clearTimeout(dbWriteTimer.current);
+    dbWriteTimer.current = setTimeout(async () => {
+      try {
+        const { data: existing } = await supabase
+          .from("tracking_profiles")
+          .select("settings")
+          .eq("org_id", currentOrgId)
+          .maybeSingle();
+        const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+        await supabase
+          .from("tracking_profiles")
+          .upsert(
+            { org_id: currentOrgId, settings: { ...existingSettings, dashboard_layout_v2: updated } },
+            { onConflict: "org_id" }
+          );
+      } catch {
+        // silent — localStorage is the primary store
+      }
+    }, 800);
   }, []);
+
+  const persist = useCallback((updated: DashboardWidget[], currentOrgId?: string) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    if (currentOrgId) persistToDb(updated, currentOrgId);
+  }, [persistToDb]);
+
+  const saveLayout = useCallback((updated: DashboardWidget[]) => {
+    persist(updated, orgId);
+  }, [persist, orgId]);
 
   const toggleWidget = useCallback((id: string) => {
     setWidgets(prev => {
       const updated = prev.map(w => w.id === id ? { ...w, visible: !w.visible } : w);
-      persist(updated);
+      persist(updated, orgId);
       return updated;
     });
-  }, [persist]);
+  }, [persist, orgId]);
 
   const reorderWidgets = useCallback((orderedIds: string[]) => {
     setWidgets(prev => {
@@ -63,15 +112,15 @@ export function useDashboardLayout() {
           return w ? { ...w, order: i } : null;
         })
         .filter(Boolean) as DashboardWidget[];
-      persist(reordered);
+      persist(reordered, orgId);
       return reordered;
     });
-  }, [persist]);
+  }, [persist, orgId]);
 
   const resetLayout = useCallback(() => {
     setWidgets(DEFAULT_WIDGETS);
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  return { widgets, toggleWidget, reorderWidgets, resetLayout };
+  return { widgets, toggleWidget, reorderWidgets, resetLayout, saveLayout };
 }

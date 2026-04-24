@@ -139,8 +139,8 @@ export default function SentimentForecastWidget() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-card-foreground flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
-          Sentiment Forecast
-          <InfoTooltip text="AI-powered 72-hour sentiment prediction based on exponential smoothing and linear regression of the past 14 days. Dashed lines indicate predicted values." />
+          Sentiment Trend Extrapolation
+          <InfoTooltip text="Projected values are estimated using linear regression on your recent mention data. Actual sentiment may vary." />
         </h3>
         <div className="flex items-center gap-2">
           {forecast && (
@@ -190,7 +190,7 @@ export default function SentimentForecastWidget() {
               const isPred = payload[0]?.payload?.predicted;
               return (
                 <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-xs">
-                  <p className="text-muted-foreground mb-1">{label} {isPred ? "(predicted)" : ""}</p>
+                  <p className="text-muted-foreground mb-1">{label} {isPred ? "(projected est.)" : ""}</p>
                   {payload.map((p: any) => (
                     <p key={p.dataKey} style={{ color: p.color }} className="font-medium">{p.name}: {p.value}</p>
                   ))}
@@ -209,7 +209,7 @@ export default function SentimentForecastWidget() {
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span>← 14 day history</span>
         <span className="flex items-center gap-1">
-          <span className="w-4 border-t border-dashed border-muted-foreground" /> Predicted →
+          <span className="w-4 border-t border-dashed border-muted-foreground" /> Projected (est.) →
         </span>
       </div>
     </Card>
