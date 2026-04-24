@@ -6,7 +6,9 @@ import CustomSourcesTab from "@/components/settings/CustomSourcesTab";
 import IntegrationsTab from "@/components/settings/IntegrationsTab";
 import DangerZoneTab from "@/components/settings/DangerZoneTab";
 import SharedLinksTab from "@/components/settings/SharedLinksTab";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import KeywordsTab from "@/components/settings/KeywordsTab";
+import AlertSettingsTab from "@/components/settings/AlertSettingsTab";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -368,79 +370,10 @@ export default function SettingsPage() {
 
         {/* ═══ KEYWORDS TAB ═══ */}
         <TabsContent value="keywords">
-          <Card className="bg-card border-border p-6 space-y-5">
-            <TabInfoBanner icon={Info} title="How keywords work">
-              <p>Keywords are the search terms SentiWatch uses to find mentions of your brand online. When you run a scan, every source is searched for these keywords. Add your <strong>brand name</strong>, <strong>product names</strong>, <strong>executive names</strong>, <strong>competitors</strong>, and common <strong>misspellings or aliases</strong>.</p>
-              <p className="mt-1">💡 <strong>Tip:</strong> The more specific your keywords, the less noise you'll get. "Acme Corp" is better than just "Acme".</p>
-            </TabInfoBanner>
-
-            <h3 className="text-sm font-medium text-card-foreground">Keywords & Aliases</h3>
-
-            <div className="flex items-end gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                  Type
-                  <InfoTooltip text="Brand = your company name. Product = product/service names. Competitor = rival brands to track. Executive = key people. Alias = alternate spellings or abbreviations." />
-                </Label>
-                <Select value={newKwType} onValueChange={setNewKwType}>
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="brand">Brand</SelectItem>
-                    <SelectItem value="product">Product</SelectItem>
-                    <SelectItem value="competitor">Competitor</SelectItem>
-                    <SelectItem value="executive">Executive</SelectItem>
-                    <SelectItem value="alias">Alias</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Keyword</Label>
-                <Input
-                  placeholder={newKwType === "brand" ? "e.g. Acme Corp" : newKwType === "product" ? "e.g. Acme Pro Suite" : newKwType === "competitor" ? "e.g. RivalCo" : newKwType === "executive" ? "e.g. Jane Smith CEO" : "e.g. AcmeCo, @acme"}
-                  value={newKwValue}
-                  onChange={e => setNewKwValue(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addKeyword()}
-                />
-              </div>
-              <Button size="sm" onClick={addKeyword} disabled={addingKw || !newKwValue.trim()}>
-                {addingKw ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
-                Add
-              </Button>
-            </div>
-
-            {loading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : Object.keys(groupedKeywords).length === 0 ? (
-              <div className="text-center py-8 space-y-2">
-                <Key className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-                <p className="text-sm text-muted-foreground">No keywords configured yet.</p>
-                <p className="text-xs text-muted-foreground">Add your brand name above to start tracking mentions across the web.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(groupedKeywords).map(([type, kws]) => (
-                  <div key={type} className="space-y-2">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">{type}</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {kws.map(k => (
-                        <Badge key={k.id} variant="secondary" className="text-xs pl-2 pr-1 py-1 flex items-center gap-1.5">
-                          {k.value}
-                          {!k.locked && (
-                            <button onClick={() => deleteKeyword(k)} className="hover:text-destructive transition-colors p-0.5 rounded">
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <KeywordsTab />
         </TabsContent>
 
-        {/* ═══ TOPICS TAB ═══ */}
+                {/* ═══ TOPICS TAB ═══ */}
         <TabsContent value="topics">
           <Card className="bg-card border-border p-6 space-y-5">
             <TabInfoBanner icon={Info} title="How topics work">
@@ -736,14 +669,7 @@ export default function SettingsPage() {
 
         {/* ALERTS TAB */}
         <TabsContent value="alerts">
-          <Card className="bg-card border-border p-6 space-y-5">
-            <TabInfoBanner icon={Bell} title="About alert configuration">
-              <p>Alert rules, scan schedules, quiet hours, and alert email routing are managed from the <strong>Alerts & Monitoring</strong> page — this keeps all your monitoring settings in one place for a unified experience.</p>
-            </TabInfoBanner>
-            <Button onClick={() => navigate("/alerts")} className="gap-2">
-              <Bell className="h-4 w-4" /> Go to Alerts & Monitoring
-            </Button>
-          </Card>
+          <AlertSettingsTab />
         </TabsContent>
 
         {/* NOTIFICATIONS TAB */}
@@ -770,6 +696,9 @@ export default function SettingsPage() {
             <TabInfoBanner icon={Info} title="Team management">
               <p>Invite team members to your organization and assign roles that control what they can see and do. <strong>Owners</strong> have full control. <strong>Admins</strong> manage members and settings. <strong>Analysts</strong> run scans and manage data. <strong>Approvers</strong> review facts and templates. <strong>Viewers</strong> have read-only access.</p>
             </TabInfoBanner>
+            {isSuperAdmin && (
+              <p className="text-xs text-muted-foreground mb-2">Full team management including org creation is available in the <Link to="/admin" className="text-primary underline">Admin Panel</Link>.</p>
+            )}
             <TeamManagementTab />
           </Card>
         </TabsContent>

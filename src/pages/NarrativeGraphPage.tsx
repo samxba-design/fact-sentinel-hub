@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,9 +108,16 @@ export default function NarrativeGraphPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"mentions" | "negative" | "recent">("mentions");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Debounce search input for graph computation
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = async (isRefresh = false) => {
     if (!currentOrg?.id) return;
@@ -282,8 +289,8 @@ export default function NarrativeGraphPage() {
 
   const filtered = useMemo(() => {
     let list = narratives;
-    if (search) {
-      const q = search.toLowerCase();
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter(
         (n) =>
           n.name.toLowerCase().includes(q) ||

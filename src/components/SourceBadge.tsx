@@ -1,13 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import CompanyLogo from "@/components/CompanyLogo";
+import { Globe } from "lucide-react";
 
 // Map source name → canonical domain for logo lookup
 const SOURCE_DOMAINS: Record<string, string> = {
   twitter: "twitter.com",
   reddit: "reddit.com",
   news: "google.com",
-  web: "globe.com",  // generic — will fallback to initial
+  // web: intentionally omitted — uses Globe icon fallback
   youtube: "youtube.com",
   "youtube_comment": "youtube.com",
   linkedin: "linkedin.com",
@@ -63,13 +64,14 @@ const SOURCE_STYLES: Record<string, { bg: string; text: string; border: string; 
 
 interface SourceBadgeProps {
   source: string;
+  url?: string;
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
   /** Show the logo icon inside the badge. Default true. */
   showLogo?: boolean;
 }
 
-export default function SourceBadge({ source, className, onClick, showLogo = true }: SourceBadgeProps) {
+export default function SourceBadge({ source, url, className, onClick, showLogo = true }: SourceBadgeProps) {
   const key = source.toLowerCase();
   const style = SOURCE_STYLES[key] || {
     bg: "bg-muted/30",
@@ -78,8 +80,10 @@ export default function SourceBadge({ source, className, onClick, showLogo = tru
     label: source,
   };
   const logoDomain = SOURCE_DOMAINS[key] || null;
+  const isWeb = key === "web";
+  const hasValidUrl = url && url.startsWith("http");
 
-  return (
+  const badgeContent = (
     <Badge
       variant="outline"
       className={cn(
@@ -87,23 +91,37 @@ export default function SourceBadge({ source, className, onClick, showLogo = tru
         style.bg,
         style.text,
         style.border,
-        onClick && "cursor-pointer hover:opacity-80 transition-opacity",
+        (onClick || hasValidUrl) && "cursor-pointer hover:opacity-80 transition-opacity",
         className
       )}
       onClick={onClick}
     >
-      {showLogo && logoDomain && (
-        <CompanyLogo
-          domain={logoDomain}
-          name={style.label}
-          size={12}
-          rounded="rounded-none"
-          className="opacity-90"
-        />
+      {showLogo && (
+        isWeb ? (
+          <Globe className="h-3 w-3 opacity-75 shrink-0" />
+        ) : logoDomain ? (
+          <CompanyLogo
+            domain={logoDomain}
+            name={style.label}
+            size={12}
+            rounded="rounded-none"
+            className="opacity-90"
+          />
+        ) : null
       )}
       {style.label}
     </Badge>
   );
+
+  if (hasValidUrl) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex">
+        {badgeContent}
+      </a>
+    );
+  }
+
+  return badgeContent;
 }
 
 /** Get the appropriate audience label for a source type */

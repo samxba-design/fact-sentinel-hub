@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle } from "lucide-react";
 import {
   Target, BarChart3, TrendingUp, TrendingDown, Minus,
   MessageSquareWarning, ArrowLeft,
@@ -382,6 +383,12 @@ export default function CompetitorBenchmarkPage() {
             {/* Radar comparison */}
             <Card className="p-5">
               <h3 className="text-sm font-medium text-card-foreground mb-4">Multi-Axis Comparison</h3>
+              {competitors.every(c => c.mentionCount === 0) && (!orgData || orgData.mentionCount === 0) ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                  <AlertTriangle className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">No competitor data yet — run a scan to populate this chart.</p>
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <RadarChart data={radarData}>
                   <PolarGrid stroke="hsl(var(--border))" />
@@ -398,9 +405,17 @@ export default function CompetitorBenchmarkPage() {
                       strokeWidth={i === 0 ? 2 : 1}
                     />
                   ))}
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Legend
+                    wrapperStyle={{ fontSize: 11 }}
+                    formatter={(value) => {
+                      const comp = competitors.find(c => c.name === value);
+                      const noData = comp && comp.mentionCount === 0;
+                      return noData ? `${value} (no data)` : value;
+                    }}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
+              )}
             </Card>
 
             {/* Sentiment comparison bars */}
