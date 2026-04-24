@@ -612,6 +612,72 @@ async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: 
 }
 
 // ── YouTube crawler ───────────────────────────────────────────────────────
+// ── Gemini native YouTube video analysis ──────────────────────────────────
+// Uses Gemini's multimodal capability to analyse a YouTube video directly.
+// Returns a structured analysis including transcript excerpt, sentiment, and summary.
+// Only called when the timedtext transcript fetch fails AND geminiKey is available.
+async function analyseYouTubeWithGemini(
+  videoId: string,
+  title: string,
+  brandName: string,
+  geminiKey: string
+): Promise<{ transcript_excerpt: string; summary: string; content_type: string } | null> {
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`[youtube-gemini] analysing video ${videoId} natively`);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(90000),
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { fileData: { mimeType: "video/mp4", fileUri: videoUrl } },
+              {
+                text: `You are a brand monitoring assistant. Analyse this YouTube video and return ONLY valid JSON:
+{
+  "transcript_excerpt": "150-200 word excerpt of the most brand-relevant spoken content (or best summary of what is spoken if brand not mentioned)",
+  "full_summary": "2-3 sentence summary of what this video is about and how it relates to ${brandName}",
+  "content_type": "tutorial|review|news|opinion|scam_warning|promotional|other",
+  "brand_mentions": ["up to 5 direct quotes or close paraphrases mentioning ${brandName}"],
+  "is_relevant": true or false
+}
+Base your analysis on what is ACTUALLY spoken and shown. Do not guess. If the video is not about or mentioning ${brandName}, set is_relevant=false.`,
+              },
+            ],
+          }],
+          generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+        }),
+      }
+    );
+    if (!res.ok) {
+      console.warn(`[youtube-gemini] API error ${res.status} for ${videoId}`);
+      return null;
+    }
+    const data = await res.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    if (!rawText) return null;
+    let parsed: any;
+    try { parsed = JSON.parse(rawText); }
+    catch {
+      const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      try { parsed = JSON.parse(stripped); } catch { return null; }
+    }
+    console.log(`[youtube-gemini] success for ${videoId}: content_type=${parsed.content_type}`);
+    return {
+      transcript_excerpt: parsed.transcript_excerpt || parsed.full_summary || "",
+      summary: parsed.full_summary || "",
+      content_type: parsed.content_type || "other",
+    };
+  } catch (e: any) {
+    console.warn(`[youtube-gemini] failed for ${videoId}: ${e.message}`);
+    return null;
+  }
+}
+
 // ── YouTube transcript fetcher ────────────────────────────────────────────
 // Fetches auto-generated captions via YouTube's innertube API.
 // No API key required — same endpoint the web player uses.
@@ -681,7 +747,7 @@ function truncateTranscript(transcript: string, maxChars = 3000): string {
   return `${head} [...] ${tail}`;
 }
 
-async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
+async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string, geminiKey?: string, brandName?: string): Promise<any[]> {
   const results: any[] = [];
   try {
     const query = keywords.slice(0, 5).join(" | ");
@@ -741,12 +807,30 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
       // Build content: title + description always, then transcript if available
       // The transcript is the ground truth of what was said — this is what AI must analyse
       let content: string;
+      let has_transcript = false;
+      let gemini_analysed = false;
+
       if (transcript) {
-        // Include full transcript context; AI gets a much richer signal
+        // Timedtext transcript available — best case
         const cleanTranscript = truncateTranscript(transcript, 3000);
         content = clean(`TITLE: ${title}\n\nDESCRIPTION: ${description}\n\nTRANSCRIPT: ${cleanTranscript}`).slice(0, 3500);
+        has_transcript = true;
+      } else if (geminiKey) {
+        // No timedtext transcript — use Gemini native video analysis
+        // This gives us real spoken content instead of just metadata
+        const geminiResult = await analyseYouTubeWithGemini(vid, title, brandName || keywords[0] || "the brand", geminiKey);
+        if (geminiResult && geminiResult.transcript_excerpt.length > 50) {
+          content = clean(
+            `TITLE: ${title}\n\nDESCRIPTION: ${description}\n\nGEMINI VIDEO ANALYSIS:\n${geminiResult.transcript_excerpt}`
+          ).slice(0, 3500);
+          has_transcript = true; // treat Gemini analysis as equivalent — it's real content
+          gemini_analysed = true;
+        } else {
+          // Gemini failed too — fall back to title + description only
+          content = clean(`${title}. ${description}`.trim()).slice(0, 800);
+        }
       } else {
-        // No transcript: use title + description, flag as limited context
+        // No transcript and no Gemini key — use title + description, flag as limited context
         content = clean(`${title}. ${description}`.trim()).slice(0, 800);
       }
 
@@ -761,7 +845,8 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
         author_handle: sn.channelId || "",
         posted_at: sn.publishedAt || null,
         date_verified: !!sn.publishedAt,
-        has_transcript: !!transcript,
+        has_transcript,
+        gemini_analysed,
         metrics: {
           likes: parseInt(st.likeCount || "0"),
           comments: parseInt(st.commentCount || "0"),
@@ -770,7 +855,8 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
       });
     }
     const withTranscript = results.filter(r => r.has_transcript).length;
-    console.log(`[youtube] ${results.length} videos, ${withTranscript} with transcript`);
+    const withGemini = results.filter(r => r.gemini_analysed).length;
+    console.log(`[youtube] ${results.length} videos, ${withTranscript} with content (${withGemini} via Gemini native)`);
   } catch (e: any) { console.warn("[youtube] failed:", e.message); }
   return results;
 }
@@ -941,28 +1027,51 @@ async function crawlRedditAuth(keywords: string[], clientId: string, clientSecre
   return results;
 }
 
-// AI ANALYSIS — tries Lovable gateway, falls back 100% to keyword sentiment
+// AI ANALYSIS — calls Gemini directly, falls back to keyword sentiment
 // ══════════════════════════════════════════════════════════════════════════
 
 async function analyzeWithAI(
-  items: { source: string; url: string; title: string; content: string }[],
+  items: { source: string; url: string; title: string; content: string; has_transcript?: boolean }[],
   brandName: string,
   lovableKey: string,
+  geminiApiKey?: string,
 ): Promise<any[]> {
-  if (!lovableKey) {
-    console.log("[ai] No LOVABLE_API_KEY configured — using keyword sentiment");
+  const activeKey = geminiApiKey || lovableKey;
+  if (!activeKey) {
+    console.log("[ai] No AI key configured — using keyword sentiment");
     return [];
   }
 
   const analyses: any[] = [];
   const BATCH = 15; // smaller batches = more reliable
 
+  async function callGemini(messages: { role: string; content: string }[]): Promise<string> {
+    const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(45000),
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+        }),
+      }
+    );
+    if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+    const d = await res.json();
+    const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    if (!text) throw new Error("Empty Gemini response");
+    return text;
+  }
+
   for (let i = 0; i < items.length; i += BATCH) {
     const batch = items.slice(i, i + BATCH);
     let batchOk = false;
 
     try {
-      const resText = await geminiChat(geminiKey, [
+      const resText = await callGemini([
         {
           role: "system",
           content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
@@ -970,13 +1079,13 @@ async function analyzeWithAI(
 - sentiment_label: "positive"|"negative"|"neutral"|"mixed" — base this on actual tone/opinion expressed, not just the topic. A tutorial showing how to use ${brandName} is neutral or positive, not negative.
 - sentiment_score: number from -1.0 to 1.0
 - severity: "low"|"medium"|"high"|"critical" — severity is about reputational risk. A tutorial video = low. Criticism or complaints = medium/high. Fraud allegations or coordinated attacks = critical.
-- summary: 2-3 sentences of what is ACTUALLY being said. For YouTube videos: state what the video covers and how ${brandName} is mentioned or portrayed. If you have a transcript, summarise the specific claims or content about ${brandName}. NEVER say "the content is an error page" for a YouTube video — if the content field starts with TITLE: and TRANSCRIPT: it is real video content, not an error.
+- summary: 2-3 sentences of what is ACTUALLY being said. For YouTube videos: state what the video covers and how ${brandName} is mentioned or portrayed. If you have a GEMINI VIDEO ANALYSIS or TRANSCRIPT section, summarise the specific claims or content about ${brandName}. NEVER say "the content is an error page" for a YouTube video — if the content field starts with TITLE: and has TRANSCRIPT: or GEMINI VIDEO ANALYSIS: it is real video content.
 - flags: {misinformation:bool, viral_potential:bool}
 
 IMPORTANT for YouTube videos (source="youtube"):
-- Content may include a TRANSCRIPT: section — this is what was actually spoken in the video. Use it.
-- If there is no transcript, use the title and description to infer the context.
-- Do not confuse a missing/short transcript with an error page.
+- Content may include a TRANSCRIPT: or GEMINI VIDEO ANALYSIS: section — this is actual spoken content. Use it.
+- If neither is present, use the title and description to infer the context.
+- Never interpret a missing transcript as an error page.
 - A YouTube tutorial about how to use ${brandName} is relevant=true, sentiment neutral/positive, severity low.
 Return ONLY valid JSON: {"analyses":[...]}`,
         },
@@ -987,41 +1096,35 @@ Return ONLY valid JSON: {"analyses":[...]}`,
               idx,
               source: r.source,
               title: r.title,
-              content: r.source === "youtube" && r.has_transcript
+              content: (r.source === "youtube" && r.has_transcript)
                 ? r.content.slice(0, 2500)
                 : r.content.slice(0, 400),
             }))
           )}`,
         },
-      ], true, 45000);
-      const res = { ok: true, resText };
-      if (res.ok) {
-        let raw = res.resText || "{}";
-        // Strip markdown code fences if present
-        raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-        try {
-          const parsed = JSON.parse(raw);
-          const batchAnalyses: any[] = parsed.analyses || (Array.isArray(parsed) ? parsed : []);
-          for (let j = 0; j < batch.length; j++) {
-            const a = batchAnalyses[j];
-            if (a && typeof a.sentiment_label === "string") {
-              analyses.push(a);
-            } else {
-              // AI returned partial data — fill with keyword
-              const kw = kwSentiment(batch[j].content + " " + batch[j].title);
-              analyses.push({
-                relevant: true, ...kw,
-                summary: batch[j].title || batch[j].content.slice(0, 150),
-                flags: {},
-              });
-            }
+      ]);
+      let raw = resText || "{}";
+      // Strip markdown code fences if present
+      raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      try {
+        const parsed = JSON.parse(raw);
+        const batchAnalyses: any[] = parsed.analyses || (Array.isArray(parsed) ? parsed : []);
+        for (let j = 0; j < batch.length; j++) {
+          const a = batchAnalyses[j];
+          if (a && typeof a.sentiment_label === "string") {
+            analyses.push(a);
+          } else {
+            const kw = kwSentiment(batch[j].content + " " + batch[j].title);
+            analyses.push({
+              relevant: true, ...kw,
+              summary: batch[j].title || batch[j].content.slice(0, 150),
+              flags: {},
+            });
           }
-          batchOk = true;
-        } catch {
-          console.warn(`[ai] JSON parse failed for batch ${i}–${i + BATCH}`);
         }
-      } else {
-        console.warn(`[ai] HTTP ${res.status} for batch ${i}–${i + BATCH}`);
+        batchOk = true;
+      } catch {
+        console.warn(`[ai] JSON parse failed for batch ${i}–${i + BATCH}`);
       }
     } catch (e: any) {
       console.warn(`[ai] fetch error for batch ${i}–${i + BATCH}:`, e.message);
@@ -1031,11 +1134,9 @@ Return ONLY valid JSON: {"analyses":[...]}`,
       // Full keyword fallback for this batch
       for (const r of batch) {
         const kw = kwSentiment(r.content + " " + r.title);
-        // For YouTube with transcript, use the first meaningful sentence from transcript
         let fallbackSummary = r.title || r.content.slice(0, 150);
         if (r.source === "youtube" && r.has_transcript) {
-          // Extract first real sentence from transcript section
-          const transcriptMatch = r.content.match(/TRANSCRIPT:\s*(.+?)(?:[.!?]|$)/i);
+          const transcriptMatch = r.content.match(/(?:TRANSCRIPT|GEMINI VIDEO ANALYSIS):\s*(.+?)(?:[.!?]|$)/i);
           if (transcriptMatch) {
             fallbackSummary = `${r.title} — ${transcriptMatch[1].trim().slice(0, 200)}`;
           }
@@ -1067,6 +1168,7 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const lovableKey = Deno.env.get("LOVABLE_API_KEY") || "";
+  const geminiKey = Deno.env.get("GOOGLE_API_KEY") || "";
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
   const braveKey = Deno.env.get("BRAVE_SEARCH_API_KEY") || "";
   const newsApiKey = Deno.env.get("NEWSAPI_KEY") || "";
@@ -1292,7 +1394,7 @@ Deno.serve(async (req) => {
     // YouTube — only if API key configured and source requested
     if (youtubeApiKey && wantSource("youtube")) {
       crawlPromises.push((async () => {
-        const r = await crawlYouTube(keywords, youtubeApiKey, date_from, date_to);
+        const r = await crawlYouTube(keywords, youtubeApiKey, date_from, date_to, geminiKey || undefined, brandName);
         allRaw.push(...r);
         scanLog.push({ source: "youtube", found: r.length });
       })());
@@ -1460,7 +1562,7 @@ Deno.serve(async (req) => {
       source: r.source, url: r.url, title: r.title || "", content: r.content,
     }));
 
-    let analyses = await analyzeWithAI(aiInput, brandName, lovableKey);
+    let analyses = await analyzeWithAI(aiInput, brandName, lovableKey, geminiKey || undefined);
 
     // If AI returned nothing (no key or all batches failed), use keyword fallback
     if (analyses.length === 0) {
@@ -1653,13 +1755,13 @@ Deno.serve(async (req) => {
         mentions_saved: inserted.length,
         negative_pct: negPct,
         sources_used: [...new Set(scanLog.map(s => s.source))],
-        ai_used: lovableKey ? "lovable-gateway" : "keyword-only",
+        ai_used: geminiKey ? "gemini-direct" : lovableKey ? "lovable-gateway" : "keyword-only",
         errors: insertErrors,
       },
     } as any).eq("id", scanRun.id).then(() => {}).catch(() => {});
 
     // ── 12. Narrative clustering (async, non-blocking) ─────────────────────
-    if (lovableKey && inserted.length > 0) {
+    if ((lovableKey || geminiKey) && inserted.length > 0) {
       (async () => {
         try {
           const mentionIds = inserted.map((m: any) => m.id);
@@ -1667,17 +1769,23 @@ Deno.serve(async (req) => {
             i, source: m.source, content: (m.content || "").slice(0, 200),
           }));
 
-          const rawN = await geminiChat(geminiKey, [
+          const clusteringKey = geminiKey || lovableKey;
+          const clusterPrompt = `${`Cluster mentions into 2-5 narrative themes. Return ONLY valid JSON:\n{"narratives":[{"name":"...","description":"...","status":"active","confidence":0.8,"example_phrases":["..."],"mention_indices":[0,1,2]}]}`}\n\nUser: Cluster ${sample.length} mentions for "${brandName}":\n${JSON.stringify(sample)}`;
+          const clusterRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${clusteringKey}`,
             {
-              role: "system",
-              content: `Cluster mentions into 2-5 narrative themes. Return ONLY valid JSON:
-{"narratives":[{"name":"...","description":"...","status":"active","confidence":0.8,"example_phrases":["..."],"mention_indices":[0,1,2]}]}`,
-            },
-            {
-              role: "user",
-              content: `Cluster ${sample.length} mentions for "${brandName}":\n${JSON.stringify(sample)}`,
-            },
-          ], true, 35000);
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: AbortSignal.timeout(35000),
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: clusterPrompt }] }],
+                generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+              }),
+            }
+          );
+          if (!clusterRes.ok) throw new Error(`Gemini cluster error ${clusterRes.status}`);
+          const clusterData = await clusterRes.json();
+          const rawN = clusterData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
 
           const parsed = JSON.parse(rawN);
           for (const c of (parsed.narratives || [])) {
@@ -1751,7 +1859,7 @@ Deno.serve(async (req) => {
       emergencies: critCount,
       scan_log: scanLog,
       keyword_groups: { brand: keywords.slice(0, 5), risk: [], product: [] },
-      ai_used: lovableKey ? "lovable-gateway" : "keyword-only",
+      ai_used: geminiKey ? "gemini-direct" : lovableKey ? "lovable-gateway" : "keyword-only",
       errors: insertErrors,
     });
 
