@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Link2, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, AlertTriangle, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Slider } from "@/components/ui/slider";
 
@@ -105,6 +105,30 @@ export default function CoAssociationPage() {
   const criticals = entities.filter(e => e.riskLevel === "critical");
   const highs = entities.filter(e => e.riskLevel === "high");
 
+  const exportCsv = () => {
+    const rows = [["Entity", "Category", "Risk Level", "Co-occurrences", "Trend", "Positive %", "Negative %", "First Seen"]];
+    entities.forEach(e => {
+      rows.push([
+        e.entity,
+        e.category,
+        e.riskLevel,
+        String(e.coOccurrences),
+        e.trend,
+        String(e.positivePct),
+        String(e.negativePct),
+        e.firstSeen,
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "co-associations.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -112,10 +136,15 @@ export default function CoAssociationPage() {
         <div className="p-2 rounded-lg bg-primary/10">
           <Link2 className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-foreground">Guilt-by-Association Signals</h1>
           <p className="text-sm text-muted-foreground">What keeps appearing alongside your brand — before it becomes a direct threat.</p>
         </div>
+        {entities.length > 0 && (
+          <Button size="sm" variant="outline" onClick={exportCsv}>
+            <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
+          </Button>
+        )}
       </div>
 
       {/* Controls */}

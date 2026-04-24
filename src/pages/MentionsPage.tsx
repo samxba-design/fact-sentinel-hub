@@ -769,6 +769,15 @@ export default function MentionsPage() {
                   if (!reach) return null;
                   return <div className="text-[10px] text-muted-foreground font-mono">{reach.value} {reach.label}</div>;
                 })()}
+                {/* Assignment badge */}
+                {flags.assigned_email && (
+                  <span
+                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary text-[9px] font-bold shrink-0"
+                    title={`Assigned: ${flags.assigned_email}`}
+                  >
+                    {String(flags.assigned_email).slice(0, 2).toUpperCase()}
+                  </span>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

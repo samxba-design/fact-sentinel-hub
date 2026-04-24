@@ -21,6 +21,7 @@ import {
   Trash2, Sparkles, Loader2, AlertCircle, Ban, CalendarClock, Eye, ChevronDown, Search,
   Network, Link2, Lock, Share2, RefreshCw,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import PageGuide from "@/components/PageGuide";
 import { useOrg } from "@/contexts/OrgContext";
@@ -128,6 +129,7 @@ export default function MentionDetailPage() {
   const [prevMentionId, setPrevMentionId] = useState<string | null>(null);
   const [nextMentionId, setNextMentionId] = useState<string | null>(null);
   const [reAnalysing, setReAnalysing] = useState(false);
+  const [assignees, setAssignees] = useState<{id: string; email: string; name: string}[]>([]);
 
   const getDomain = (url: string | null): string => {
     if (!url) return "unknown";
@@ -184,6 +186,23 @@ export default function MentionDetailPage() {
       setLoading(false);
     });
   }, [id, currentOrg]);
+
+  // Fetch org members for assignment
+  useEffect(() => {
+    if (!currentOrg) return;
+    supabase
+      .from("org_memberships")
+      .select("user_id, invited_email")
+      .eq("org_id", currentOrg.id)
+      .then(({ data }) => {
+        const members = (data || []).map((m: any) => ({
+          id: m.user_id || m.invited_email,
+          email: m.invited_email || "",
+          name: m.invited_email || m.user_id || "",
+        }));
+        setAssignees(members);
+      });
+  }, [currentOrg]);
 
   // Find similar mentions from other sources (for coordinated activity detection)
   useEffect(() => {
@@ -492,6 +511,27 @@ export default function MentionDetailPage() {
           <Button size="sm" variant="outline" onClick={handleAddToIncident}>
             <Siren className="h-3.5 w-3.5 mr-1.5" /> Add to Incident
           </Button>
+          {/* Assign to teammate */}
+          {assignees.length > 0 && (
+            <Select onValueChange={async (userId) => {
+              const member = assignees.find(a => a.id === userId);
+              if (!mention) return;
+              const newFlags = { ...(mention.flags || {}), assigned_to: userId, assigned_email: member?.email };
+              await supabase.from("mentions").update({ flags: newFlags }).eq("id", mention.id);
+              setMention({ ...mention, flags: newFlags });
+              toast({ title: `Assigned to ${member?.name || member?.email}` });
+              if (currentOrg) {
+                supabase.functions.invoke("send-notification", {
+                  body: { org_id: currentOrg.id, type: "mention_assigned", mention_id: mention.id, assigned_to: userId }
+                }).catch(console.warn);
+              }
+            }}>
+              <SelectTrigger className="h-8 text-xs w-48"><SelectValue placeholder="Assign to..." /></SelectTrigger>
+              <SelectContent>
+                {assignees.map(a => <SelectItem key={a.id} value={a.id}>{a.name || a.email}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline" className="px-2">
