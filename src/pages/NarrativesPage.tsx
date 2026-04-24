@@ -151,6 +151,11 @@ export default function NarrativesPage() {
     } else {
       setNarratives(prev => prev.map(n => n.id === id ? { ...n, status: newStatus } : n));
       toast({ title: `Narrative marked ${newStatus}` });
+      if (currentOrg) {
+        supabase.functions.invoke("send-notification", {
+          body: { org_id: currentOrg.id, type: "narrative_status_change", narrative_id: id, new_status: newStatus }
+        }).catch(console.warn);
+      }
     }
     setUpdatingId(null);
   };

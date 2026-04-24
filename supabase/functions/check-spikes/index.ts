@@ -278,7 +278,10 @@ Deno.serve(async (req) => {
         status: "active",
         triggered_at: new Date().toISOString(),
       }));
-      const { error: insertErr } = await supabase.from("alerts").insert(alertRows);
+      const { data: insertedAlerts, error: insertErr } = await supabase
+        .from("alerts")
+        .insert(alertRows)
+        .select("id, org_id, type, payload");
       if (insertErr) console.error("Alert insert error:", insertErr);
 
       // Send email notifications for each alert
@@ -300,6 +303,29 @@ Deno.serve(async (req) => {
           });
         } catch (emailErr) {
           console.error("Email notification error:", emailErr);
+        }
+      }
+
+      // Fire targeted send-notification for critical_mention and viral_risk new alerts
+      for (const alert of (insertedAlerts || [])) {
+        if (alert.type === "critical_mention" || alert.type === "viral_risk") {
+          try {
+            await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                org_id: alert.org_id,
+                type: alert.type,
+                alert_id: alert.id,
+                message: (alert.payload as any)?.message || "Critical alert detected",
+              }),
+            });
+          } catch (e) {
+            console.warn("Notification send failed:", e);
+          }
         }
       }
     }

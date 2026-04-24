@@ -84,6 +84,24 @@ function cleanPreview(raw: string | null): string {
   return text;
 }
 
+// Boolean search helper for AND/OR/NOT operators
+function applySearchFilter(query: any, search: string) {
+  const upper = search.trim().toUpperCase();
+  if (upper.includes(" AND ")) {
+    const parts = search.split(/ AND /i).map((s: string) => s.trim()).filter(Boolean);
+    parts.forEach((p: string) => { query = (query as any).ilike("content", `%${p}%`); });
+  } else if (upper.includes(" OR ")) {
+    const parts = search.split(/ OR /i).map((s: string) => s.trim()).filter(Boolean);
+    query = (query as any).or(parts.map((p: string) => `content.ilike.%${p}%`).join(","));
+  } else if (upper.startsWith("NOT ")) {
+    const term = search.slice(4).trim();
+    query = (query as any).not("content", "ilike", `%${term}%`);
+  } else {
+    query = (query as any).ilike("content", `%${search}%`);
+  }
+  return query;
+}
+
 const PAGE_SIZE = 100;
 
 export default function MentionsPage() {
@@ -163,7 +181,7 @@ export default function MentionsPage() {
     } else if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
     }
-    if (debouncedSearch) query = query.ilike("content", `%${debouncedSearch}%`);
+    if (debouncedSearch) query = applySearchFilter(query, debouncedSearch);
     if (cursor) query = query.lt("created_at", cursor);
     return query;
   }, [currentOrg, scanFilter, daysParam, sentimentFilter, severityFilter, sourceFilter, statusFilter, debouncedSearch]);
@@ -928,6 +946,7 @@ export default function MentionsPage() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search mentions..." className="pl-9 bg-card border-border" value={search} onChange={e => setSearch(e.target.value)} />
+          <p className="text-[11px] text-muted-foreground mt-1 pl-1">Tip: use AND, OR, NOT operators</p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
