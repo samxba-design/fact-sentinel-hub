@@ -697,7 +697,11 @@ export default function SettingsPage() {
               <p>Invite team members to your organization and assign roles that control what they can see and do. <strong>Owners</strong> have full control. <strong>Admins</strong> manage members and settings. <strong>Analysts</strong> run scans and manage data. <strong>Approvers</strong> review facts and templates. <strong>Viewers</strong> have read-only access.</p>
             </TabInfoBanner>
             {isSuperAdmin && (
-              <p className="text-xs text-muted-foreground mb-2">Full team management including org creation is available in the <Link to="/admin" className="text-primary underline">Admin Panel</Link>.</p>
+              <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5 text-primary" />
+                Full team management including org creation is available in the{" "}
+                <Link to="/admin" className="text-primary underline">Admin Panel</Link>.
+              </p>
             )}
             <TeamManagementTab />
           </Card>

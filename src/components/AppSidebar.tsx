@@ -9,8 +9,9 @@ import {
   FileText, TicketCheck, Download, Settings, LogOut,
   ChevronDown, ChevronRight, Building2, ShieldCheck, CreditCard, Plus, BookOpen,
   Target, Contact, Bell, Radio, Globe, Share2, Brain, Newspaper,
-  Zap, EyeOff, Link2, Eye, ClipboardList, Crosshair, GitBranch,
+  Zap, EyeOff, Link2, Eye, ClipboardList, Crosshair, GitBranch, Play,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
 import CompanyLogo from "@/components/CompanyLogo";
 import {
@@ -257,6 +258,13 @@ export default function AppSidebar() {
             <span>{item.label}</span>
           </NavLink>
         ))}
+        <Link
+          to="/explore"
+          className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5"
+        >
+          <Play className="h-3 w-3" />
+          View Demo
+        </Link>
       </div>
 
       {/* ── Sign out ── */}
