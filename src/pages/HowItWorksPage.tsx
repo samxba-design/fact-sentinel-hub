@@ -7,7 +7,7 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 import {
   Shield, Scan, MessageSquareWarning, Brain, Zap, Target, BarChart3,
   AlertTriangle, Siren, Radio, BookCheck, FileText, Users, Bell,
-  ArrowRight, ChevronRight, CheckCircle2, TrendingDown, TrendingUp,
+  ArrowRight, ArrowLeft, ChevronRight, CheckCircle2, TrendingDown, TrendingUp,
   Minus, Menu, X, Play, Clock, Globe, Network, Settings, Key,
   ExternalLink, Lock, Newspaper, Eye,
 } from "lucide-react";
@@ -353,6 +353,11 @@ export default function HowItWorksPage() {
       <section id="overview" className="scroll-mt-14 relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-primary/4 pointer-events-none" />
         <div className="max-w-6xl mx-auto px-6 py-20 sm:py-28 text-center relative">
+          <div className="mb-6">
+            <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="h-4 w-4" /> Back to senti.watch
+            </Link>
+          </div>
           <Badge variant="outline" className="bg-primary/8 text-primary border-primary/20 text-xs mb-6 gap-1.5 px-3 py-1">
             <Play className="h-3 w-3" /> Full platform walkthrough
           </Badge>

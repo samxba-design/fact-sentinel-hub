@@ -16,7 +16,7 @@ import {
 import {
   Network, Search, ExternalLink, TrendingUp, TrendingDown,
   Minus, AlertTriangle, Users, Globe, RefreshCw, ChevronRight,
-  Layers, MessageSquare, Shield,
+  Layers, MessageSquare, Shield, Download,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -346,6 +346,33 @@ export default function NarrativeGraphPage() {
 
   // ─── Loading skeleton ────────────────────────────────────────────────────────
 
+  const exportPng = () => {
+    const container = document.getElementById("narrative-graph-svg");
+    const svg = container?.querySelector("svg") as SVGSVGElement | null;
+    if (!svg) return;
+    const { width, height } = svg.getBoundingClientRect();
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svg);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = "#0f1117";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "narrative-graph.png"; a.click();
+        URL.revokeObjectURL(url);
+      });
+    };
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgStr)));
+  };
+
   if (loading) {
     return (
       <div className="space-y-4 p-4">
@@ -438,6 +465,14 @@ export default function NarrativeGraphPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={exportPng}
+            className="gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />Export PNG
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => load(true)}
             disabled={refreshing}
             className="gap-1.5"
@@ -450,7 +485,7 @@ export default function NarrativeGraphPage() {
 
       {/* ── Summary charts row ── */}
       {narratives.length >= 2 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div id="narrative-graph-svg" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Sentiment volume bar chart */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-2">

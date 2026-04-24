@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import PageGuide from "@/components/PageGuide";
 import { useToast } from "@/hooks/use-toast";
 import EmptyState from "@/components/EmptyState";
 import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface FeedItem {
   id: string;
@@ -42,6 +43,7 @@ const COLORS = [
 export default function CompetitorIntelFeedPage() {
   const { currentOrg } = useOrg();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [competitors, setCompetitors] = useState<CompetitorKeyword[]>([]);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,7 @@ export default function CompetitorIntelFeedPage() {
   const [page, setPage] = useState(0);
   const [selectedCompetitor, setSelectedCompetitor] = useState<string | null>(null);
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const ITEMS_PER_PAGE = 25;
 
@@ -165,6 +168,18 @@ export default function CompetitorIntelFeedPage() {
     return COLORS[index % COLORS.length];
   };
 
+  // Compute spiking: check if last 24h mentions > 2x the 7-day daily average
+  const spiking = useMemo(() => {
+    if (feedItems.length === 0) return false;
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const last24h = feedItems.filter(m => m.posted_at && new Date(m.posted_at).getTime() > oneDayAgo).length;
+    const last7d = feedItems.filter(m => m.posted_at && new Date(m.posted_at).getTime() > sevenDaysAgo).length;
+    const dailyAvg = last7d / 7;
+    return last24h > 0 && dailyAvg > 0 && last24h > dailyAvg * 2;
+  }, [feedItems]);
+
   if (loading && feedItems.length === 0) {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground animate-pulse">
@@ -272,6 +287,20 @@ export default function CompetitorIntelFeedPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Spike banner */}
+      {spiking && !bannerDismissed && (
+        <div className="flex items-center justify-between p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 mb-4">
+          <span className="flex items-center gap-2 text-sm text-amber-400">
+            <TrendingUp className="h-4 w-4 shrink-0" />
+            Competitor activity spike detected — consider adding their trending topics as keywords
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate("/settings?tab=keywords")}>Add Keywords</Button>
+            <Button size="sm" variant="ghost" onClick={() => setBannerDismissed(true)}>Dismiss</Button>
+          </div>
+        </div>
+      )}
 
       {/* Feed Items */}
       {competitors.length === 0 ? (

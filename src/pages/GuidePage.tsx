@@ -264,6 +264,7 @@ export default function GuidePage() {
           <p className="text-sm text-muted-foreground mt-1">
             Learn how to use SentiWatch — your AI-powered brand monitoring and response platform
           </p>
+          <p className="text-sm text-muted-foreground">Reference guide for using SentiWatch features.</p>
         </div>
       </div>
 

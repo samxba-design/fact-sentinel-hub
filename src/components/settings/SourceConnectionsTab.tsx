@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Eye, EyeOff, Save, Trash2, Loader2, CheckCircle2, ExternalLink, AlertCircle, Info, DollarSign } from "lucide-react";
+import { Eye, EyeOff, Save, Trash2, Loader2, CheckCircle2, ExternalLink, AlertCircle, Info, DollarSign, Shield } from "lucide-react";
 
 interface ProviderConfig {
   id: string;
@@ -248,6 +248,11 @@ export default function SourceConnectionsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Security note banner */}
+      <div className="flex items-start gap-2 p-3 rounded-lg border border-border bg-muted/20 mb-4 text-xs text-muted-foreground">
+        <Shield className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+        <span>API credentials are stored in your organization settings. Rotate keys regularly and never share them.</span>
+      </div>
       <div className="space-y-1">
         <h3 className="text-sm font-medium text-card-foreground">Data Source Connections</h3>
         <p className="text-xs text-muted-foreground">
