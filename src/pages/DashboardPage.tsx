@@ -194,6 +194,20 @@ function buildChartData(mentions: any[], rangeDays: number) {
   };
 }
 
+// ── fetchDashboardMetrics ─────────────────────────────────────────────────────
+// Shared helper that runs the 4 core metric queries and returns raw results.
+async function fetchDashboardMetrics(orgId: string, rangeDays: number) {
+  const now = new Date();
+  const rangeAgo = subDays(now, rangeDays).toISOString();
+  const [total, neg, emg, mentionsRaw] = await Promise.all([
+    supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+    supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+    supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+    supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", orgId).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
+  ]);
+  return { total, neg, emg, mentionsRaw };
+}
+
 // ── Threat Status Banner ─────────────────────────────────────────────────────
 interface ThreatStatusBannerProps {
   emergencies: number;
@@ -310,15 +324,12 @@ export default function DashboardPage() {
     const prevRangeAgo = subDays(now, rangeDays * 2).toISOString();
 
     Promise.all([
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-      supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
+      fetchDashboardMetrics(currentOrg.id, rangeDays),
       supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`and(posted_at.gte.${prevRangeAgo},posted_at.lt.${rangeAgo}),and(posted_at.is.null,created_at.gte.${prevRangeAgo},created_at.lt.${rangeAgo})`),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "active"),
-      supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
       supabase.from("escalations").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).in("status", ["open", "in_progress"]),
       supabase.from("scan_runs").select("finished_at").eq("org_id", currentOrg.id).eq("status", "completed").order("finished_at", { ascending: false }).limit(1),
-    ]).then(async ([total, neg, emg, prev, incidents, mentionsRaw, escalations, lastScan]) => {
+    ]).then(async ([{ total, neg, emg, mentionsRaw }, prev, incidents, escalations, lastScan]) => {
       setTotalMentions(total.count ?? 0);
       setNegativeMentions(neg.count ?? 0);
       setEmergencies(emg.count ?? 0);
@@ -346,14 +357,7 @@ export default function DashboardPage() {
     if (realtimeRefreshRef.current) clearTimeout(realtimeRefreshRef.current);
     realtimeRefreshRef.current = setTimeout(() => {
       if (!currentOrg) return;
-      const now = new Date();
-      const rangeAgo = subDays(now, rangeDays).toISOString();
-      Promise.all([
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
-      ]).then(([total, neg, emg, mentionsRaw]) => {
+      fetchDashboardMetrics(currentOrg.id, rangeDays).then(({ total, neg, emg, mentionsRaw }) => {
         setTotalMentions(total.count ?? 0);
         setNegativeMentions(neg.count ?? 0);
         setEmergencies(emg.count ?? 0);
@@ -372,14 +376,7 @@ export default function DashboardPage() {
     if (!currentOrg) return;
 
     const loadDashboardData = () => {
-      const now = new Date();
-      const rangeAgo = subDays(now, rangeDays).toISOString();
-      Promise.all([
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("sentiment_label", "negative").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("mention_type", "brand").eq("severity", "critical").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`),
-        supabase.from("mentions").select("posted_at, created_at, sentiment_label, source").eq("org_id", currentOrg.id).eq("mention_type", "brand").or(`posted_at.gte.${rangeAgo},and(posted_at.is.null,created_at.gte.${rangeAgo})`).order("created_at"),
-      ]).then(([total, neg, emg, mentionsRaw]) => {
+      fetchDashboardMetrics(currentOrg.id, rangeDays).then(({ total, neg, emg, mentionsRaw }) => {
         setTotalMentions(total.count ?? 0);
         setNegativeMentions(neg.count ?? 0);
         setEmergencies(emg.count ?? 0);

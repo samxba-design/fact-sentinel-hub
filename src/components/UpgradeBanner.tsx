@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Zap } from "lucide-react";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
@@ -13,8 +12,9 @@ interface UpgradeBannerProps {
 export default function UpgradeBanner({ feature, className }: UpgradeBannerProps) {
   const { isPaid } = useSubscriptionGate();
   const [showModal, setShowModal] = useState(false);
+  const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
-  if (isPaid) return null;
+  if (isPaid || demoMode) return null;
 
   return (
     <>
