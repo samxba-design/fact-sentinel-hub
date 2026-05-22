@@ -89,7 +89,7 @@ RULES:
         : `YouTube video title and description:\n${cleaned.slice(0, 1500)}`;
 
       try {
-        const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+        const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
         const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
         const parsed = JSON.parse(stripped);
         return new Response(JSON.stringify({ ...parsed, content_note: "youtube_metadata_only" }), {
@@ -129,7 +129,7 @@ IMPORTANT RULES:
 
     const userPrompt = cleaned.slice(0, 2000);
 
-    const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+    const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
 
     // Parse response
     let parsed: any;

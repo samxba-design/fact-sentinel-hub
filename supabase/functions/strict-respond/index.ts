@@ -34,46 +34,29 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Step 1: Extract claims using AI tool calling
-    const claimResText = await geminiChat([
+    // ── Step 1: Extract claims using Gemini ─────────────────────────────
+    const claimRaw = await geminiChat([
       {
-            role: "system",
-            content:
-              "You are a claim extraction engine. Extract distinct factual claims, accusations, or questions from the given text. Each claim should be a short statement. Also categorize each claim.",
-          },
-          { role: "user", content: input_text },
-    ], true);
+        role: "system",
+        content:
+          "You are a claim extraction engine. Extract distinct factual claims, accusations, or questions from the given text. Return ONLY valid JSON.",
+      },
+      { role: "user", content: `Extract claims from this text:\n\n${input_text}\n\nReturn JSON: {"claims":[{"claim_text":"...","category":"Security|Compliance|Fees/Pricing|Leadership|Product|General"}]}` },
+    ], { jsonMode: true });
 
-    if (!claimRes.ok) {
-      const status = claimRes.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
-    }
-
-    const claimData = await claimRes.json();
-    const toolCall = claimData.choices?.[0]?.message?.tool_calls?.[0];
     let claims: { claim_text: string; category: string }[] = [];
-    if (toolCall?.function?.arguments) {
-      const parsed = JSON.parse(toolCall.function.arguments);
-      claims = parsed.claims || [];
+    try {
+      const raw = claimRaw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      claims = JSON.parse(raw).claims || [];
+    } catch {
+      claims = [{ claim_text: input_text.slice(0, 200), category: "General" }];
     }
 
     if (claims.length === 0) {
       claims = [{ claim_text: input_text.slice(0, 200), category: "General" }];
     }
 
-    // Step 2: Fetch approved facts and templates for this org
-    const categories = [...new Set(claims.map((c) => c.category))];
-
+    // ── Step 2: Fetch approved facts and templates for this org ─────────
     const [factsRes, templatesRes] = await Promise.all([
       supabase
         .from("approved_facts")
@@ -92,38 +75,41 @@ Deno.serve(async (req) => {
     const facts = factsRes.data || [];
     const templates = templatesRes.data || [];
 
-    // Step 3: Use AI to match claims to facts
-    const matchResText = await geminiChat([
+    // ── Step 3: Match claims to facts ───────────────────────────────────
+    const matchRaw = await geminiChat([
       {
-            role: "system",
-            content: `You are a fact-matching engine for a strict response system. Given a list of claims extracted from negative text and a library of approved facts, determine which approved facts can address each claim. Only match facts that DIRECTLY address the claim. If no fact addresses a claim, mark it as unmatched. Also select the best template if any match the scenario.\n\nApproved Facts:\n${JSON.stringify(facts.map((f) => ({ id: f.id, title: f.title, statement: f.statement_text, category: f.category })))}\n\nApproved Templates:\n${JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, scenario: t.scenario_type, tone: t.tone, platform: t.platform_length })))}\n\nResponse intent: ${intent || "general"}\nPlatform: ${platform || "general"}`,
-          },
-          {
-            role: "user",
-            content: `Claims to address:\n${JSON.stringify(claims)}`,
-          },
-    ], true);
+        role: "system",
+        content: `You are a fact-matching engine. Given claims and a library of approved facts, return JSON with matched fact IDs and unmatched claims.\n\nApproved Facts:\n${JSON.stringify(facts.map((f) => ({ id: f.id, title: f.title, statement: f.statement_text, category: f.category })))}\n\nApproved Templates:\n${JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, scenario: t.scenario_type, tone: t.tone, platform: t.platform_length })))}\n\nIntent: ${intent || "general"}\nPlatform: ${platform || "general"}\n\nReturn ONLY valid JSON.`,
+      },
+      {
+        role: "user",
+        content: `Match these claims to facts:\n${JSON.stringify(claims)}\n\nReturn JSON: {"matched_fact_ids":["..."],"unmatched_claims":["..."],"selected_template_id":"","all_claims_covered":true|false}`,
+      },
+    ], { jsonMode: true });
 
-    if (!matchRes.ok) throw new Error(`AI match error: ${matchRes.status}`);
-
-    const matchData = await matchRes.json();
-    const matchCall = matchData.choices?.[0]?.message?.tool_calls?.[0];
     let matchResult = {
       matched_fact_ids: [] as string[],
       unmatched_claims: [] as string[],
       selected_template_id: "",
       all_claims_covered: false,
     };
-    if (matchCall?.function?.arguments) {
-      matchResult = JSON.parse(matchCall.function.arguments);
+    try {
+      const raw = matchRaw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      const parsed = JSON.parse(raw);
+      if (parsed.matched_fact_ids) matchResult.matched_fact_ids = parsed.matched_fact_ids;
+      if (parsed.unmatched_claims) matchResult.unmatched_claims = parsed.unmatched_claims;
+      if (parsed.selected_template_id) matchResult.selected_template_id = parsed.selected_template_id;
+      if (typeof parsed.all_claims_covered === "boolean") matchResult.all_claims_covered = parsed.all_claims_covered;
+    } catch {
+      matchResult.all_claims_covered = false;
+      matchResult.unmatched_claims = claims.map((c) => c.claim_text);
     }
 
     const matchedFacts = facts.filter((f) => matchResult.matched_fact_ids.includes(f.id));
     const selectedTemplate = templates.find((t) => t.id === matchResult.selected_template_id);
 
-    // Step 4: Decision - draft or block
+    // ── Step 4: BLOCK or DRAFT ─────────────────────────────────────────
     if (!matchResult.all_claims_covered || matchedFacts.length === 0) {
-      // BLOCK: Create escalation + response_draft with status blocked
       const suggestedDept =
         claims[0]?.category === "Security" ? "Security" :
         claims[0]?.category === "Compliance" || claims[0]?.category === "Regulatory" ? "Compliance" :
@@ -167,7 +153,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // DRAFT: Generate response using approved facts verbatim
+    // ── DRAFT: Generate response using approved facts verbatim ──────────
     const factsBlock = matchedFacts
       .map((f, i) => `FACT_${i + 1}: "${f.statement_text}"${f.source_link ? ` [Source: ${f.source_link}]` : ""}`)
       .join("\n");
@@ -176,21 +162,25 @@ Deno.serve(async (req) => {
       ? `\nUse this approved template structure:\n${selectedTemplate.template_text}`
       : "";
 
-    const draftResText = await geminiChat([
+    const draftRaw = await geminiChat([
       {
-            role: "system",
-            content: `You are a strict corporate response drafter. You MUST ONLY use the approved facts provided below verbatim or near-verbatim. Do NOT add any claims, statistics, or information not present in the approved facts. Do NOT paraphrase the approved facts — use them as written.\n\nApproved facts:\n${factsBlock}${templateBlock}\n\nPlatform: ${platform || "general"}\nIntent: ${intent || "clarify"}\n\nRules:\n1. Use approved fact text verbatim.\n2. Include source links where available.\n3. Be professional and concise.\n4. Do NOT invent or assume any information.\n5. Generate 2 variants if possible, both strictly using approved facts only.`,
-          },
-          {
-            role: "user",
-            content: `Draft a response to this:\n\n${input_text}`,
-          },
-    ], true);
+        role: "system",
+        content: `You are a strict corporate response drafter. You MUST ONLY use the approved facts provided below verbatim or near-verbatim. Do NOT add any claims, statistics, or information not present in the approved facts.\n\nApproved facts:\n${factsBlock}${templateBlock}\n\nPlatform: ${platform || "general"}\nIntent: ${intent || "clarify"}\n\nRules:\n1. Use approved fact text verbatim.\n2. Include source links where available.\n3. Be professional and concise.\n4. Do NOT invent or assume any information.\n5. Generate 2 variants if possible.`,
+      },
+      {
+        role: "user",
+        content: `Draft a response to this:\n\n${input_text}\n\nReturn JSON: {"variants":["variant 1 text here","variant 2 text here"]}`,
+      },
+    ], { jsonMode: true });
 
-    if (!draftRes.ok) throw new Error(`AI draft error: ${draftRes.status}`);
-
-    const draftData = await draftRes.json();
-    const outputText = draftData.choices?.[0]?.message?.content || "";
+    let outputText = "";
+    try {
+      const raw = draftRaw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+      const parsed = JSON.parse(raw);
+      outputText = (parsed.variants && Array.isArray(parsed.variants)) ? parsed.variants.join("\n\n---\n\n") : (parsed.response || draftRaw);
+    } catch {
+      outputText = draftRaw;
+    }
 
     const factsUsed = matchedFacts.map((f) => ({ id: f.id, title: f.title, statement: f.statement_text }));
     const linksUsed = matchedFacts.filter((f) => f.source_link).map((f) => ({ fact_id: f.id, link: f.source_link }));

@@ -146,27 +146,128 @@ function dedup(arr: any[]): any[] {
 const POS = ["award","growth","launch","partnership","milestone","record","trusted","excellent",
   "innovative","leader","success","safe","reliable","invest","positive","profit","expand",
   "improve","strong","winning","hire","funding","certified","best","loved","popular","secure",
-  "innovation","achievement","breakthrough","leading","recognized","top","premium"];
+  "innovation","achievement","breakthrough","leading","recognized","top","premium",
+  "revolutionary","game-changer","outstanding","recommend","impressive"];
 const NEG = ["fraud","scam","breach","hack","lawsuit","penalty","fine","suspend","ban","fail",
   "layoff","shutdown","bankrupt","corrupt","mislead","lie","complaint","violated","unsafe",
-  "toxic","illegal","investigation","sec","recall","outage","loss","decline","crash","warning",
+  "toxic","illegal","investigation","recall","outage","loss","decline","crash","warning",
   "crisis","scandal","controversy","bad","poor","terrible","awful","horrible","problem","issue",
-  "risk","threat","danger","attack","exposed","leaked","stolen","fired","arrested","charged"];
-const CRIT = ["fraud","scam","breach","lawsuit","sec","bankrupt","illegal","shutdown","ban","arrested","charged","leaked","stolen"];
+  "risk","threat","danger","attack","exposed","leaked","stolen","fired","arrested","charged",
+  "disaster","nightmare","horror","disgusting","shady","dodgy","sketchy","rugpull","ponzi",
+  "manipulation","exploit","dump","collapse","insolvent","frozen","blocked","deplatformed"];
+const CRIT = ["fraud","scam","breach","lawsuit","bankrupt","illegal","shutdown","ban","arrested","charged","leaked","stolen",
+  "rugpull","ponzi","collapse","insolvent","exploit","manipulation"];
+
+// Negation patterns that can flip word polarity
+const NEGATION_PATTERNS = [
+  /\bnot\s+a?\s*\w+\b/gi,
+  /\bno\s+\w+\b/gi,
+  /\bnever\s+\w+\b/gi,
+  /\bisn'?t\s+a?\s*\w+\b/gi,
+  /\baren'?t\s+a?\s*\w+\b/gi,
+  /\bdon'?t\s+\w+\b/gi,
+  /\bdoesn'?t\s+\w+\b/gi,
+  /\bwon'?t\s+\w+\b/gi,
+  /\bcan'?t\s+\w+\b/gi,
+  /\bhardly\s+\w+\b/gi,
+  /\bbarely\s+\w+\b/gi,
+  /\bwithout\s+\w+\b/gi,
+];
+
+// Words that, when negated, flip to negative sentiment
+const POS_TO_NEG_WHEN_NEGATED = new Set([
+  "good","great","safe","secure","reliable","trustworthy","legitimate","honest",
+  "transparent","fair","stable","solid","decent","impressive","recommended","worth",
+]);
+
+function isNegated(matchIndex: number, text: string): boolean {
+  // Check up to 4 words before the match for negation
+  const before = text.slice(Math.max(0, matchIndex - 40), matchIndex).toLowerCase();
+  return /\b(not|no|never|isn'?t|aren'?t|don'?t|doesn'?t|won'?t|can'?t|hardly|barely|without|stop|avoid)\s*(\w+\s+){0,2}$/i.test(before);
+}
 
 function kwSentiment(text: string) {
   const lower = text.toLowerCase();
-  const pos = POS.filter(w => lower.includes(w)).length;
-  const neg = NEG.filter(w => lower.includes(w)).length;
-  const crit = CRIT.filter(w => lower.includes(w)).length;
-  if (neg === 0 && pos === 0) return { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
-  if (neg > pos) {
-    const score = -Math.min(0.95, neg * 0.18);
-    const severity = crit >= 2 ? "critical" : crit >= 1 ? "high" : neg >= 3 ? "medium" : "low";
-    return { sentiment_label: "negative", sentiment_score: score, severity };
+
+  // Build a token-level map for word-boundary matches
+  const tokens = lower.split(/\s+/);
+  const tokenSet = new Set(tokens);
+
+  // Count matched words with negation awareness and intensity weighting
+  let posScore = 0;
+  let negScore = 0;
+  let critCount = 0;
+
+  // Negative word matching with negation awareness
+  for (const word of NEG) {
+    // Use word boundary regex for precise matching
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    let match: RegExpExecArray | null;
+    let count = 0;
+    let negatedCount = 0;
+    while ((match = re.exec(lower)) !== null) {
+      if (isNegated(match.index, lower)) {
+        negatedCount++;
+      } else {
+        count++;
+      }
+    }
+    // Weight: high-intensity words count 2x
+    const intensity = ["fraud","scam","breach","hack","illegal","bankrupt","rugpull","ponzi","collapse","disaster","nightmare","exploit"].includes(word) ? 2 : 1;
+    negScore += count * intensity;
+    // Negated negative words become mildly positive
+    posScore += negatedCount * 0.5;
   }
-  if (pos > neg) return { sentiment_label: "positive", sentiment_score: Math.min(0.9, pos * 0.18), severity: "low" };
-  return { sentiment_label: "mixed", sentiment_score: -0.1, severity: neg >= 2 ? "medium" : "low" };
+
+  // Critical word matching
+  for (const word of CRIT) {
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    let match: RegExpExecArray | null;
+    let count = 0;
+    while ((match = re.exec(lower)) !== null) {
+      if (!isNegated(match.index, lower)) count++;
+    }
+    critCount += count;
+  }
+
+  // Positive word matching
+  for (const word of POS) {
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    let match: RegExpExecArray | null;
+    let count = 0;
+    while ((match = re.exec(lower)) !== null) {
+      if (isNegated(match.index, lower)) {
+        // Negated positive word = negative
+        const negatedWord = lower.slice(match.index, match.index + word.length);
+        if (POS_TO_NEG_WHEN_NEGATED.has(word.toLowerCase())) {
+          negScore += 1.5;
+        }
+      } else {
+        count++;
+      }
+    }
+    posScore += count;
+  }
+
+  // ── Scoring ─────────────────────────────────────────────────────
+  if (negScore === 0 && posScore === 0) {
+    return { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
+  }
+
+  const total = posScore + negScore;
+  const netScore = (posScore - negScore) / Math.max(total, 1);
+
+  // Map to -1..1 range
+  const clamped = Math.max(-1, Math.min(1, netScore));
+
+  if (clamped < -0.15) {
+    const severity = critCount >= 2 ? "critical" : critCount >= 1 ? "high" : negScore >= 4 ? "medium" : "low";
+    return { sentiment_label: "negative", sentiment_score: Math.round(clamped * 100) / 100, severity };
+  }
+  if (clamped > 0.15) {
+    return { sentiment_label: "positive", sentiment_score: Math.round(Math.min(0.95, clamped) * 100) / 100, severity: "low" };
+  }
+  return { sentiment_label: "mixed", sentiment_score: Math.round(clamped * 100) / 100, severity: negScore >= 3 ? "medium" : "low" };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -609,6 +710,87 @@ async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: 
     }
     console.log(`[twitter] ${results.length} tweets`);
   } catch (e: any) { console.warn("[twitter] failed:", e.message); }
+  return results;
+}
+
+// ── Nitter RSS Twitter fallback ───────────────────────────────────────────
+// Public Nitter instances provide RSS feeds for Twitter/X searches without API auth.
+// Used as a fallback when no Twitter Bearer Token is configured.
+// Nitter is a free, open-source Twitter frontend — instances may have variable uptime.
+const NITTER_INSTANCES = [
+  "https://nitter.poast.org",
+  "https://nitter.net",
+  "https://nitter.privacydev.net",
+];
+
+async function crawlTwitterNitter(keywords: string[], dateFrom?: string): Promise<any[]> {
+  const results: any[] = [];
+  const query = keywords.slice(0, 3).map(k => `"${k}"`).join(" OR ");
+  const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+
+  for (const instance of NITTER_INSTANCES) {
+    if (results.length >= 30) break; // enough results
+    try {
+      const rssUrl = `${instance}/search/rss?f=tweets&q=${encodeURIComponent(query)}`;
+      const res = await fetch(rssUrl, {
+        headers: { "User-Agent": "SentiWatch/2.0 (reputation monitor; RSS reader)" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue;
+
+      const xml = await res.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        try {
+          const title = (item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1] || "")
+            .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+            .replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+          const link = (item.match(/<link>([\s\S]*?)<\/link>/)?.[1] || "").trim();
+          const descRaw = item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || "";
+          const pubRaw = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || "";
+
+          // Nitter RSS titles are "User: tweet text"
+          const colonIdx = title.indexOf(": ");
+          const authorName = colonIdx > 0 ? title.slice(0, colonIdx).trim() : "Twitter User";
+          const tweetText = colonIdx > 0 ? title.slice(colonIdx + 2).trim() : title;
+          const authorHandle = authorName.startsWith("@") ? authorName : `@${authorName.toLowerCase().replace(/\s+/g, "")}`;
+
+          // Parse description for tweet content (RSS description often has HTML)
+          const desc = descRaw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          const content = tweetText.length > desc.length ? tweetText : desc.slice(0, 500);
+          if (content.length < 15) continue;
+
+          let posted_at: string | null = null;
+          if (pubRaw) {
+            try { posted_at = new Date(pubRaw).toISOString(); } catch { /* ignore */ }
+          }
+          if (dateMs && posted_at && new Date(posted_at).getTime() < dateMs) continue;
+
+          results.push({
+            source: "twitter",
+            content,
+            title: `Tweet by ${authorName}`,
+            url: link,
+            author_name: authorName,
+            author_handle: authorHandle.startsWith("@") ? authorHandle : `@${authorHandle}`,
+            author_verified: false,
+            author_follower_count: 0,
+            posted_at,
+            date_verified: !!posted_at,
+            language: "en",
+            metrics: { likes: 0, shares: 0, comments: 0 },
+            _engine: "nitter-rss",
+          });
+        } catch { /* skip malformed RSS items */ }
+      }
+      if (results.length > 0) {
+        console.log(`[nitter] ${results.length} tweets from ${instance}`);
+        break; // got results, stop trying other instances
+      }
+    } catch (e: any) {
+      console.warn(`[nitter] ${instance} failed: ${e.message}`);
+    }
+  }
   return results;
 }
 
@@ -1366,7 +1548,11 @@ Deno.serve(async (req) => {
         scanLog.push({ source: "twitter", found: r.length });
       })());
     } else if (wantSource("twitter") && !twitterBearerToken) {
-      scanLog.push({ source: "twitter", found: 0, error: "Twitter Bearer Token not configured in Settings → Connections" });
+      crawlPromises.push((async () => {
+        const r = await crawlTwitterNitter(keywords, date_from);
+        allRaw.push(...r);
+        scanLog.push({ source: "twitter", found: r.length, engine: r.length > 0 ? "nitter-rss" : "none" });
+      })());
     }
 
     // YouTube — only if API key configured and source requested
@@ -1547,7 +1733,7 @@ Deno.serve(async (req) => {
       console.log("[ai] Using full keyword-sentiment fallback");
       analyses = newItems.map(r => {
         const lang = detectLanguage(r.content);
-        const kw = lang === "en" ? kwSentiment(r.content + " " + (r.title || "")) : { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
+        const kw = kwSentiment(r.content + " " + (r.title || ""));
         return {
           relevant: true, ...kw,
           summary: r.title || r.content.slice(0, 180),
@@ -1574,8 +1760,7 @@ Deno.serve(async (req) => {
     // ── 9. Build mention rows ──────────────────────────────────────────────
     let mentionRows = relevantPairs.map(({ raw: r, analysis: a }) => {
       const lang = a.language || r.language || detectLanguage(r.content);
-      // Only use kwSentiment for English — non-English gets neutral fallback from keyword matching
-      const kw = lang === "en" ? kwSentiment(r.content + " " + (r.title || "")) : { sentiment_label: "neutral", sentiment_score: 0, severity: "low" };
+      const kw = kwSentiment(r.content + " " + (r.title || ""));
 
       // Use AI result if valid, otherwise keyword fallback
       const sentiment_label: string = a.sentiment_label || kw.sentiment_label;

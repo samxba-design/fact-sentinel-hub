@@ -296,9 +296,59 @@ export default function DashboardPage() {
   const [rangeDays, setRangeDays] = useState(7);
   const [addMentionOpen, setAddMentionOpen] = useState(false);
   const [seedingDemo, setSeedingDemo] = useState(false);
+  const [quickScanning, setQuickScanning] = useState(false);
+
+  const handleQuickScan = async () => {
+    if (!currentOrg) return;
+    setQuickScanning(true);
+    try {
+      const [kwRes, provRes] = await Promise.all([
+        supabase.from("keywords").select("value, type").eq("org_id", currentOrg.id).limit(50),
+        supabase.from("org_api_keys").select("provider").eq("org_id", currentOrg.id),
+      ]);
+
+      const keywords = (kwRes.data || [])
+        .filter((k: any) => k.type !== "competitor")
+        .map((k: any) => k.value as string);
+      if (keywords.length === 0) {
+        toast({ title: "No keywords", description: "Add brand keywords in Settings first.", variant: "destructive" });
+        return;
+      }
+
+      const connectedProviders = [...new Set((provRes.data || []).map((k: any) => k.provider))];
+      const sources = ["news", "google-news", "blogs", "forums", "reviews"];
+      if (connectedProviders.includes("twitter")) sources.push("twitter");
+      if (connectedProviders.includes("reddit")) sources.push("reddit");
+      if (connectedProviders.includes("youtube")) sources.push("youtube");
+
+      const now = new Date();
+      const { data, error } = await supabase.functions.invoke("run-scan", {
+        body: {
+          org_id: currentOrg.id,
+          keywords,
+          sources,
+          date_from: new Date(now.getTime() - 7 * 86400000).toISOString(),
+          date_to: now.toISOString(),
+        },
+      });
+      if (data?.error) throw new Error(data.error);
+      if (error) throw error;
+
+      const created = data.mentions_created || 0;
+      toast({
+        title: `Quick scan complete`,
+        description: `${created} new mentions found across ${sources.length} sources.`,
+      });
+      // Refresh dashboard data
+      triggerRealtimeRefresh();
+    } catch (err: any) {
+      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+    } finally {
+      setQuickScanning(false);
+    }
+  };
 
   const handleSeedDemo = async () => {
-    if (!currentOrg) return;
     setSeedingDemo(true);
     try {
       const { error } = await supabase.functions.invoke("seed-demo", {
@@ -593,8 +643,17 @@ export default function DashboardPage() {
                 Your dashboard is empty because no scans have run yet. A scan pulls in brand mentions from news, social, Reddit, and more, then analyses sentiment and detects narrative themes automatically.
               </p>
               <div className="flex flex-wrap gap-2 mt-3">
-                <Button size="sm" onClick={() => navigate("/scans")} className="gap-1.5">
-                  <Zap className="h-3.5 w-3.5" /> Run First Scan
+                <Button
+                  size="sm"
+                  onClick={handleQuickScan}
+                  disabled={quickScanning}
+                  className="gap-1.5"
+                >
+                  {quickScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  {quickScanning ? "Scanning…" : "Quick Scan Now"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => navigate("/scans")} className="gap-1.5">
+                  Advanced Scan
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => navigate("/settings")} className="gap-1.5">
                   Configure Keywords
@@ -634,6 +693,10 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={handleQuickScan} disabled={quickScanning} className="gap-1.5">
+            {quickScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+            {quickScanning ? "Scanning…" : "Quick Scan"}
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setAddMentionOpen(true)} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Add Mention
           </Button>

@@ -99,7 +99,7 @@ Only return narratives with at least 2 mentions. Focus on reputation-relevant th
 
     const userPrompt = `Analyze these ${mentions.length} mentions and identify narrative clusters:\n\n${mentionSummaries}`;
 
-    const rawContent = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+    const rawContent = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
 
     let narratives: any[] = [];
     try {
