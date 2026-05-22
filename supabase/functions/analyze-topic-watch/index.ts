@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,75 +18,6 @@ async function tableExists(supabase: any): Promise<boolean> {
   return error?.code !== "42P01";
 }
 
-// ── AI call — tries Gemini direct first, falls back to Lovable gateway ────────
-async function callAI(
-  systemPrompt: string,
-  userPrompt: string,
-  geminiKey: string,
-  lovableKey: string
-): Promise<any> {
-  // Prefer Gemini direct (more reliable, no extra gateway hop)
-  if (geminiKey) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-            generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
-          }),
-        }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (raw) {
-          try { return JSON.parse(raw); }
-          catch {
-            const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
-            return JSON.parse(stripped);
-          }
-        }
-      }
-      console.warn("[analyze-topic-watch] Gemini returned non-ok:", res.status);
-    } catch (e: any) {
-      console.warn("[analyze-topic-watch] Gemini direct failed:", e.message);
-    }
-  }
-
-  // Fallback: Lovable gateway
-  if (lovableKey) {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(30000),
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`AI gateway error ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content ?? "{}";
-    try { return JSON.parse(raw); }
-    catch {
-      const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
-      return JSON.parse(stripped);
-    }
-  }
-
-  throw new Error(
-    "No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in your Supabase Edge Function secrets."
-  );
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -94,7 +26,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const geminiKey   = Deno.env.get("GOOGLE_API_KEY") ?? "";
-    const lovableKey  = Deno.env.get("LOVABLE_API_KEY") ?? "";
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
@@ -139,12 +70,21 @@ Return ONLY valid JSON matching this exact schema:
   "suggested_color": "one hex color: #ef4444 for critical, #f97316 for high, #f59e0b for medium, #3b82f6 for low"
 }`;
 
-      const analysis = await callAI(
-        systemPrompt,
-        `Analyse this intelligence text and generate a Topic Watch:\n\n---\n${text}\n---`,
-        geminiKey,
-        lovableKey
+      const rawText = await geminiChat(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Analyse this intelligence text and generate a Topic Watch:\n\n---\n${text}\n---` },
+        ],
+        { jsonMode: true }
       );
+
+      let analysis: any;
+      try {
+        analysis = JSON.parse(rawText);
+      } catch {
+        const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+        analysis = JSON.parse(stripped);
+      }
 
       const ready = await tableExists(supabase);
       return json({

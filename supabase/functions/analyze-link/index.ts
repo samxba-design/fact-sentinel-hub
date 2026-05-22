@@ -1,55 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
-
-async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
-  if (GEMINI_KEY) {
-    try {
-      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-            },
-          }),
-        }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) return text;
-      }
-    } catch (_) {}
-  }
-  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages,
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content ?? "";
-}
 
 const PAYWALL_INDICATORS = [
   "subscribe to read", "subscribers only", "premium content", "paywall",
@@ -357,7 +313,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = LOVABLE_KEY;
     const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
 
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
@@ -483,7 +438,7 @@ Deno.serve(async (req) => {
       } else if (markdown.length > 100) {
         // Ask AI to extract the real headline from content
         try {
-          const extracted = (await aiChat([
+          const extracted = (await geminiChat([
             { role: "system", content: "Extract the article/page headline from this content. Return ONLY the headline text, nothing else. If no headline is identifiable, return the main topic in 5-10 words." },
             { role: "user", content: markdown.slice(0, 2000) },
           ])).trim().replace(/^["']|["']$/g, "");
@@ -558,7 +513,7 @@ Deno.serve(async (req) => {
 
             if (candidates.length > 0) {
               try {
-                const rawFilter = await aiChat([
+                const rawFilter = await geminiChat([
                   {
                     role: "system",
                     content: `You are a strict relevance judge. Given an article title and search results, return ONLY indices of results that discuss the EXACT SAME specific story, event, or subject. Results must be directly about the same topic — not just sharing a vague theme, keyword, or industry. If a result is about a different story even if it mentions the same person/company, it is NOT relevant. Return a JSON array of integers like [0, 2]. If none are relevant, return [].`,
@@ -649,7 +604,7 @@ Deno.serve(async (req) => {
           let competingResults: any[] = [];
           if (otherResults.length > 0) {
             try {
-              const rawIdx = await aiChat([
+              const rawIdx = await geminiChat([
                 {
                   role: "system",
                   content: `You judge whether search results are about the SAME SPECIFIC story/topic as a given article. Return ONLY a JSON array of indices of results that cover the same specific event, claim, or subject. Not just same industry/company — must be the same story. If none match, return [].`,
@@ -701,7 +656,7 @@ Deno.serve(async (req) => {
 
       // 4b: Search keyword discovery — extract keywords via AI, then verify in search
       try {
-        const rawKw = await aiChat([
+        const rawKw = await geminiChat([
           {
             role: "system",
             content: `You extract search keywords that would lead someone to find THIS SPECIFIC ARTICLE on Google — not the website's homepage or other articles on the same site.
@@ -877,7 +832,7 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
 
     let analysis: any = {};
     try {
-      const raw = await aiChat([
+      const raw = await geminiChat([
         { role: "system", content: analysisSystemPrompt },
         { role: "user", content: analysisUserPrompt },
       ], true);

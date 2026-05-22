@@ -1,55 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
-
-async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
-  if (GEMINI_KEY) {
-    try {
-      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-            },
-          }),
-        }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) return text;
-      }
-    } catch (_) {}
-  }
-  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages,
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content ?? "";
-}
 
 
 const PLATFORM_PATTERNS: Record<string, RegExp[]> = {
@@ -93,7 +50,7 @@ async function scrapeWithFirecrawl(url: string, firecrawlKey: string): Promise<s
   }
 }
 
-async function analyzeWithAI(content: string, url: string, platform: string, lovableKey: string): Promise<any> {
+async function analyzeWithAI(content: string, url: string, platform: string): Promise<any> {
   const prompt = `You are an intelligence analyst. Given this content scraped from ${platform} (${url}), extract entity profile information.
 
 SCRAPED CONTENT:
@@ -146,20 +103,10 @@ Return a JSON object with these fields (null if not found, confidence 0-1 for ea
 Return only valid JSON, no markdown.`;
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.1,
-        max_tokens: 2000,
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content || "";
+    const text = await geminiChat(
+      [{ role: "user", content: prompt }],
+      { jsonMode: true }
+    );
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     return JSON.parse(jsonMatch[0]);
@@ -200,7 +147,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY") || "";
 
     // Auth
     const authHeader = req.headers.get("Authorization");
@@ -238,8 +184,8 @@ Deno.serve(async (req) => {
     }
 
     // 2. AI analysis if content available
-    if (scrapedContent && lovableKey) {
-      enriched = await analyzeWithAI(scrapedContent, url || "", platform, lovableKey) || {};
+    if (scrapedContent) {
+      enriched = await analyzeWithAI(scrapedContent, url || "", platform) || {};
     }
 
     // 3. Heuristic fallback always runs
@@ -254,7 +200,7 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
     const patch: Record<string, any> = {
       enriched_at: now,
-      enrichment_source: scrapedContent ? (lovableKey ? "firecrawl+ai" : "firecrawl") : "heuristic",
+      enrichment_source: scrapedContent ? "firecrawl+ai" : "heuristic",
       platform,
       risk_flags: enriched.risk_flags || {},
       ai_suggested_type: enriched.source_type || null,
@@ -327,6 +273,19 @@ Deno.serve(async (req) => {
       risk_flags: enriched.risk_flags,
       suggested_tags: enriched.suggested_tags || [],
       why_flagged: enriched.why_flagged || [],
+      source_type_suggestion: enriched.source_type,
+      risk_type_suggestion: enriched.risk_type,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  } catch (err: any) {
+    console.error("enrich-entity error:", err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+y_flagged || [],
       source_type_suggestion: enriched.source_type,
       risk_type_suggestion: enriched.risk_type,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -1,3 +1,4 @@
+import { geminiChat } from "../_lib/gemini.ts";
 // Supabase Edge Runtime types (REQUIRED - without this Deno.env/Deno.serve may not resolve)
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -1033,11 +1034,9 @@ async function crawlRedditAuth(keywords: string[], clientId: string, clientSecre
 async function analyzeWithAI(
   items: { source: string; url: string; title: string; content: string; has_transcript?: boolean }[],
   brandName: string,
-  lovableKey: string,
   geminiApiKey?: string,
 ): Promise<any[]> {
-  const activeKey = geminiApiKey || lovableKey;
-  if (!activeKey) {
+  if (!geminiApiKey) {
     console.log("[ai] No AI key configured — using keyword sentiment");
     return [];
   }
@@ -1045,33 +1044,13 @@ async function analyzeWithAI(
   const analyses: any[] = [];
   const BATCH = 15; // smaller batches = more reliable
 
-  async function callGemini(messages: { role: string; content: string }[]): Promise<string> {
-    const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(45000),
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
-        }),
-      }
-    );
-    if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
-    const d = await res.json();
-    const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    if (!text) throw new Error("Empty Gemini response");
-    return text;
-  }
 
   for (let i = 0; i < items.length; i += BATCH) {
     const batch = items.slice(i, i + BATCH);
     let batchOk = false;
 
     try {
-      const resText = await callGemini([
+      const resText = await geminiChat([
         {
           role: "system",
           content: `You analyze brand mentions for "${brandName}". For each mention return JSON with:
@@ -1102,7 +1081,7 @@ Return ONLY valid JSON: {"analyses":[...]}`,
             }))
           )}`,
         },
-      ]);
+      ], { jsonMode: true });
       let raw = resText || "{}";
       // Strip markdown code fences if present
       raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
@@ -1167,7 +1146,6 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY") || "";
   const geminiKey = Deno.env.get("GOOGLE_API_KEY") || "";
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
   const braveKey = Deno.env.get("BRAVE_SEARCH_API_KEY") || "";
@@ -1562,7 +1540,7 @@ Deno.serve(async (req) => {
       source: r.source, url: r.url, title: r.title || "", content: r.content,
     }));
 
-    let analyses = await analyzeWithAI(aiInput, brandName, lovableKey, geminiKey || undefined);
+    let analyses = await analyzeWithAI(aiInput, brandName, geminiKey || undefined);
 
     // If AI returned nothing (no key or all batches failed), use keyword fallback
     if (analyses.length === 0) {
@@ -1755,13 +1733,13 @@ Deno.serve(async (req) => {
         mentions_saved: inserted.length,
         negative_pct: negPct,
         sources_used: [...new Set(scanLog.map(s => s.source))],
-        ai_used: geminiKey ? "gemini-direct" : lovableKey ? "lovable-gateway" : "keyword-only",
+        ai_used: geminiKey ? "gemini-direct" : "keyword-only",
         errors: insertErrors,
       },
     } as any).eq("id", scanRun.id).then(() => {}).catch(() => {});
 
     // ── 12. Narrative clustering (async, non-blocking) ─────────────────────
-    if ((lovableKey || geminiKey) && inserted.length > 0) {
+    if (geminiKey && inserted.length > 0) {
       (async () => {
         try {
           const mentionIds = inserted.map((m: any) => m.id);
@@ -1769,7 +1747,7 @@ Deno.serve(async (req) => {
             i, source: m.source, content: (m.content || "").slice(0, 200),
           }));
 
-          const clusteringKey = geminiKey || lovableKey;
+          const clusteringKey = geminiKey;
           const clusterPrompt = `${`Cluster mentions into 2-5 narrative themes. Return ONLY valid JSON:\n{"narratives":[{"name":"...","description":"...","status":"active","confidence":0.8,"example_phrases":["..."],"mention_indices":[0,1,2]}]}`}\n\nUser: Cluster ${sample.length} mentions for "${brandName}":\n${JSON.stringify(sample)}`;
           const clusterRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${clusteringKey}`,
@@ -1859,7 +1837,7 @@ Deno.serve(async (req) => {
       emergencies: critCount,
       scan_log: scanLog,
       keyword_groups: { brand: keywords.slice(0, 5), risk: [], product: [] },
-      ai_used: geminiKey ? "gemini-direct" : lovableKey ? "lovable-gateway" : "keyword-only",
+      ai_used: geminiKey ? "gemini-direct" : "keyword-only",
       errors: insertErrors,
     });
 

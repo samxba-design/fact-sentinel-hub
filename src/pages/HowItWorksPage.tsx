@@ -355,7 +355,7 @@ export default function HowItWorksPage() {
         <div className="max-w-6xl mx-auto px-6 py-20 sm:py-28 text-center relative">
           <div className="mb-6">
             <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="h-4 w-4" /> Back to senti.watch
+              <ArrowLeft className="h-4 w-4" /> Back to sentiwatch.app
             </Link>
           </div>
           <Badge variant="outline" className="bg-primary/8 text-primary border-primary/20 text-xs mb-6 gap-1.5 px-3 py-1">

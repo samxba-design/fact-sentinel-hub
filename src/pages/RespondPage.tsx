@@ -112,8 +112,8 @@ export default function RespondPage() {
       if (data?.error) {
         // Friendly message for missing AI key
         const msg = data.error as string;
-        if (msg.includes("LOVABLE_API_KEY") || msg.includes("AI") || msg.includes("gateway")) {
-          throw new Error("AI response generation requires a LOVABLE_API_KEY. Contact your admin to configure it in Supabase Edge Function secrets.");
+        if (msg.includes("GOOGLE_API_KEY") || msg.includes("AI") || msg.includes("Gemini")) {
+          throw new Error("AI response generation requires a GOOGLE_API_KEY. Contact your admin to configure it in Supabase Edge Function secrets.");
         }
         throw new Error(msg);
       }

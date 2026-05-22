@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,60 +36,6 @@ function isJunkContent(text: string): boolean {
   ];
   const matches = junkSignals.filter(s => lower.includes(s)).length;
   return matches >= 1 && text.length < 500; // short + junk signal = definitely junk
-}
-
-// ── AI call — tries Gemini direct first, falls back to Lovable ────────────────
-async function aiCall(
-  systemPrompt: string,
-  userContent: string,
-  geminiKey: string,
-  lovableKey: string,
-  jsonMode = true,
-): Promise<string> {
-  if (geminiKey) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userContent}` }] }],
-            generationConfig: {
-              temperature: 0.1,
-              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-            },
-          }),
-        }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) return text;
-      }
-    } catch (_) { /* fall through to lovable */ }
-  }
-  if (!lovableKey) {
-    throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets.");
-  }
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0.1,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content ?? "";
 }
 
 // ── Gemini native YouTube video analysis ──────────────────────────────────────
@@ -213,7 +160,6 @@ async function analyseTextWithAI(
   url: string,
   brandName: string,
   geminiKey: string,
-  lovableKey: string,
   firecrawlKey?: string
 ): Promise<{
   summary: string;
@@ -270,7 +216,7 @@ severity guide: tutorial/neutral = low; complaints/criticism = medium; fraud/hac
   const userContent = `Source: ${source}\nURL: ${url}\nTitle: ${title}\n\nContent:\n${analysisContent.slice(0, 3000)}`;
 
   try {
-    const raw = await aiCall(systemPrompt, userContent, geminiKey, lovableKey, true);
+        const raw = await geminiChat([{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], { jsonMode: true });
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
     const parsed = JSON.parse(cleaned);
     return {
@@ -295,7 +241,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY") || "";
     const geminiKey = Deno.env.get("GOOGLE_API_KEY") || "";
     const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
     const sb = createClient(supabaseUrl, serviceKey);
@@ -304,8 +249,8 @@ Deno.serve(async (req) => {
     const { mention_id, force_gemini_video = false } = body;
 
     if (!mention_id) return json({ error: "mention_id required" }, 400);
-    if (!geminiKey && !lovableKey) {
-      return json({ error: "No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY in Supabase Edge Function secrets." }, 400);
+    if (!geminiKey) {
+      return json({ error: "GOOGLE_API_KEY not configured in Supabase Edge Function secrets." }, 400);
     }
 
     const { data: mention, error: fetchErr } = await sb
@@ -415,12 +360,11 @@ Deno.serve(async (req) => {
       mention.url || "",
       brandName,
       geminiKey,
-      lovableKey,
       firecrawlKey || undefined
     );
 
     if (!analysis) {
-      return json({ error: "AI analysis failed — check GOOGLE_API_KEY or LOVABLE_API_KEY is set" }, 502);
+      return json({ error: "AI analysis failed — check GOOGLE_API_KEY is set in Supabase Edge Function secrets" }, 502);
     }
 
     updatePayload = {
@@ -457,6 +401,21 @@ Deno.serve(async (req) => {
 
   } catch (err: any) {
     console.error("[re-analyse] error:", err);
+    return json({ error: err.message }, 500);
+  }
+});
+ole.error("[re-analyse] error:", err);
+    return json({ error: err.message }, 500);
+  }
+});
+error("[re-analyse] error:", err);
+    return json({ error: err.message }, 500);
+  }
+});
+ json({ error: err.message }, 500);
+  }
+});
+error("[re-analyse] error:", err);
     return json({ error: err.message }, 500);
   }
 });

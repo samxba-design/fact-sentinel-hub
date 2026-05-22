@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const APP_URL = "https://senti.watch";
+const APP_URL = "https://sentiwatch.app";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: `SentiWatch <digest@senti.watch>`,
+            from: `SentiWatch <digest@sentiwatch.app>`,
             to: [profile.email],
             subject,
             html,

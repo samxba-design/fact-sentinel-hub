@@ -523,7 +523,7 @@ export default function MentionDetailPage() {
               if (currentOrg) {
                 supabase.functions.invoke("send-notification", {
                   body: { org_id: currentOrg.id, type: "mention_assigned", mention_id: mention.id, assigned_to: userId }
-                }).catch(console.warn);
+                }).catch(() => {});
               }
             }}>
               <SelectTrigger className="h-8 text-xs w-48"><SelectValue placeholder="Assign to..." /></SelectTrigger>

@@ -1,89 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
-
-async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
-  // Try Gemini direct first
-  if (GEMINI_KEY) {
-    try {
-      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-            },
-          }),
-        }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) return text;
-      }
-    } catch (_) {}
-  }
-  // Fallback to Lovable gateway
-  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages,
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content ?? "";
-}
-
-// Detect if content is blocked/error junk
-function isJunkContent(text: string): boolean {
-  const blockers = [
-    "blocked by an extension", "enable javascript", "access denied",
-    "403 forbidden", "captcha", "please verify you are a human",
-    "cloudflare", "just a moment", "checking your browser", "ray id",
-    "please turn javascript on", "ERR_BLOCKED", "not available in your region",
-    "cookie policy", "we use cookies", "accept cookies",
-  ];
-  const lower = text.toLowerCase();
-  const matchCount = blockers.filter(b => lower.includes(b)).length;
-  // If multiple blockers match, or content is very short, it's junk
-  if (matchCount >= 2) return true;
-  if (text.length < 50 && matchCount >= 1) return true;
-  return false;
-}
-
-// Clean content before sending to AI
-function cleanForAI(raw: string): string {
-  let text = raw;
-  text = text.replace(/!\[.*?\]\(data:[^)]*\)/g, "");
-  text = text.replace(/!\[.*?\]\([^)]*\)/g, "");
-  text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  text = text.replace(/https?:\/\/\S+/g, "");
-  text = text.replace(/data:image\/[^,]+,[^\s)]+/g, "");
-  text = text.replace(/<[^>]+>/g, " ");
-  text = text.replace(/[#*_~`>|]/g, "");
-  text = text.replace(/[-=]{3,}/g, " ");
-  text = text.replace(/\s+/g, " ").trim();
-  return text;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -108,33 +30,15 @@ Deno.serve(async (req) => {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Use aiChat for extraction — we need tool calling so use lovable gateway directly for this
-      // but if no lovable key, fall back to json-mode aiChat
+      // Use geminiChat for structured extraction in JSON mode
       let extractedResult: any = null;
 
-      if (LOVABLE_KEY) {
-        try {
-          const extractResText = await aiChat([
-            { role: "system", content: "Extract structured data from this article/post. Focus on the actual content, not navigation or boilerplate. Be accurate with sentiment and severity assessment." },
-                { role: "user", content: `URL: ${url || "unknown"}\nTitle: ${title || "unknown"}\n\nContent:\n${cleaned.slice(0, 3000)}` },
-          ], true);
-
-          if (extractRes.ok) {
-            const extractData = await extractRes.json();
-            const toolCall = extractData.choices?.[0]?.message?.tool_calls?.[0];
-            if (toolCall?.function?.arguments) {
-              extractedResult = JSON.parse(toolCall.function.arguments);
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!extractedResult) {
-        // Fallback: use aiChat with json mode
+      // Always use geminiChat with json mode
+      {
         const systemPrompt = "Extract structured data from this article/post. Return JSON with fields: summary (2-3 sentences), sentiment (positive/negative/neutral/mixed), severity (low/medium/high/critical), author (string or null), published_date (ISO string or null).";
         const userPrompt = `URL: ${url || "unknown"}\nTitle: ${title || "unknown"}\n\nContent:\n${cleaned.slice(0, 3000)}`;
         try {
-          const raw = await aiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+          const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
           const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
           extractedResult = JSON.parse(stripped);
         } catch (_) {
@@ -185,7 +89,7 @@ RULES:
         : `YouTube video title and description:\n${cleaned.slice(0, 1500)}`;
 
       try {
-        const raw = await aiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+        const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
         const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
         const parsed = JSON.parse(stripped);
         return new Response(JSON.stringify({ ...parsed, content_note: "youtube_metadata_only" }), {
@@ -225,7 +129,7 @@ IMPORTANT RULES:
 
     const userPrompt = cleaned.slice(0, 2000);
 
-    const raw = await aiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
+    const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], true);
 
     // Parse response
     let parsed: any;

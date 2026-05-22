@@ -84,8 +84,8 @@ const themes: Record<EmailTheme, ThemeColors> = {
 
 const BRAND = {
   name: "SentiWatch",
-  domain: "senti.watch",
-  fromEmail: "alerts@senti.watch",
+  domain: "sentiwatch.app",
+  fromEmail: "alerts@sentiwatch.app",
   fromName: "SentiWatch Alerts",
 };
 
@@ -117,7 +117,7 @@ function emailLayout(title: string, content: string, preferencesUrl: string, the
       Manage notification preferences
     </a>
     <p style="margin:8px 0 0;font-size:11px;color:${c.footerText};">
-      ${BRAND.name} · Reputation Intelligence · <a href="https://${BRAND.domain}" style="color:${c.footerText};">senti.watch</a>
+      ${BRAND.name} · Reputation Intelligence · <a href="https://${BRAND.domain}" style="color:${c.footerText};">sentiwatch.app</a>
     </p>
   </td></tr>
 </table>
@@ -248,7 +248,7 @@ export function buildContactNotificationEmail(
       <p style="margin:12px 0 0;font-size:14px;color:${c.text};line-height:1.7;border-top:1px solid ${c.divider};padding-top:12px;">${message}</p>
     </div>
     ${button(`Reply to ${name} →`, `mailto:${email}`, c)}`;
-  return { subject, html: emailLayout(subject, content, `https://senti.watch/settings?tab=notifications`, theme) };
+  return { subject, html: emailLayout(subject, content, `https://sentiwatch.app/settings?tab=notifications`, theme) };
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -107,7 +107,7 @@ export default function TopicWatchPage() {
       // Our function always returns JSON; a non-200 comes back in data.error
       if (data?.error) throw new Error(data.error);
       if (data?.tableError) setTableError(data.tableError);
-      if (!data?.analysis) throw new Error("No analysis returned — check GOOGLE_API_KEY or LOVABLE_API_KEY is set in Edge Function secrets");
+      if (!data?.analysis) throw new Error("No analysis returned — check GOOGLE_API_KEY is set in Edge Function secrets");
       setAnalysis(data.analysis);
       setEditedAnalysis({ ...data.analysis });
       setStep("review");

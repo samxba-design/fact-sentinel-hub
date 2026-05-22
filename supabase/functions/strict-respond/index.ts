@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.3";
+import { geminiChat } from "../_lib/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,50 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_KEY = Deno.env.get("GOOGLE_API_KEY") ?? "";
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
-
-async function aiChat(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<string> {
-  if (GEMINI_KEY) {
-    try {
-      const prompt = messages.map(m => `${m.role === "system" ? "Instructions" : "User"}: ${m.content}`).join("\n\n");
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-            },
-          }),
-        }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        if (text) return text;
-      }
-    } catch (_) {}
-  }
-  throw new Error("Gemini call failed. Ensure GOOGLE_API_KEY is set and valid in Supabase Edge Function secrets.");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages,
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}`);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content ?? "";
-}
 
 
 Deno.serve(async (req) => {
@@ -78,7 +35,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Step 1: Extract claims using AI tool calling
-    const claimResText = await aiChat([
+    const claimResText = await geminiChat([
       {
             role: "system",
             content:
@@ -136,7 +93,7 @@ Deno.serve(async (req) => {
     const templates = templatesRes.data || [];
 
     // Step 3: Use AI to match claims to facts
-    const matchResText = await aiChat([
+    const matchResText = await geminiChat([
       {
             role: "system",
             content: `You are a fact-matching engine for a strict response system. Given a list of claims extracted from negative text and a library of approved facts, determine which approved facts can address each claim. Only match facts that DIRECTLY address the claim. If no fact addresses a claim, mark it as unmatched. Also select the best template if any match the scenario.\n\nApproved Facts:\n${JSON.stringify(facts.map((f) => ({ id: f.id, title: f.title, statement: f.statement_text, category: f.category })))}\n\nApproved Templates:\n${JSON.stringify(templates.map((t) => ({ id: t.id, name: t.name, scenario: t.scenario_type, tone: t.tone, platform: t.platform_length })))}\n\nResponse intent: ${intent || "general"}\nPlatform: ${platform || "general"}`,
@@ -219,7 +176,7 @@ Deno.serve(async (req) => {
       ? `\nUse this approved template structure:\n${selectedTemplate.template_text}`
       : "";
 
-    const draftResText = await aiChat([
+    const draftResText = await geminiChat([
       {
             role: "system",
             content: `You are a strict corporate response drafter. You MUST ONLY use the approved facts provided below verbatim or near-verbatim. Do NOT add any claims, statistics, or information not present in the approved facts. Do NOT paraphrase the approved facts — use them as written.\n\nApproved facts:\n${factsBlock}${templateBlock}\n\nPlatform: ${platform || "general"}\nIntent: ${intent || "clarify"}\n\nRules:\n1. Use approved fact text verbatim.\n2. Include source links where available.\n3. Be professional and concise.\n4. Do NOT invent or assume any information.\n5. Generate 2 variants if possible, both strictly using approved facts only.`,

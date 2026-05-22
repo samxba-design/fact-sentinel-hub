@@ -154,7 +154,7 @@ export default function NarrativesPage() {
       if (currentOrg) {
         supabase.functions.invoke("send-notification", {
           body: { org_id: currentOrg.id, type: "narrative_status_change", narrative_id: id, new_status: newStatus }
-        }).catch(console.warn);
+        }).catch(() => {});
       }
     }
     setUpdatingId(null);

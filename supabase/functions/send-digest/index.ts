@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
       .sort((a: any, b: any) => a.severity === "critical" ? -1 : 1)
       .slice(0, 5);
 
-    const dashboardUrl = "https://app.senti.watch";
+    const dashboardUrl = "https://app.sentiwatch.app";
     const stats = { totalMentions, negativePct, criticalCount, topNarratives, alertCount, escalationCount };
     const { subject, html } = buildDigestEmail(org.name, stats, topThreats, dashboardUrl);
 
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
-          body: JSON.stringify({ from: "SentiWatch <alerts@senti.watch>", to: [email], subject, html }),
+          body: JSON.stringify({ from: "SentiWatch <alerts@sentiwatch.app>", to: [email], subject, html }),
         }).then(r => r.json())
       )
     );

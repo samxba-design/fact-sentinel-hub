@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const APP_URL = "https://senti.watch";
+const APP_URL = "https://sentiwatch.app";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -30,12 +30,12 @@ Deno.serve(async (req) => {
       const { buildContactNotificationEmail } = await import("../send-email/index.ts");
       const { subject, html } = buildContactNotificationEmail(name, email, company || "", message, "dark");
 
-      const adminEmail = Deno.env.get("ADMIN_NOTIFICATION_EMAIL") || "admin@senti.watch";
+      const adminEmail = Deno.env.get("ADMIN_NOTIFICATION_EMAIL") || "admin@sentiwatch.app";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: `SentiWatch <notifications@senti.watch>`,
+          from: `SentiWatch <notifications@sentiwatch.app>`,
           to: [adminEmail],
           reply_to: email,
           subject,
@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: `SentiWatch Alerts <alerts@senti.watch>`,
+          from: `SentiWatch Alerts <alerts@sentiwatch.app>`,
           to: [profile.email],
           subject,
           html,

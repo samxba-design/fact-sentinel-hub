@@ -98,7 +98,7 @@ async function scrapeUrl(url: string, firecrawlKey: string, maxChars = 3000): Pr
 
 // ── AI call helper ────────────────────────────────────────────────────────────
 
-async function aiCall(lovableKey: string, systemPrompt: string, userPrompt: string, jsonMode = true): Promise<any> {
+async function aiCall(systemPrompt: string, userPrompt: string, jsonMode = true): Promise<any> {
   const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
   if (!geminiKey) throw new Error("GOOGLE_API_KEY not set in Supabase Edge Function secrets.");
   const res = await fetch(
@@ -139,13 +139,12 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
   const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
   const braveKey = Deno.env.get("BRAVE_SEARCH_API_KEY") ?? "";
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
 
   try {
-    if (!lovableKey && !geminiKey) throw new Error("No AI key configured. Set GOOGLE_API_KEY or LOVABLE_API_KEY.");
+    if (!geminiKey) throw new Error("GOOGLE_API_KEY not set in Supabase Edge Function secrets.");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
@@ -160,7 +159,7 @@ Deno.serve(async (req) => {
     const orgRes = await supabase.from("organizations").select("name").eq("id", org_id).maybeSingle();
     const brandName = orgRes.data?.name ?? "Binance";
 
-    const step1 = await aiCall(lovableKey,
+    const step1 = await aiCall(
       `You are a crypto threat intelligence analyst for ${brandName}. Extract structured intelligence from a piece of text and generate targeted search queries to research it further.
 
 Return JSON with this exact schema:
@@ -227,7 +226,7 @@ Generate 6-8 diverse search queries covering: (1) the original event, (2) entity
     console.log("[research] step 3: AI source triage");
 
     const topSources = allLinks.length > 0
-      ? await aiCall(lovableKey,
+      ? await aiCall(
           `You are a research analyst. Given a list of search results about a specific event, select the 8-10 most valuable sources to deep-read. Prioritise: (1) primary sources with direct evidence, (2) investigative journalists, (3) regulatory bodies, (4) on-chain analysts (ZachXBT, etc.), (5) major crypto media. Deprioritise: generic aggregators, duplicate coverage, social media with no original information.
 
 Return JSON: { "selected_indices": [0, 2, 5, ...], "rationale": "brief explanation" }`,
@@ -275,7 +274,7 @@ Sources to evaluate:\n${allLinks.map((l, i) => `[${i}] ${l.title} — ${l.snippe
     const sourceIntelligence = await Promise.all(
       scraped.map(async (source: any) => {
         try {
-          const intel = await aiCall(lovableKey,
+          const intel = await aiCall(
             `You are a crypto threat intelligence analyst extracting structured information from an article/source. Extract only what is explicitly stated. Do not infer or fabricate.
 
 Return JSON:
@@ -314,7 +313,7 @@ Source content:\n${source.full_content}`
     const allFacts = relevantSources.flatMap(s => (s.intelligence?.key_facts ?? []).map((f: string) => ({ fact: f, source: s.url, title: s.title })));
 
     const factCheckMatrix = keyClaims.length > 0
-      ? await aiCall(lovableKey,
+      ? await aiCall(
           `You are a fact-checker. Given original claims from intelligence text and a body of corroborating/contradicting evidence, assess each claim.
 
 Return JSON:
@@ -342,7 +341,7 @@ Entity mentions:\n${relevantSources.flatMap(s => s.intelligence?.claims_about_en
     // ── STEP 7: Spread map — how the narrative is moving ─────────────────────
     console.log("[research] step 7: build spread map");
 
-    const spreadMap = await aiCall(lovableKey,
+    const spreadMap = await aiCall(
       `You are a narrative analyst. Given a set of sources that picked up a story, map how the narrative is spreading.
 
 Return JSON:
@@ -387,7 +386,7 @@ Sources that covered this story:\n${relevantSources.map(s => `- ${s.title} (${s.
     // ── STEP 9: Final synthesis ───────────────────────────────────────────────
     console.log("[research] step 9: final synthesis");
 
-    const synthesis = await aiCall(lovableKey,
+    const synthesis = await aiCall(
       `You are the head of intelligence for ${brandName}'s communications team. Synthesise a threat research report.
 
 Return JSON:
