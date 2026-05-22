@@ -19,7 +19,8 @@ const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "active-threats",           label: "Active Threats",                    visible: true,  order: 7 },
   { id: "watchlist-threats",        label: "Top Tracked Threats",               visible: true,  order: 8 },
   { id: "competitor-feed",          label: "Competitor Activity Feed",          visible: false, order: 9 },
-  { id: "sources",                  label: "Source Breakdown",                  visible: true,  order: 10 },
+  { id: "competitor-benchmark",     label: "Competitor Sentiment Benchmark",  visible: false, order: 10 },
+  { id: "sources",                  label: "Source Breakdown",                  visible: true,  order: 11 },
 ];
 
 const STORAGE_KEY = "sentiwatch_dashboard_layout_v2"; // bumped version to clear old layout

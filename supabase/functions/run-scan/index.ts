@@ -1609,6 +1609,55 @@ Deno.serve(async (req) => {
       })());
     }
 
+    // ── Regulatory scanner (free, no key needed) ─────────────────────────
+    if (wantSource("regulatory") || requestedSources.length === 0) {
+      crawlPromises.push((async () => {
+        try {
+          const { data } = await supabase.functions.invoke("scan-regulatory", {
+            body: { org_id, keywords, date_from, date_to },
+          });
+          if (data?.results) {
+            allRaw.push(...data.results);
+            scanLog.push({ source: "regulatory", found: data.results.length });
+          }
+        } catch { scanLog.push({ source: "regulatory", found: 0, error: "regulatory scan failed" }); }
+      })());
+    }
+
+    // ── Telegram scanner ─────────────────────────────────────────────────
+    if (wantSource("telegram") || requestedSources.length === 0) {
+      const telegramToken = apiKeysRes.data?.find((k: any) => k.provider === "telegram")?.key_value || null;
+      crawlPromises.push((async () => {
+        try {
+          const { data } = await supabase.functions.invoke("scan-telegram", {
+            body: { org_id, keywords, date_from, date_to, bot_token: telegramToken },
+          });
+          if (data?.results) {
+            allRaw.push(...data.results);
+            scanLog.push({ source: "telegram", found: data.results.length });
+          }
+        } catch { scanLog.push({ source: "telegram", found: 0, error: "telegram scan failed" }); }
+      })());
+    }
+
+    // ── Discord scanner ──────────────────────────────────────────────────
+    if (wantSource("discord") || requestedSources.length === 0) {
+      const discordToken = apiKeysRes.data?.find((k: any) => k.provider === "discord")?.key_value || null;
+      crawlPromises.push((async () => {
+        try {
+          const { data } = await supabase.functions.invoke("scan-discord", {
+            body: { org_id, keywords, date_from, date_to, bot_token: discordToken },
+          });
+          if (data?.results) {
+            allRaw.push(...data.results);
+            scanLog.push({ source: "discord", found: data.results.length });
+          } else if (data?.available_guilds) {
+            scanLog.push({ source: "discord", found: 0, info: `Bot available in ${data.available_guilds.length} servers — configure guild IDs in Sources` });
+          }
+        } catch { scanLog.push({ source: "discord", found: 0, error: "discord scan failed" }); }
+      })());
+    }
+
     await Promise.allSettled(crawlPromises);
 
     console.log(`Crawl complete: ${allRaw.length} raw results from ${scanLog.length} sources`);
@@ -1704,6 +1753,47 @@ Deno.serve(async (req) => {
     });
     const dedupSkipped = filtered.length - newItems.length;
     console.log(`New items: ${newItems.length} (${dedupSkipped} already in DB)`);
+
+    // ── 7.5 Cross-platform fingerprint detection ───────────────────────────
+    const crossPlatformAlerts: Array<{
+      org_id: string; fingerprint_hash: string; title: string;
+      description: string; sources: string[]; mention_count: number; severity: string;
+    }> = [];
+
+    {
+      const sourceGroups = new Map<string, Map<string, any[]>>();
+      for (const r of newItems) {
+        const source = r.source || "unknown";
+        const text_ = ((r.title || "") + " " + (r.content || "").slice(0, 300)).toLowerCase().replace(/[^a-z0-9 ]/g, "");
+        const fp = text_.slice(0, 80) || text_.slice(0, 200);
+        if (!sourceGroups.has(fp)) sourceGroups.set(fp, new Map());
+        const bySource = sourceGroups.get(fp)!;
+        if (!bySource.has(source)) bySource.set(source, []);
+        bySource.get(source)!.push(r);
+      }
+      for (const [fp, groups] of sourceGroups) {
+        const distinctSources = [...groups.keys()];
+        if (distinctSources.length >= 3) {
+          const total = [...groups.values()].reduce((s: number, a: any[]) => s + a.length, 0);
+          const sev = total >= 15 ? "critical" : total >= 8 ? "high" : "medium";
+          const sampleTitle = [...groups.values()][0][0]?.title || "Unknown";
+          crossPlatformAlerts.push({
+            org_id, fingerprint_hash: fp, title: `Cross-platform: ${sampleTitle.slice(0, 80)}`,
+            description: `Identical narrative across ${distinctSources.length} sources (${distinctSources.join(", ")}) — ${total} mentions`,
+            sources: distinctSources, mention_count: total, severity: sev,
+          });
+        }
+      }
+      if (crossPlatformAlerts.length > 0) {
+        console.log(`Cross-platform alerts: ${crossPlatformAlerts.length}`);
+        await sb.from("cross_platform_alerts").upsert(
+          crossPlatformAlerts,
+          { onConflict: "fingerprint_hash", ignoreDuplicates: false }
+        );
+      }
+    }
+
+
 
     if (newItems.length === 0) {
       await sb.from("scan_runs").update({

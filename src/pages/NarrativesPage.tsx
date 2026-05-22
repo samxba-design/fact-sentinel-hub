@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Network, Scan, Brain, Loader2, Sparkles, TrendingUp, TrendingDown,
   Search, MessageSquare, ChevronRight, BarChart3, AlertTriangle, Shield,
-  CheckCircle, Eye, RefreshCw, Filter,
+  CheckCircle, Eye, RefreshCw, Filter, Minus, Globe,
 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,9 @@ interface NarrativeWithCounts {
   first_seen: string | null;
   last_seen: string | null;
   created_at: string;
+  velocity: number | null;
+  momentum_score: number | null;
+  cross_platform: boolean | null;
   // enriched client-side
   mention_count: number;
   negative_pct: number;
@@ -52,7 +55,7 @@ export default function NarrativesPage() {
   const [detecting, setDetecting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"last_seen" | "confidence" | "mentions" | "negative">("last_seen");
+  const [sortBy, setSortBy] = useState<"last_seen" | "confidence" | "mentions" | "negative" | "velocity">("last_seen");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const loadNarratives = useCallback(async () => {
@@ -61,7 +64,7 @@ export default function NarrativesPage() {
 
     const { data: rawNarratives } = await supabase
       .from("narratives")
-      .select("id, name, description, status, confidence, first_seen, last_seen, created_at")
+      .select("id, name, description, status, confidence, first_seen, last_seen, velocity, momentum_score, cross_platform, created_at")
       .eq("org_id", currentOrg.id)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -170,6 +173,7 @@ export default function NarrativesPage() {
       if (sortBy === "confidence") return (Number(b.confidence) || 0) - (Number(a.confidence) || 0);
       if (sortBy === "mentions") return b.mention_count - a.mention_count;
       if (sortBy === "negative") return b.negative_pct - a.negative_pct;
+      if (sortBy === "velocity") return (Number(b.velocity) || 0) - (Number(a.velocity) || 0);
       // last_seen
       return new Date(b.last_seen || b.created_at).getTime() - new Date(a.last_seen || a.created_at).getTime();
     });
@@ -268,6 +272,7 @@ export default function NarrativesPage() {
               <SelectItem value="confidence">Confidence</SelectItem>
               <SelectItem value="mentions">Most mentions</SelectItem>
               <SelectItem value="negative">Most negative</SelectItem>
+              <SelectItem value="velocity">Fastest growing</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -367,6 +372,21 @@ export default function NarrativesPage() {
 
                       {/* Meta row */}
                       <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+                        {/* Velocity indicator */}
+                        {(n.velocity !== null && n.velocity !== undefined && n.velocity !== 0) && (
+                          <span className={`flex items-center gap-0.5 font-medium ${
+                            n.velocity > 30 ? "text-red-400" : n.velocity > 10 ? "text-amber-400" : n.velocity > 0 ? "text-emerald-400" : "text-muted-foreground"
+                          }`}>
+                            {n.velocity > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {n.velocity > 0 ? "+" : ""}{Math.round(n.velocity)}%
+                          </span>
+                        )}
+                        {/* Cross-platform indicator */}
+                        {n.cross_platform && (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                            <Globe className="h-2.5 w-2.5" /> Cross-platform
+                          </span>
+                        )}
                         <span className="flex items-center gap-1">
                           <MessageSquare className="h-3 w-3" />
                           {n.mention_count} mention{n.mention_count !== 1 ? "s" : ""}

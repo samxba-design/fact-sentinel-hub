@@ -114,11 +114,24 @@ const SOURCE_TYPE_OPTIONS: SourceTypeOption[] = [
     "Go to Mentions → Add Mention and paste the content",
     "Include the video URL so it's linked for reference"
   ] },
-  { value: "discord", label: "Discord", description: "Server messages and threads", tier: "manual", tierLabel: "Manual Import", setupNote: "Discord content is only accessible within servers you belong to. There's no public search or API for monitoring. Copy relevant discussions manually.", setupSteps: [
-    "Monitor relevant Discord servers you've joined",
-    "Copy message content or use a Discord export tool (e.g. DiscordChatExporter)",
-    "Go to Mentions → Add Mention to import relevant discussions",
-    "For automated alerts from Discord, set up a webhook in Integrations"
+  { value: "telegram", label: "Telegram", description: "Public channel messages and crypto groups", tier: "auto", tierLabel: "Auto", setupNote: "Monitors public Telegram channels via t.me previews — no bot or API key needed. Add channel usernames in Custom Sources, or connect a bot for deeper access to private groups and message history.", setupSteps: [
+    "Works immediately for public channels — no setup required",
+    "Add channel names in the Custom Sources tab (e.g., coindesk, cointelegraph, WuBlockchain)",
+    "For private groups: create a bot via @BotFather and add it as admin",
+    "Paste your bot token in Connections to enable bot-enhanced scanning"
+  ], fallbackNote: "Public channel scanning works without a bot. Add a bot token in Connections for private group access." },
+  { value: "discord", label: "Discord", description: "Server messages and threads via bot", tier: "api", tierLabel: "Bot Setup", setupNote: "Requires a Discord bot with Read Messages permission. See the Setup Guide in the Sources tab for step-by-step instructions.", setupSteps: [
+    "Go to discord.com/developers/applications → New Application → Bot → Add Bot",
+    "Enable 'Message Content Intent' under Privileged Gateway Intents",
+    "Copy the bot token and paste in Connections as DISCORD_BOT_TOKEN",
+    "Use OAuth2 URL Generator to invite the bot to servers with Read Messages permission",
+    "Right-click server → Copy Server ID → add as guild ID in Custom Sources"
+  ], apiKeyName: "DISCORD_BOT_TOKEN", fallbackNote: "Discord bot token not configured. See setup guide for step-by-step instructions." },
+  { value: "regulatory", label: "Regulatory (SEC, CFTC, FCA, MAS)", description: "Financial regulator filings and announcements", tier: "auto", tierLabel: "Auto", setupNote: "Monitors SEC EDGAR, CFTC, FCA, MAS, FinCEN, and ESMA for brand and competitor mentions. Scans RSS feeds from all 6 regulators automatically — no API key needed.", setupSteps: [
+    "Enable this source — works immediately with no setup",
+    "Scans all major financial regulators for your keywords",
+    "AI classifies mentions as: directly mentions brand, mentions competitor, industry-wide, or irrelevant",
+    "Directly relevant filings are automatically flagged as high/critical severity"
   ] },
   { value: "facebook", label: "Facebook", description: "Page posts, comments, and group discussions", tier: "manual", tierLabel: "Manual Import", setupNote: "Facebook requires login to view most content and blocks all automated scraping. Their API requires a Meta-approved app with business verification — not practical for monitoring. Use 'Add Mention' to import: paste a public Facebook URL (AI will attempt extraction) or paste content directly.", setupSteps: [
     "Log into Facebook and search for your brand name",

@@ -30,6 +30,7 @@ import GettingStartedChecklist from "@/components/dashboard/GettingStartedCheckl
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import NarrativeNow from "@/components/dashboard/NarrativeNow";
 import CompetitorFeedWidget from "@/components/dashboard/CompetitorFeedWidget";
+import CompetitorBenchmarkWidget from "@/components/dashboard/CompetitorBenchmarkWidget";
 import LiveThreatFeed from "@/components/dashboard/LiveThreatFeed";
 import MonitoringWidget from "@/components/dashboard/MonitoringWidget";
 import ReportGeneratorDialog from "@/components/reports/ReportGeneratorDialog";
@@ -618,6 +619,9 @@ export default function DashboardPage() {
 
       case "competitor-feed":
         return <CompetitorFeedWidget key="competitor-feed" />;
+
+      case "competitor-benchmark":
+        return <CompetitorBenchmarkWidget key="competitor-benchmark" />;
 
       default:
         return null;
