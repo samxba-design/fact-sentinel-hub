@@ -9,7 +9,7 @@ import {
   FileText, TicketCheck, Download, Settings, LogOut,
   ChevronDown, ChevronRight, Building2, ShieldCheck, CreditCard, Plus, BookOpen,
   Target, Contact, Bell, Radio, Globe, Share2, Brain, Newspaper,
-  Zap, EyeOff, Link2, Eye, ClipboardList, Crosshair, GitBranch, Play,
+  Zap, EyeOff, Link2, Eye, ClipboardList, Crosshair, GitBranch, Play, Headphones,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import LinkScannerDialog from "@/components/LinkScannerDialog";
@@ -62,6 +62,7 @@ const ADVANCED_NAV: NavItem[] = [
   { to: "/contacts",        icon: Contact,       label: "Contacts",           access: "manage" },
   { to: "/exports",         icon: Download,      label: "Exports",            access: "write" },
   { to: "/audit-log",       icon: ClipboardList, label: "Audit Log",          access: "manage" },
+  { to: "/interview-copilot", icon: Headphones,    label: "Interview Copilot",  access: "manage" },
 ];
 
 // ── Account ──────────────────────────────────────────────────────────

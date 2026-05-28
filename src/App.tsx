@@ -64,6 +64,7 @@ const TopicWatchDetailPage = React.lazy(() => import("@/pages/TopicWatchDetailPa
 const ContagionMapPage = React.lazy(() => import("@/pages/ContagionMapPage"));
 const CoAssociationPage = React.lazy(() => import("@/pages/CoAssociationPage"));
 const AmplifierRadarPage = React.lazy(() => import("@/pages/AmplifierRadarPage"));
+const InterviewCopilot = React.lazy(() => import("@/pages/InterviewCopilot"));
 
 function PageLoader() {
   return (
@@ -189,6 +190,7 @@ function AppRoutes() {
           <Route path="/guide" element={<ErrorBoundary><GuidePage /></ErrorBoundary>} />
           <Route path="/getting-started" element={<ErrorBoundary><GuidePage /></ErrorBoundary>} />
           <Route path="/admin" element={<ErrorBoundary><AdminPage /></ErrorBoundary>} />
+          <Route path="/interview-copilot" element={<RoleGate require="manage"><ErrorBoundary><InterviewCopilot /></ErrorBoundary></RoleGate>} />
         </Route>
         {/* Allow onboarding for creating additional orgs */}
         <Route path="/onboarding" element={<OnboardingPage />} />
