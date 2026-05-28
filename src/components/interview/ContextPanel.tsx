@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronRight, Save, FileText, Briefcase, User, Building } from 'lucide-react';
+import PdfUploader from '@/components/interview/PdfUploader';
+import {
+  ChevronDown, ChevronRight, Briefcase, Building, User, FileText, Upload,
+} from 'lucide-react';
 
 interface ContextPanelProps {
   context: InterviewContext;
@@ -14,23 +16,17 @@ interface ContextPanelProps {
   disabled?: boolean;
 }
 
-const STORAGE_KEY = 'interview-copilot-context';
+const STORAGE_KEY = 'sentiwatch-interview-copilot-context';
 
 export function loadSavedContext(): InterviewContext | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export function saveContext(ctx: InterviewContext) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ctx));
-  } catch {
-    // Silently fail if localStorage is full
-  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ctx)); } catch {}
 }
 
 const defaultContext: InterviewContext = {
@@ -62,6 +58,12 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
     const updated = { ...context, [field]: value };
     onChange(updated);
     saveContext(updated);
+  };
+
+  const appendText = (field: keyof InterviewContext, text: string) => {
+    const current = context[field] || '';
+    const separator = current ? '\n\n---\n\n' : '';
+    update(field, current + separator + text);
   };
 
   const toggle = (key: string) =>
@@ -96,11 +98,18 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
         </Button>
       </div>
 
-      {/* Job Section */}
+      {/* ── Job Section ── */}
       <div>
         <SectionHeader icon={Briefcase} title="Job Details" section="job" />
         {expanded.job && (
           <div className="space-y-2 pl-5 mt-1">
+            <PdfUploader
+              label="Upload JD as PDF"
+              onTextExtracted={(text, name) => {
+                appendText('jobDescription', text);
+              }}
+              disabled={disabled}
+            />
             <div>
               <Label className="text-xs">Job Title</Label>
               <Input
@@ -126,7 +135,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
               <Textarea
                 value={context.jobDescription}
                 onChange={(e) => update('jobDescription', e.target.value)}
-                placeholder="Paste the full job description here..."
+                placeholder="Paste or upload the job description..."
                 className="min-h-[100px] text-xs resize-y"
                 disabled={disabled}
               />
@@ -135,7 +144,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
         )}
       </div>
 
-      {/* Company Section */}
+      {/* ── Company Section ── */}
       <div>
         <SectionHeader icon={Building} title="Company Context" section="company" />
         {expanded.company && (
@@ -145,17 +154,17 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
               <Textarea
                 value={context.companyInfo}
                 onChange={(e) => update('companyInfo', e.target.value)}
-                placeholder="Company size, industry, culture, recent news, products..."
+                placeholder="Size, industry, culture, recent news, products..."
                 className="min-h-[80px] text-xs resize-y"
                 disabled={disabled}
               />
             </div>
             <div>
-              <Label className="text-xs">Role Context (additional)</Label>
+              <Label className="text-xs">Role Context</Label>
               <Textarea
                 value={context.roleContext}
                 onChange={(e) => update('roleContext', e.target.value)}
-                placeholder="Team size, tech stack, reporting structure, key challenges..."
+                placeholder="Team size, tech stack, reporting structure, challenges..."
                 className="min-h-[60px] text-xs resize-y"
                 disabled={disabled}
               />
@@ -164,17 +173,24 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
         )}
       </div>
 
-      {/* Candidate Section */}
+      {/* ── Candidate Section ── */}
       <div>
         <SectionHeader icon={User} title="Your Profile" section="candidate" />
         {expanded.candidate && (
           <div className="space-y-2 pl-5 mt-1">
+            <PdfUploader
+              label="Upload Resume as PDF"
+              onTextExtracted={(text, name) => {
+                appendText('candidateResume', text);
+              }}
+              disabled={disabled}
+            />
             <div>
               <Label className="text-xs">Resume / CV</Label>
               <Textarea
                 value={context.candidateResume}
                 onChange={(e) => update('candidateResume', e.target.value)}
-                placeholder="Paste your full resume here..."
+                placeholder="Paste or upload your resume..."
                 className="min-h-[120px] text-xs resize-y"
                 disabled={disabled}
               />
@@ -194,7 +210,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
               <Textarea
                 value={context.candidateFacts}
                 onChange={(e) => update('candidateFacts', e.target.value)}
-                placeholder="Key achievements, projects, certifications, languages, anything else..."
+                placeholder="Key achievements, projects, certifications, languages..."
                 className="min-h-[60px] text-xs resize-y"
                 disabled={disabled}
               />
@@ -203,7 +219,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
         )}
       </div>
 
-      {/* Settings */}
+      {/* ── Settings ── */}
       <div>
         <SectionHeader icon={FileText} title="Style & Settings" section="settings" />
         {expanded.settings && (
@@ -249,7 +265,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
       </div>
 
       <p className="text-[10px] text-muted-foreground pt-2 border-t border-border">
-        Context auto-saves to this browser. Your data stays local.
+        Context auto-saves to this browser. Upload PDFs to auto-extract text.
       </p>
     </div>
   );
