@@ -1,4 +1,5 @@
 import { Shield } from "lucide-react";
+import { Seo } from "@/components/Seo";
 import { Link } from "react-router-dom";
 
 export default function PrivacyPolicyPage() {
@@ -6,6 +7,8 @@ export default function PrivacyPolicyPage() {
   const contactEmail = "privacy@sentiwatch.com";
 
   return (
+    <>
+    <Seo title="Privacy Policy - SentiWatch" description="How SentiWatch handles your data and protects your privacy." />
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center">
@@ -97,5 +100,6 @@ export default function PrivacyPolicyPage() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

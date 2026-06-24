@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -99,6 +100,8 @@ export default function PricingPage() {
   };
 
   return (
+    <>
+    <Seo title="Pricing - SentiWatch" description="Simple, transparent pricing for brand intelligence and narrative monitoring." />
     <div className="space-y-8 animate-fade-up">
       {/* Header */}
       <div className="text-center space-y-3">
@@ -217,5 +220,6 @@ export default function PricingPage() {
         </p>
       </div>
     </div>
+    </>
   );
 }

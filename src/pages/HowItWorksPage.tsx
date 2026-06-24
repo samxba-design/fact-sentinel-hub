@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Seo } from "@/components/Seo";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ function MockDashboardCard() {
 
 function MockMentionCard() {
   return (
+    
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-destructive" />
@@ -99,6 +101,7 @@ function MockMentionCard() {
 
 function MockScanCard() {
   return (
+    
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-destructive" />
@@ -140,6 +143,7 @@ function MockScanCard() {
 
 function MockResponseCard() {
   return (
+    
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-destructive" />
@@ -168,6 +172,7 @@ function MockResponseCard() {
 
 function MockBriefingCard() {
   return (
+    
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-destructive" />
@@ -202,6 +207,7 @@ function MockBriefingCard() {
 /* ─── Step block ─────────────────────────────────────────────────── */
 function Step({ number, title, desc }: { number: number; title: string; desc: string }) {
   return (
+    
     <div className="flex items-start gap-4">
       <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
         <span className="text-xs font-bold text-primary">{number}</span>
@@ -222,6 +228,7 @@ function Section({
   children: React.ReactNode; visual: React.ReactNode; reverse?: boolean;
 }) {
   return (
+    
     <section id={id} className="scroll-mt-16 py-16 border-b border-border last:border-0">
       <div className="max-w-6xl mx-auto px-6">
         <div className={`grid lg:grid-cols-2 gap-12 items-center ${reverse ? "lg:[&>*:first-child]:order-last" : ""}`}>
@@ -271,10 +278,13 @@ export default function HowItWorksPage() {
       const el = document.getElementById(s.id);
       if (el) observerRef.current?.observe(el);
     });
-    return () => observerRef.current?.disconnect();
+    return (
+    ) => observerRef.current?.disconnect();
   }, []);
 
   return (
+    <>
+    <Seo title="How It Works - SentiWatch" description="From setup to insights in minutes. See how SentiWatch monitors your brand across the internet." />
     <div className="min-h-screen bg-background text-foreground">
       {/* ── Sticky nav ── */}
       <header className="sticky top-0 z-40 bg-card/90 backdrop-blur-sm border-b border-border">
@@ -803,5 +813,6 @@ export default function HowItWorksPage() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

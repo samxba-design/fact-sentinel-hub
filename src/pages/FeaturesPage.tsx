@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +149,8 @@ const sections = [
 
 export default function FeaturesPage() {
   return (
+    <>
+    <Seo title="Features - SentiWatch" description="Comprehensive brand intelligence features: scanning, narrative tracking, competitor analysis, risk monitoring, and more." />
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
       <header className="border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-40">
@@ -276,5 +279,6 @@ export default function FeaturesPage() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

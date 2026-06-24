@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Seo } from "@/components/Seo";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -116,6 +117,8 @@ export default function Index() {
   const navigate = useNavigate();
 
   return (
+    <>
+    <Seo title="SentiWatch - Brand Intelligence & Narrative Monitoring" description="Real-time brand intelligence, narrative monitoring, and competitive analysis for PR and comms teams." />
     <div className="min-h-screen bg-background text-foreground">
       {/* ── Nav ─────────────────────────────────────────────────────── */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
@@ -438,5 +441,6 @@ export default function Index() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

@@ -9,7 +9,7 @@ Object.defineProperty(window, "matchMedia", {
     addListener: () => { /* noop */ },
     removeListener: () => { /* noop */ },
     addEventListener: () => { /* noop */ },
-    removeEventListener: () => { /* noop */ },
+    removeListener: () => { /* noop */ },
     dispatchEvent: () => { /* noop */ },
   }),
 });
