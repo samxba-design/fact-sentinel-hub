@@ -63,7 +63,7 @@ export default function NarrativeDetailPage() {
 
     setNarrative(narrRes.data as Narrative | null);
 
-    const mentionIds = (linksRes.data || []).map((l: any) => l.mention_id);
+    const mentionIds = (linksRes.data || []).map((l: unknown) => l.mention_id);
     if (mentionIds.length > 0) {
       const { data } = await supabase
         .from("mentions")

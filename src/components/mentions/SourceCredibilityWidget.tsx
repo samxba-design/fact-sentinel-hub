@@ -42,7 +42,7 @@ export default function SourceCredibilityWidget() {
       if (data?.error) throw new Error(data.error);
       setScores(data?.scores || []);
       setLoaded(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Scoring failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);

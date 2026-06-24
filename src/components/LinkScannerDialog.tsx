@@ -36,12 +36,12 @@ interface LinkAnalysis {
   title: string;
   description: string;
   paywall: { is_paywalled: boolean; paywall_type: string | null };
-  analysis: any;
+  analysis: unknown;
   social_pickup: Array<{ platform: string; url: string; title: string; snippet: string }>;
   media_pickup: Array<{ url: string; title: string; snippet: string; domain: string }>;
   similar_mentions: SimilarMention[];
-  search_visibility: any;
-  data_confidence: any;
+  search_visibility: unknown;
+  data_confidence: unknown;
   scanned_at: string;
 }
 
@@ -59,7 +59,7 @@ const impactColors: Record<string, string> = {
   critical: "bg-sentinel-red/20 text-sentinel-red border-sentinel-red/50",
 };
 
-const platformIcons: Record<string, any> = {
+const platformIcons: Record<string, unknown> = {
   twitter: Twitter,
   reddit: MessageSquare,
   linkedin: Users,
@@ -126,7 +126,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       link.href = canvas.toDataURL("image/jpeg", 0.95);
       link.click();
       toast({ title: "Exported as JPG" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     } finally {
       setExporting(null);
@@ -173,7 +173,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
         };
         toast({ title: "PDF print dialog opened" });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     } finally {
       setExporting(null);
@@ -211,7 +211,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       if (error) throw new Error(error.message);
       if (!data.success) throw new Error(data.error || "Analysis failed");
       setResult(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
       clearInterval(stepInterval);
@@ -224,8 +224,8 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     if (!result || !currentOrg) return;
     setSaving(true);
     try {
-      const a = result.analysis || {};
-      const sd = (result as any)?.search_discovery;
+      const a = result.analysis || { /* noop */ };
+      const sd = (result as unknown)?.search_discovery;
       const sv = result?.search_visibility;
       const { error } = await supabase.from("mentions").insert({
         org_id: currentOrg.id,
@@ -273,7 +273,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       if (error) throw error;
       setSaved(true);
       toast({ title: "Saved as mention", description: "Full scan intelligence saved — view detailed analysis on the mention page." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error saving", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -283,7 +283,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const createEscalation = async () => {
     if (!result || !currentOrg) return;
     try {
-      const a = result.analysis || {};
+      const a = result.analysis || { /* noop */ };
       const { error } = await supabase.from("escalations").insert({
         org_id: currentOrg.id,
         title: `Link Analysis: ${result.title || result.url}`,
@@ -295,15 +295,15 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       toast({ title: "Escalation created" });
       setOpen(false);
       navigate("/escalations");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
   const draftResponse = () => {
     if (!result) return;
-    const a = result.analysis || {};
-    const context = `Source: ${result.url}\n\nKey Points:\n${a.summary || ""}\n\nClaims:\n${(a.claims || []).map((c: any) => `- ${c.text} (${c.category})`).join("\n") || "None"}\n\nSentiment: ${a.sentiment?.label || "N/A"}`;
+    const a = result.analysis || { /* noop */ };
+    const context = `Source: ${result.url}\n\nKey Points:\n${a.summary || ""}\n\nClaims:\n${(a.claims || []).map((c: unknown) => `- ${c.text} (${c.category})`).join("\n") || "None"}\n\nSentiment: ${a.sentiment?.label || "N/A"}`;
     setOpen(false);
     navigate("/respond", { state: { prefillText: context } });
   };
@@ -311,7 +311,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
   const trackNarrative = async () => {
     if (!result || !currentOrg) return;
     try {
-      const a = result.analysis || {};
+      const a = result.analysis || { /* noop */ };
       const narrativeName = a.narratives?.[0] || result.title?.slice(0, 60) || "Link Scanner Narrative";
       const { error } = await supabase.from("narratives").insert({
         org_id: currentOrg.id,
@@ -327,12 +327,12 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
       toast({ title: "Narrative created", description: `"${narrativeName}" is now being tracked.` });
       setOpen(false);
       navigate("/narratives");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
-  const SectionHeader = ({ title, icon: Icon, sectionKey, badge, className }: { title: string; icon: any; sectionKey: string; badge?: React.ReactNode; className?: string }) => {
+  const SectionHeader = ({ title, icon: Icon, sectionKey, badge, className }: { title: string; icon: unknown; sectionKey: string; badge?: React.ReactNode; className?: string }) => {
     const isExpanded = expandedSections[sectionKey];
     return (
       <button
@@ -352,10 +352,10 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
     );
   };
 
-  const a = result?.analysis || {};
+  const a = result?.analysis || { /* noop */ };
   const dc = result?.data_confidence;
   const sv = result?.search_visibility;
-  const sd = (result as any)?.search_discovery;
+  const sd = (result as unknown)?.search_discovery;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -603,7 +603,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                           <div>
                             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Brands Mentioned</p>
                             <div className="space-y-2">
-                              {a.brand_impact.brands_mentioned.map((b: any, i: number) => (
+                              {a.brand_impact.brands_mentioned.map((b: unknown, i: number) => (
                                 <div key={i} className="flex items-start justify-between p-2.5 rounded-md bg-muted/20">
                                   <div className="flex-1 min-w-0">
                                     <p className="text-xs font-medium text-foreground">{b.name}</p>
@@ -837,7 +837,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                           <div>
                             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Competing Results</p>
                             <div className="space-y-1.5">
-                              {sv.competing_results.map((r: any, i: number) => (
+                              {sv.competing_results.map((r: unknown, i: number) => (
                                 <div
                                   key={i}
                                   className="flex items-center gap-2 p-2 rounded bg-muted/20 hover:bg-muted/30 cursor-pointer text-xs"
@@ -882,7 +882,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                         
                         {/* Verified Keywords */}
                         <div className="space-y-1.5">
-                          {sd.verified_keywords.map((kw: any, i: number) => (
+                          {sd.verified_keywords.map((kw: unknown, i: number) => (
                             <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-md bg-muted/20">
                               <div className="shrink-0">
                                 {kw.surfaces_article ? (
@@ -930,7 +930,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                           <div>
                             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Additional Keywords (not verified)</p>
                             <div className="flex flex-wrap gap-1.5">
-                              {sd.unverified_keywords.map((kw: any, i: number) => (
+                              {sd.unverified_keywords.map((kw: unknown, i: number) => (
                                 <Badge key={i} variant="outline" className="text-[10px]">
                                   {kw.keyword}
                                 </Badge>
@@ -1078,7 +1078,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                     <SectionHeader title="Claims Extracted" icon={Shield} sectionKey="claims" badge={<Badge variant="outline" className="text-[9px] ml-2">{a.claims.length}</Badge>} />
                     {expandedSections.claims && (
                       <div className="px-1 pb-2 space-y-2">
-                        {a.claims.map((c: any, i: number) => (
+                        {a.claims.map((c: unknown, i: number) => (
                           <div key={i} className="p-2.5 rounded-md bg-muted/20">
                             <p className="text-xs text-foreground leading-relaxed">{c.text}</p>
                             <div className="flex items-center gap-2 mt-1.5">
@@ -1101,7 +1101,7 @@ export default function LinkScannerDialog({ trigger }: { trigger?: React.ReactNo
                     <SectionHeader title="Key Entities" icon={Users} sectionKey="entities" badge={<Badge variant="outline" className="text-[9px] ml-2">{a.key_entities.length}</Badge>} />
                     {expandedSections.entities && (
                       <div className="px-1 pb-2 space-y-1.5">
-                        {a.key_entities.map((e: any, i: number) => (
+                        {a.key_entities.map((e: unknown, i: number) => (
                           <div key={i} className="flex items-center justify-between p-2.5 rounded-md bg-muted/20">
                             <div>
                               <p className="text-xs font-medium text-foreground">{e.name}</p>

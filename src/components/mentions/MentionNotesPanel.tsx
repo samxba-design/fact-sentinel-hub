@@ -54,7 +54,7 @@ export default function MentionNotesPanel({ mentionId }: MentionNotesPanelProps)
   async function loadNotes() {
     if (!mentionId) return;
     const { data } = await supabase
-      .from("mention_notes" as any)
+      .from("mention_notes" as unknown)
       .select("id, content, note_type, created_at, user_id")
       .eq("mention_id", mentionId)
       .order("created_at", { ascending: true });
@@ -69,7 +69,7 @@ export default function MentionNotesPanel({ mentionId }: MentionNotesPanelProps)
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from("mention_notes" as any).insert({
+      const { error } = await supabase.from("mention_notes" as unknown).insert({
         mention_id: mentionId,
         org_id: currentOrg.id,
         user_id: user?.id ?? null,
@@ -79,7 +79,7 @@ export default function MentionNotesPanel({ mentionId }: MentionNotesPanelProps)
       if (error) throw new Error(error.message);
       setText("");
       await loadNotes();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Failed to save note", description: e.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -89,10 +89,10 @@ export default function MentionNotesPanel({ mentionId }: MentionNotesPanelProps)
   async function deleteNote(id: string) {
     setDeletingId(id);
     try {
-      const { error } = await supabase.from("mention_notes" as any).delete().eq("id", id);
+      const { error } = await supabase.from("mention_notes" as unknown).delete().eq("id", id);
       if (error) throw new Error(error.message);
       setNotes(n => n.filter(x => x.id !== id));
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Delete failed", description: e.message, variant: "destructive" });
     } finally {
       setDeletingId(null);

@@ -62,7 +62,7 @@ export default function EscalationFormDialog({ open, onOpenChange, onSaved, edit
       }
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

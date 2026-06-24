@@ -131,7 +131,7 @@ function normalizeUrl(url: string): string {
   }
 }
 
-function dedup(arr: any[]): any[] {
+function dedup(arr: unknown[]): unknown[] {
   const seen = new Set<string>();
   return arr.filter(r => {
     if (!r.url) return true;
@@ -201,7 +201,7 @@ function kwSentiment(text: string) {
   // Negative word matching with negation awareness
   for (const word of NEG) {
     // Use word boundary regex for precise matching
-    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${ /* noop */ }()|[\]\\]/g, '\\$&')}\\b`, 'gi');
     let match: RegExpExecArray | null;
     let count = 0;
     let negatedCount = 0;
@@ -221,7 +221,7 @@ function kwSentiment(text: string) {
 
   // Critical word matching
   for (const word of CRIT) {
-    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${ /* noop */ }()|[\]\\]/g, '\\$&')}\\b`, 'gi');
     let match: RegExpExecArray | null;
     let count = 0;
     while ((match = re.exec(lower)) !== null) {
@@ -232,7 +232,7 @@ function kwSentiment(text: string) {
 
   // Positive word matching
   for (const word of POS) {
-    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${ /* noop */ }()|[\]\\]/g, '\\$&')}\\b`, 'gi');
     let match: RegExpExecArray | null;
     let count = 0;
     while ((match = re.exec(lower)) !== null) {
@@ -274,8 +274,8 @@ function kwSentiment(text: string) {
 // CRAWLERS — all inline, all independently try/catched
 // ══════════════════════════════════════════════════════════════════════════
 
-async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   // Run multiple keyword combinations to maximize coverage
   const queries: string[] = [
     keywords.slice(0, 4).join(" OR "),       // all main keywords
@@ -321,7 +321,7 @@ async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<a
           if (content.length < 30) continue;
 
           let posted_at: string | null = null;
-          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ }
           if (dateFrom && posted_at && new Date(posted_at).getTime() < new Date(dateFrom).getTime()) continue;
 
           results.push({
@@ -335,13 +335,13 @@ async function crawlGoogleNews(keywords: string[], dateFrom?: string): Promise<a
           });
         } catch { /* skip malformed item */ }
       }
-    } catch (e: any) { console.warn("[google-rss] query failed:", e.message); }
+    } catch (e: unknown) { console.warn("[google-rss] query failed:", (e as Error).message); }
   }));
   return results;
 }
 
-async function crawlBingNews(keywords: string[]): Promise<any[]> {
-  const results: any[] = [];
+async function crawlBingNews(keywords: string[]): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const query = keywords.slice(0, 3).join(" ");
     const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`;
@@ -375,7 +375,7 @@ async function crawlBingNews(keywords: string[]): Promise<any[]> {
         if (content.length < 30) continue;
 
         let posted_at: string | null = null;
-        try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+        try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ }
 
         results.push({
           source: src(articleUrl),
@@ -388,13 +388,13 @@ async function crawlBingNews(keywords: string[]): Promise<any[]> {
         });
       } catch { /* skip */ }
     }
-  } catch (e: any) { console.warn("[bing-rss] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[bing-rss] failed:", (e as Error).message); }
   return results;
 }
 
 // Direct RSS feeds from publishers — real URLs, real content, no redirects
-async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
-  const results: any[] = [];
+async function crawlDirectRSS(keywords: string[]): Promise<unknown[]> {
+  const results: unknown[] = [];
 
   // General interest feeds — always crawl these for context
   const generalFeeds = [
@@ -406,7 +406,7 @@ async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
     { url: "https://feeds.arstechnica.com/arstechnica/index", name: "Ars Technica" },
   ];
 
-  // Keyword-based filtering — only keep items mentioning any keyword
+  // Keyword-based filtering — only keep items mentioning unknown keyword
   const kwLower = keywords.map(k => k.toLowerCase());
 
   await Promise.allSettled(generalFeeds.map(async ({ url, name }) => {
@@ -445,7 +445,7 @@ async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
           if (content.length < 30) continue;
 
           let posted_at: string | null = null;
-          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ }
 
           results.push({
             source: src(link), content, title, url: link,
@@ -454,13 +454,13 @@ async function crawlDirectRSS(keywords: string[]): Promise<any[]> {
           });
         } catch { /* skip */ }
       }
-    } catch (e: any) { console.warn(`[rss:${name}] failed:`, e.message); }
+    } catch (e: unknown) { console.warn(`[rss:${name}] failed:`, (e as Error).message); }
   }));
   return results;
 }
 
-async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   await Promise.allSettled(keywords.slice(0, 5).map(async (kw) => {
     try {
       const params = new URLSearchParams({ query: kw, hitsPerPage: "20", tags: "story,comment" });
@@ -486,13 +486,13 @@ async function crawlHackerNews(keywords: string[], dateFrom?: string): Promise<a
           metrics: { comments: h.num_comments || 0, likes: h.points || 0 },
         });
       }
-    } catch (e: any) { console.warn("[hackernews] failed:", e.message); }
+    } catch (e: unknown) { console.warn("[hackernews] failed:", (e as Error).message); }
   }));
   return results;
 }
 
-async function crawlReddit(keywords: string[], dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlReddit(keywords: string[], dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
   await Promise.allSettled(keywords.slice(0, 5).map(async (kw) => {
     try {
@@ -517,13 +517,13 @@ async function crawlReddit(keywords: string[], dateFrom?: string): Promise<any[]
           metrics: { likes: p.ups || 0, comments: p.num_comments || 0 },
         });
       }
-    } catch (e: any) { console.warn("[reddit] failed:", e.message); }
+    } catch (e: unknown) { console.warn("[reddit] failed:", (e as Error).message); }
   }));
   return results;
 }
 
-async function crawlBrave(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlBrave(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const query = keywords.slice(0, 4).map(k => `"${k}"`).join(" OR ");
   let freshness = "pw";
   if (dateFrom) {
@@ -564,12 +564,12 @@ async function crawlBrave(keywords: string[], limit: number, apiKey: string, dat
       });
     }
     console.log(`[brave] ${results.length} results`);
-  } catch (e: any) { console.warn("[brave] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[brave] failed:", (e as Error).message); }
   return results;
 }
 
-async function crawlNewsAPI(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlNewsAPI(keywords: string[], limit: number, apiKey: string, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const query = keywords.slice(0, 5).map(k => `"${k}"`).join(" OR ");
   try {
     const params = new URLSearchParams({
@@ -595,12 +595,12 @@ async function crawlNewsAPI(keywords: string[], limit: number, apiKey: string, d
       });
     }
     console.log(`[newsapi] ${results.length} results`);
-  } catch (e: any) { console.warn("[newsapi] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[newsapi] failed:", (e as Error).message); }
   return results;
 }
 
-async function crawlFirecrawl(keywords: string[], limit: number, apiKey: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlFirecrawl(keywords: string[], limit: number, apiKey: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const query = keywords.slice(0, 4).map(k => `"${k}"`).join(" OR ");
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -627,7 +627,7 @@ async function crawlFirecrawl(keywords: string[], limit: number, apiKey: string)
       });
     }
     console.log(`[firecrawl] ${results.length} results`);
-  } catch (e: any) { console.warn("[firecrawl] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[firecrawl] failed:", (e as Error).message); }
   return results;
 }
 
@@ -659,8 +659,8 @@ function detectLanguage(text: string): string {
 }
 
 // ── Twitter/X crawler ─────────────────────────────────────────────────────
-async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: string, dateTo?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const query = keywords.slice(0, 5).map(k => `"${k}"`).join(" OR ");
     const params = new URLSearchParams({
@@ -678,15 +678,15 @@ async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: 
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
+      const err = await res.json().catch(() => ({ /* noop */ }));
       console.warn(`[twitter] ${res.status}: ${err.detail || err.title || "API error"}`);
       return results;
     }
     const data = await res.json();
     const tweets = data.data || [];
-    const userMap = new Map((data.includes?.users || []).map((u: any) => [u.id, u]));
+    const userMap = new Map((data.includes?.users || []).map((u: unknown) => [u.id, u]));
     for (const tweet of tweets) {
-      const author = userMap.get(tweet.author_id) as any;
+      const author = userMap.get(tweet.author_id) as unknown;
       const content = clean(tweet.text || "");
       if (content.length < 15) continue;
       results.push({
@@ -709,7 +709,7 @@ async function crawlTwitter(keywords: string[], bearerToken: string, dateFrom?: 
       });
     }
     console.log(`[twitter] ${results.length} tweets`);
-  } catch (e: any) { console.warn("[twitter] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[twitter] failed:", (e as Error).message); }
   return results;
 }
 
@@ -723,8 +723,8 @@ const NITTER_INSTANCES = [
   "https://nitter.privacydev.net",
 ];
 
-async function crawlTwitterNitter(keywords: string[], dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlTwitterNitter(keywords: string[], dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const query = keywords.slice(0, 3).map(k => `"${k}"`).join(" OR ");
   const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
 
@@ -787,8 +787,8 @@ async function crawlTwitterNitter(keywords: string[], dateFrom?: string): Promis
         console.log(`[nitter] ${results.length} tweets from ${instance}`);
         break; // got results, stop trying other instances
       }
-    } catch (e: any) {
-      console.warn(`[nitter] ${instance} failed: ${e.message}`);
+    } catch (e: unknown) {
+      console.warn(`[nitter] ${instance} failed: ${(e as Error).message}`);
     }
   }
   return results;
@@ -843,7 +843,7 @@ Base your analysis on what is ACTUALLY spoken and shown. Do not guess. If the vi
     const data = await res.json();
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     if (!rawText) return null;
-    let parsed: any;
+    let parsed: unknown;
     try { parsed = JSON.parse(rawText); }
     catch {
       const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
@@ -855,8 +855,8 @@ Base your analysis on what is ACTUALLY spoken and shown. Do not guess. If the vi
       summary: parsed.full_summary || "",
       content_type: parsed.content_type || "other",
     };
-  } catch (e: any) {
-    console.warn(`[youtube-gemini] failed for ${videoId}: ${e.message}`);
+  } catch (e: unknown) {
+    console.warn(`[youtube-gemini] failed for ${videoId}: ${(e as Error).message}`);
     return null;
   }
 }
@@ -884,7 +884,7 @@ async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
       if (ct.includes("application/json") || ct.includes("text/javascript")) {
         const data = await r1.json();
         // json3 format: { events: [{ segs: [{ utf8: "text" }] }] }
-        const events: any[] = data.events || [];
+        const events: unknown[] = data.events || [];
         const parts: string[] = [];
         for (const evt of events) {
           for (const seg of (evt.segs || [])) {
@@ -914,8 +914,8 @@ async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
         return text;
       }
     }
-  } catch (e: any) {
-    console.log(`[youtube] transcript unavailable for ${videoId}: ${e.message}`);
+  } catch (e: unknown) {
+    console.log(`[youtube] transcript unavailable for ${videoId}: ${(e as Error).message}`);
   }
   return null;
 }
@@ -930,8 +930,8 @@ function truncateTranscript(transcript: string, maxChars = 3000): string {
   return `${head} [...] ${tail}`;
 }
 
-async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string, geminiKey?: string, brandName?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: string, dateTo?: string, geminiKey?: string, brandName?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const query = keywords.slice(0, 5).join(" | ");
     const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
@@ -951,15 +951,15 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     if (items.length === 0) return results;
 
     // Fetch stats + captions availability in one batch call
-    const videoIds = items.map((v: any) => v.id?.videoId).filter(Boolean);
+    const videoIds = items.map((v: unknown) => v.id?.videoId).filter(Boolean);
     const statsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
     statsUrl.searchParams.set("part", "statistics,contentDetails");
     statsUrl.searchParams.set("id", videoIds.join(","));
     statsUrl.searchParams.set("key", apiKey);
     const statsRes = await fetch(statsUrl.toString(), { signal: AbortSignal.timeout(10000) });
     const statsData = statsRes.ok ? await statsRes.json() : { items: [] };
-    const statsMap: Record<string, any> = {};
-    const captionMap: Record<string, boolean> = {}; // whether captions are available
+    const statsMap: Record<string, unknown> = { /* noop */ };
+    const captionMap: Record<string, boolean> = { /* noop */ }; // whether captions are available
     for (const v of (statsData.items || [])) {
       statsMap[v.id] = v.statistics;
       captionMap[v.id] = v.contentDetails?.caption === "true";
@@ -970,7 +970,7 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     const transcriptResults = await Promise.allSettled(
       transcriptIds.map(vid => fetchYouTubeTranscript(vid))
     );
-    const transcriptMap: Record<string, string | null> = {};
+    const transcriptMap: Record<string, string | null> = { /* noop */ };
     transcriptIds.forEach((vid, i) => {
       const r = transcriptResults[i];
       transcriptMap[vid] = r.status === "fulfilled" ? r.value : null;
@@ -979,9 +979,9 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     const dateFromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
     for (const item of items) {
       const vid = item.id?.videoId;
-      const sn = item.snippet || {};
+      const sn = item.snippet || { /* noop */ };
       if (dateFromMs > 0 && new Date(sn.publishedAt).getTime() < dateFromMs) continue;
-      const st = statsMap[vid] || {};
+      const st = statsMap[vid] || { /* noop */ };
 
       const title = sn.title || "";
       const description = sn.description || "";
@@ -1040,15 +1040,15 @@ async function crawlYouTube(keywords: string[], apiKey: string, dateFrom?: strin
     const withTranscript = results.filter(r => r.has_transcript).length;
     const withGemini = results.filter(r => r.gemini_analysed).length;
     console.log(`[youtube] ${results.length} videos, ${withTranscript} with content (${withGemini} via Gemini native)`);
-  } catch (e: any) { console.warn("[youtube] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[youtube] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Trustpilot RSS (free, no scraping, real review data) ─────────────────
 // Trustpilot publishes RSS feeds for company pages at /review/{domain}?format=rss
 // Also searches their sitemap for keyword-matching companies
-async function crawlTrustpilotRSS(keywords: string[], orgDomain: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlTrustpilotRSS(keywords: string[], orgDomain: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   // Build candidate domains to check: org domain + keyword-derived guesses
   const candidateDomains: string[] = [];
   if (orgDomain && !orgDomain.includes(" ")) {
@@ -1083,7 +1083,7 @@ async function crawlTrustpilotRSS(keywords: string[], orgDomain: string): Promis
           const content = clean([title, desc].filter(Boolean).join(". "));
           if (content.length < 20) continue;
           let posted_at: string | null = null;
-          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch {}
+          try { if (pubRaw) posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ }
           results.push({
             source: "trustpilot",
             content: content.slice(0, 600),
@@ -1096,15 +1096,15 @@ async function crawlTrustpilotRSS(keywords: string[], orgDomain: string): Promis
         } catch { /* skip malformed item */ }
       }
       if (items.length > 0) console.log(`[trustpilot] ${domain}: ${items.length} reviews`);
-    } catch (e: any) { console.warn(`[trustpilot] ${domain} failed:`, e.message); }
+    } catch (e: unknown) { console.warn(`[trustpilot] ${domain} failed:`, (e as Error).message); }
   }));
   return results;
 }
 
 // ── iTunes/App Store reviews (free, official API) ─────────────────────────
 // Uses iTunes Search API to find apps by keyword, then fetches their RSS review feed
-async function crawlAppStoreReviews(keywords: string[]): Promise<any[]> {
-  const results: any[] = [];
+async function crawlAppStoreReviews(keywords: string[]): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     // Search for matching apps
     const query = keywords.slice(0, 2).join(" ");
@@ -1115,7 +1115,7 @@ async function crawlAppStoreReviews(keywords: string[]): Promise<any[]> {
     const apps = (searchData.results || []).slice(0, 3); // top 3 matching apps
     if (apps.length === 0) return results;
 
-    await Promise.allSettled(apps.map(async (app: any) => {
+    await Promise.allSettled(apps.map(async (app: unknown) => {
       try {
         // RSS feed for App Store reviews (page 1, 10 reviews)
         const rssUrl = `https://itunes.apple.com/rss/customerreviews/page=1/id=${app.trackId}/sortby=mostrecent/json?l=en&cc=us`;
@@ -1143,16 +1143,16 @@ async function crawlAppStoreReviews(keywords: string[]): Promise<any[]> {
             metrics: { rating: rating ? parseInt(rating) : null },
           });
         }
-      } catch (e: any) { console.warn(`[appstore] ${app.trackId} failed:`, e.message); }
+      } catch (e: unknown) { console.warn(`[appstore] ${app.trackId} failed:`, (e as Error).message); }
     }));
     console.log(`[app-store] ${results.length} reviews for "${query}"`);
-  } catch (e: any) { console.warn("[app-store] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[app-store] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Authenticated Reddit (uses OAuth if client_id/secret configured) ──────
-async function crawlRedditAuth(keywords: string[], clientId: string, clientSecret: string, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function crawlRedditAuth(keywords: string[], clientId: string, clientSecret: string, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     // Get OAuth token
     const tokenRes = await fetch("https://www.reddit.com/api/v1/access_token", {
@@ -1200,11 +1200,11 @@ async function crawlRedditAuth(keywords: string[], clientId: string, clientSecre
             metrics: { likes: p.ups || 0, comments: p.num_comments || 0 },
           });
         }
-      } catch (e: any) { console.warn(`[reddit-auth] kw "${kw}" failed:`, e.message); }
+      } catch (e: unknown) { console.warn(`[reddit-auth] kw "${kw}" failed:`, (e as Error).message); }
     }));
     console.log(`[reddit-auth] ${results.length} results`);
-  } catch (e: any) {
-    console.warn("[reddit-auth] failed, falling back to public:", e.message);
+  } catch (e: unknown) {
+    console.warn("[reddit-auth] failed, falling back to public:", (e as Error).message);
     return crawlReddit(keywords, dateFrom);
   }
   return results;
@@ -1217,13 +1217,13 @@ async function analyzeWithAI(
   items: { source: string; url: string; title: string; content: string; has_transcript?: boolean }[],
   brandName: string,
   geminiApiKey?: string,
-): Promise<any[]> {
+): Promise<unknown[]> {
   if (!geminiApiKey) {
     console.log("[ai] No AI key configured — using keyword sentiment");
     return [];
   }
 
-  const analyses: any[] = [];
+  const analyses: unknown[] = [];
   const BATCH = 15; // smaller batches = more reliable
 
 
@@ -1264,12 +1264,12 @@ Return ONLY valid JSON: {"analyses":[...]}`,
           )}`,
         },
       ], { jsonMode: true });
-      let raw = resText || "{}";
+      let raw = resText || "{ /* noop */ }";
       // Strip markdown code fences if present
       raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
       try {
         const parsed = JSON.parse(raw);
-        const batchAnalyses: any[] = parsed.analyses || (Array.isArray(parsed) ? parsed : []);
+        const batchAnalyses: unknown[] = parsed.analyses || (Array.isArray(parsed) ? parsed : []);
         for (let j = 0; j < batch.length; j++) {
           const a = batchAnalyses[j];
           if (a && typeof a.sentiment_label === "string") {
@@ -1279,7 +1279,7 @@ Return ONLY valid JSON: {"analyses":[...]}`,
             analyses.push({
               relevant: true, ...kw,
               summary: batch[j].title || batch[j].content.slice(0, 150),
-              flags: {},
+              flags: { /* noop */ },
             });
           }
         }
@@ -1287,8 +1287,8 @@ Return ONLY valid JSON: {"analyses":[...]}`,
       } catch {
         console.warn(`[ai] JSON parse failed for batch ${i}–${i + BATCH}`);
       }
-    } catch (e: any) {
-      console.warn(`[ai] fetch error for batch ${i}–${i + BATCH}:`, e.message);
+    } catch (e: unknown) {
+      console.warn(`[ai] fetch error for batch ${i}–${i + BATCH}:`, (e as Error).message);
     }
 
     if (!batchOk) {
@@ -1305,7 +1305,7 @@ Return ONLY valid JSON: {"analyses":[...]}`,
         analyses.push({
           relevant: true, ...kw,
           summary: fallbackSummary,
-          flags: {},
+          flags: { /* noop */ },
         });
       }
     }
@@ -1340,8 +1340,8 @@ Deno.serve(async (req) => {
 
   try {
     // ── 1. Parse body ──────────────────────────────────────────────────────
-    let body: any = {};
-    try { body = JSON.parse(bodyText || "{}"); } catch {
+    let body: unknown = { /* noop */ };
+    try { body = JSON.parse(bodyText || "{ /* noop */ }"); } catch {
       return json({ error: "Invalid JSON body" }, 400);
     }
 
@@ -1397,12 +1397,12 @@ Deno.serve(async (req) => {
 
     const orgName = orgRes.data?.name || "";
     const orgDomain = (orgRes.data?.domain || "").toLowerCase();
-    const ignoredDomains = new Set((ignoredRes.data || []).map((r: any) => r.domain?.toLowerCase() || ""));
+    const ignoredDomains = new Set((ignoredRes.data || []).map((r: unknown) => r.domain?.toLowerCase() || ""));
 
     // Extract org API keys
     const apiKeys = apiKeysRes.data || [];
     const getApiKey = (provider: string, keyName: string) =>
-      apiKeys.find((k: any) => k.provider === provider && k.key_name === keyName)?.key_value || null;
+      apiKeys.find((k: unknown) => k.provider === provider && k.key_name === keyName)?.key_value || null;
     const twitterBearerToken = getApiKey("twitter", "bearer_token");
     const youtubeApiKey = getApiKey("youtube", "api_key") || Deno.env.get("YOUTUBE_API_KEY") || null;
     const redditClientId = getApiKey("reddit", "client_id");
@@ -1410,7 +1410,7 @@ Deno.serve(async (req) => {
 
     // Load noise filter rules from tracking_profiles.settings
     const noiseRules: Array<{ type: string; value: string; field?: string }> =
-      (profileRes.data?.settings as any)?.noise_rules || [];
+      (profileRes.data?.settings as unknown)?.noise_rules || [];
     const noiseBlockedDomains = new Set(
       noiseRules.filter(r => r.type === "domain").map(r => r.value.toLowerCase())
     );
@@ -1426,11 +1426,11 @@ Deno.serve(async (req) => {
     // Competitor scans are always separate — they don't belong in brand health metrics
     const allDbKeywords = kwRes.data || [];
     const competitorKeywords = allDbKeywords
-      .filter((k: any) => k.type === "competitor")
-      .map((k: any) => k.value as string);
+      .filter((k: unknown) => k.type === "competitor")
+      .map((k: unknown) => k.value as string);
     const brandDbKeywords = allDbKeywords
-      .filter((k: any) => k.type !== "competitor")
-      .map((k: any) => k.value as string);
+      .filter((k: unknown) => k.type !== "competitor")
+      .map((k: unknown) => k.value as string);
 
     // Determine scan mode:
     // - If rawKws passed AND scan_context="competitor": this is a targeted competitor scan
@@ -1495,7 +1495,7 @@ Deno.serve(async (req) => {
     const wantSource = (s: string) => requestedSources.length === 0 || requestedSources.includes(s);
 
     // ── 5. Run all crawlers in parallel ────────────────────────────────────
-    const allRaw: any[] = [];
+    const allRaw: unknown[] = [];
     const scanLog: { source: string; found: number; error?: string }[] = [];
 
     const crawlPromises: Promise<void>[] = [];
@@ -1626,7 +1626,7 @@ Deno.serve(async (req) => {
 
     // ── Telegram scanner ─────────────────────────────────────────────────
     if (wantSource("telegram") || requestedSources.length === 0) {
-      const telegramToken = apiKeysRes.data?.find((k: any) => k.provider === "telegram")?.key_value || null;
+      const telegramToken = apiKeysRes.data?.find((k: unknown) => k.provider === "telegram")?.key_value || null;
       crawlPromises.push((async () => {
         try {
           const { data } = await supabase.functions.invoke("scan-telegram", {
@@ -1642,7 +1642,7 @@ Deno.serve(async (req) => {
 
     // ── Discord scanner ──────────────────────────────────────────────────
     if (wantSource("discord") || requestedSources.length === 0) {
-      const discordToken = apiKeysRes.data?.find((k: any) => k.provider === "discord")?.key_value || null;
+      const discordToken = apiKeysRes.data?.find((k: unknown) => k.provider === "discord")?.key_value || null;
       crawlPromises.push((async () => {
         try {
           const { data } = await supabase.functions.invoke("scan-discord", {
@@ -1680,7 +1680,7 @@ Deno.serve(async (req) => {
         // Apply noise filter domain rules
         if (noiseBlockedDomains.has(host)) return false;
       } catch { return false; }
-      // Apply noise filter keyword rules (block if content matches any blocked keyword)
+      // Apply noise filter keyword rules (block if content matches unknown blocked keyword)
       if (noiseBlockedKeywords.length > 0) {
         const lc = (r.content + " " + (r.title || "")).toLowerCase();
         if (noiseBlockedKeywords.some(kw => lc.includes(kw))) return false;
@@ -1708,7 +1708,7 @@ Deno.serve(async (req) => {
 
       const rawCount = allRaw.length;
       const zeroReason = rawCount === 0
-        ? `No results from any source. Keywords tried: "${keywords.join('", "')}". Make sure your keywords exactly match how your brand appears in news and social media.`
+        ? `No results from unknown source. Keywords tried: "${keywords.join('", "')}". Make sure your keywords exactly match how your brand appears in news and social media.`
         : `${rawCount} results found but all filtered out (already in database, date out of range, blocked domains, or error pages). Try widening your date range.`;
 
       return json({
@@ -1761,7 +1761,7 @@ Deno.serve(async (req) => {
     }> = [];
 
     {
-      const sourceGroups = new Map<string, Map<string, any[]>>();
+      const sourceGroups = new Map<string, Map<string, unknown[]>>();
       for (const r of newItems) {
         const source = r.source || "unknown";
         const text_ = ((r.title || "") + " " + (r.content || "").slice(0, 300)).toLowerCase().replace(/[^a-z0-9 ]/g, "");
@@ -1774,7 +1774,7 @@ Deno.serve(async (req) => {
       for (const [fp, groups] of sourceGroups) {
         const distinctSources = [...groups.keys()];
         if (distinctSources.length >= 3) {
-          const total = [...groups.values()].reduce((s: number, a: any[]) => s + a.length, 0);
+          const total = [...groups.values()].reduce((s: number, a: unknown[]) => s + a.length, 0);
           const sev = total >= 15 ? "critical" : total >= 8 ? "high" : "medium";
           const sampleTitle = [...groups.values()][0][0]?.title || "Unknown";
           crossPlatformAlerts.push({
@@ -1827,7 +1827,7 @@ Deno.serve(async (req) => {
         return {
           relevant: true, ...kw,
           summary: r.title || r.content.slice(0, 180),
-          flags: {},
+          flags: { /* noop */ },
           language: lang,
         };
       });
@@ -1835,9 +1835,9 @@ Deno.serve(async (req) => {
 
     // ── 8b. Filter irrelevant items (AI explicitly said not relevant) ──────
     // Only filter when AI is actually running — keyword fallback marks everything relevant
-    const relevantPairs: Array<{ raw: any; analysis: any }> = [];
+    const relevantPairs: Array<{ raw: unknown; analysis: unknown }> = [];
     for (let i = 0; i < newItems.length; i++) {
-      const a = analyses[i] || {};
+      const a = analyses[i] || { /* noop */ };
       // Only discard if AI explicitly said false (not just missing/undefined)
       if (a.relevant === false) {
         console.log(`[ai] Filtered irrelevant: "${(newItems[i].title || newItems[i].content).slice(0, 80)}"`);
@@ -1877,8 +1877,8 @@ Deno.serve(async (req) => {
         language: lang || "en",
         posted_at: r.posted_at || null,
         url: r.url ? normalizeUrl(r.url) || r.url : null,
-        metrics: r.metrics || {},
-        flags: { ...(a.flags || {}), date_verified: r.date_verified || false, has_transcript: r.has_transcript || false },
+        metrics: r.metrics || { /* noop */ },
+        flags: { ...(a.flags || { /* noop */ }), date_verified: r.date_verified || false, has_transcript: r.has_transcript || false },
         status: "new",
         owner_user_id: userId, // null for scheduled/system scans — this is valid (nullable UUID)
         mention_type: scanMentionType,
@@ -1970,13 +1970,13 @@ Deno.serve(async (req) => {
             for (let i = 0; i < updates.length; i += 50) {
               const batch = updates.slice(i, i + 50);
               await Promise.all(
-                batch.map(u => sb.from("mentions").update({ entity_id: u.entity_id } as any).eq("id", u.id))
+                batch.map(u => sb.from("mentions").update({ entity_id: u.entity_id } as unknown).eq("id", u.id))
               );
             }
             console.log(`[entity-link] Linked ${updates.length} mentions to tracked entities`);
           }
-        } catch (e: any) {
-          console.warn("[entity-link] non-fatal:", e.message);
+        } catch (e: unknown) {
+          console.warn("[entity-link] non-fatal:", (e as Error).message);
         }
       })();
     }
@@ -2011,13 +2011,13 @@ Deno.serve(async (req) => {
         ai_used: geminiKey ? "gemini-direct" : "keyword-only",
         errors: insertErrors,
       },
-    } as any).eq("id", scanRun.id).then(() => {}).catch(() => {});
+    } as unknown).eq("id", scanRun.id).then(() => { /* noop */ }).catch(() => { /* noop */ });
 
     // ── 12. Narrative clustering (async, non-blocking) ─────────────────────
     if (geminiKey && inserted.length > 0) {
       (async () => {
         try {
-          const mentionIds = inserted.map((m: any) => m.id);
+          const mentionIds = inserted.map((m: unknown) => m.id);
           const sample = mentionRows.slice(0, 25).map((m, i) => ({
             i, source: m.source, content: (m.content || "").slice(0, 200),
           }));
@@ -2038,7 +2038,7 @@ Deno.serve(async (req) => {
           );
           if (!clusterRes.ok) throw new Error(`Gemini cluster error ${clusterRes.status}`);
           const clusterData = await clusterRes.json();
-          const rawN = clusterData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+          const rawN = clusterData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{ /* noop */ }";
 
           const parsed = JSON.parse(rawN);
           for (const c of (parsed.narratives || [])) {
@@ -2076,11 +2076,11 @@ Deno.serve(async (req) => {
               .map((idx: number) => ({ mention_id: mentionIds[idx], narrative_id: narrativeId }));
 
             if (links.length > 0) {
-              await sb.from("mention_narratives").insert(links).then(() => {}).catch(() => {});
+              await sb.from("mention_narratives").insert(links).then(() => { /* noop */ }).catch(() => { /* noop */ });
             }
           }
-        } catch (e: any) {
-          console.warn("[narratives] clustering failed (non-fatal):", e.message);
+        } catch (e: unknown) {
+          console.warn("[narratives] clustering failed (non-fatal):", (e as Error).message);
         }
       })();
     }
@@ -2098,7 +2098,7 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
         body: JSON.stringify({ org_id: parsedOrg }),
         signal: AbortSignal.timeout(5000), // don't wait — just kick it off
-      }).catch(() => {}); // fully non-blocking
+      }).catch(() => { /* noop */ }); // fully non-blocking
     }
 
     // ── 13. Return success ─────────────────────────────────────────────────
@@ -2116,7 +2116,7 @@ Deno.serve(async (req) => {
       errors: insertErrors,
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("run-scan FATAL:", err.message, err.stack);
 
     // Mark scan as failed if we created one

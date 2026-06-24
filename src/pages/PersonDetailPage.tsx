@@ -24,7 +24,7 @@ interface Person {
   name: string;
   titles: string[] | null;
   follower_count: number | null;
-  handles: any;
+  handles: unknown;
   links: string[] | null;
 }
 
@@ -51,7 +51,7 @@ const SENTIMENT_COLORS: Record<string, string> = {
   mixed: "hsl(35, 92%, 50%)",
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-popover border border-border rounded-lg p-2 shadow-lg text-xs">
@@ -84,7 +84,7 @@ export default function PersonDetailPage() {
     setPerson(personRes.data as Person | null);
     setOrgPerson(orgPersonRes.data as OrgPerson | null);
 
-    const mentionIds = (linksRes.data || []).map((l: any) => l.mention_id);
+    const mentionIds = (linksRes.data || []).map((l: unknown) => l.mention_id);
     if (mentionIds.length > 0) {
       const { data } = await supabase
         .from("mentions")
@@ -144,11 +144,11 @@ export default function PersonDetailPage() {
     const label = m.sentiment_label || "neutral";
     acc[label] = (acc[label] || 0) + 1;
     return acc;
-  }, {});
+  }, { /* noop */ });
   const sentimentData = Object.entries(sentimentCounts).map(([name, value]) => ({ name, value }));
 
   // Parse handles
-  const handles = person?.handles || {};
+  const handles = person?.handles || { /* noop */ };
   const handleEntries = Object.entries(handles as Record<string, string>).filter(([, v]) => v);
 
   const confidencePct = orgPerson?.confidence != null 

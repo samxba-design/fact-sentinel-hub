@@ -218,7 +218,7 @@ function Step({ number, title, desc }: { number: number; title: string; desc: st
 function Section({
   id, icon: Icon, color, badge, headline, sub, children, visual, reverse = false,
 }: {
-  id: string; icon: any; color: string; badge: string; headline: string; sub: string;
+  id: string; icon: unknown; color: string; badge: string; headline: string; sub: string;
   children: React.ReactNode; visual: React.ReactNode; reverse?: boolean;
 }) {
   return (

@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     const spreadsheetUrl = sheet.spreadsheetUrl;
 
     // Auto-populate with data if requested
-    let populatedTabs: string[] = [];
+    const populatedTabs: string[] = [];
     if (auto_populate !== false) {
       try {
         // Fetch all data types
@@ -127,13 +127,13 @@ Deno.serve(async (req) => {
         ]);
 
         // Build data for each tab
-        const tabData: Record<string, string[][]> = {};
+        const tabData: Record<string, string[][]> = { /* noop */ };
 
         const mentions = mentionsRes.data || [];
         if (mentions.length > 0) {
           tabData["Mentions"] = [
             ["ID", "Source", "Content", "Author", "Handle", "Sentiment", "Score", "Severity", "Status", "Posted At", "URL", "Followers", "Language"],
-            ...mentions.map((m: any) => [m.id, m.source, m.content, m.author_name, m.author_handle, m.sentiment_label, m.sentiment_score, m.severity, m.status, m.posted_at, m.url, m.author_follower_count, m.language]),
+            ...mentions.map((m: unknown) => [m.id, m.source, m.content, m.author_name, m.author_handle, m.sentiment_label, m.sentiment_score, m.severity, m.status, m.posted_at, m.url, m.author_follower_count, m.language]),
           ];
         }
 
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         if (narratives.length > 0) {
           tabData["Narratives"] = [
             ["ID", "Name", "Description", "Status", "Confidence", "First Seen", "Last Seen", "Example Phrases"],
-            ...narratives.map((n: any) => [n.id, n.name, n.description, n.status, n.confidence, n.first_seen, n.last_seen, (n.example_phrases || []).join("; ")]),
+            ...narratives.map((n: unknown) => [n.id, n.name, n.description, n.status, n.confidence, n.first_seen, n.last_seen, (n.example_phrases || []).join("; ")]),
           ];
         }
 
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
         if (incidents.length > 0) {
           tabData["Incidents"] = [
             ["ID", "Name", "Description", "Status", "Started At", "Ended At", "Stakeholders"],
-            ...incidents.map((i: any) => [i.id, i.name, i.description, i.status, i.started_at, i.ended_at, (i.stakeholders || []).join("; ")]),
+            ...incidents.map((i: unknown) => [i.id, i.name, i.description, i.status, i.started_at, i.ended_at, (i.stakeholders || []).join("; ")]),
           ];
         }
 
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
         if (escalations.length > 0) {
           tabData["Escalations"] = [
             ["ID", "Title", "Description", "Status", "Priority", "Department", "Created At", "Updated At"],
-            ...escalations.map((e: any) => [e.id, e.title, e.description, e.status, e.priority, e.department, e.created_at, e.updated_at]),
+            ...escalations.map((e: unknown) => [e.id, e.title, e.description, e.status, e.priority, e.department, e.created_at, e.updated_at]),
           ];
         }
 
@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         if (facts.length > 0) {
           tabData["Facts"] = [
             ["ID", "Title", "Statement", "Category", "Status", "Jurisdiction", "Department", "Source Link", "Approved By", "Version", "Last Reviewed", "Created At"],
-            ...facts.map((f: any) => [f.id, f.title, f.statement_text, f.category, f.status, f.jurisdiction, f.owner_department, f.source_link, f.approved_by, f.version, f.last_reviewed, f.created_at]),
+            ...facts.map((f: unknown) => [f.id, f.title, f.statement_text, f.category, f.status, f.jurisdiction, f.owner_department, f.source_link, f.approved_by, f.version, f.last_reviewed, f.created_at]),
           ];
         }
 
@@ -173,9 +173,9 @@ Deno.serve(async (req) => {
         if (people.length > 0) {
           tabData["People"] = [
             ["Person ID", "Name", "Titles", "Tier", "Status", "Confidence", "Follower Count", "Handles", "Links", "Evidence"],
-            ...people.map((op: any) => {
-              const p = op.people || {};
-              return [p.id, p.name, (p.titles || []).join("; "), op.tier, op.status, op.confidence, p.follower_count, JSON.stringify(p.handles || {}), (p.links || []).join("; "), op.evidence];
+            ...people.map((op: unknown) => {
+              const p = op.people || { /* noop */ };
+              return [p.id, p.name, (p.titles || []).join("; "), op.tier, op.status, op.confidence, p.follower_count, JSON.stringify(p.handles || { /* noop */ }), (p.links || []).join("; "), op.evidence];
             }),
           ];
         }
@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("create-google-sheet error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -95,7 +95,7 @@ export default function BriefingPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<unknown>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [digestEnabled, setDigestEnabled] = useState(false);
   const [digestFreq, setDigestFreq] = useState("weekly");
@@ -121,7 +121,7 @@ export default function BriefingPage() {
     ]).then(([mentionsRes, narrativesRes, incidentsRes, escalationsRes]) => {
       const mentions = mentionsRes.data || [];
       const sentCounts: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
-      const dayMap: Record<string, number> = {};
+      const dayMap: Record<string, number> = { /* noop */ };
       for (let i = 6; i >= 0; i--) {
         dayMap[format(subDays(now, i), "MMM dd")] = 0;
       }
@@ -172,7 +172,7 @@ export default function BriefingPage() {
       .eq("org_id", currentOrg.id)
       .maybeSingle()
       .then(({ data: tp }) => {
-        const schedule = (tp?.settings as any)?.digest_schedule;
+        const schedule = (tp?.settings as unknown)?.digest_schedule;
         if (schedule) {
           setDigestEnabled(schedule.enabled ?? false);
           setDigestFreq(schedule.frequency ?? "weekly");
@@ -190,10 +190,10 @@ export default function BriefingPage() {
         .select("settings")
         .eq("org_id", currentOrg.id)
         .maybeSingle();
-      const newSettings = { ...((tp?.settings as any) || {}), digest_schedule: { enabled: digestEnabled, frequency: digestFreq, time: digestTime } };
+      const newSettings = { ...((tp?.settings as unknown) || { /* noop */ }), digest_schedule: { enabled: digestEnabled, frequency: digestFreq, time: digestTime } };
       await supabase.from("tracking_profiles").upsert({ org_id: currentOrg.id, settings: newSettings });
       toast({ title: "Schedule saved" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error saving schedule", description: err.message, variant: "destructive" });
     } finally {
       setSavingSchedule(false);
@@ -206,7 +206,7 @@ export default function BriefingPage() {
     try {
       await supabase.functions.invoke("send-digest", { body: { org_id: currentOrg.id } });
       toast({ title: "Digest sent", description: "Your briefing digest has been sent." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSendingNow(false);
@@ -380,7 +380,7 @@ export default function BriefingPage() {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={data.sentimentData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {data.sentimentData.map((entry: any) => (
+                  {data.sentimentData.map((entry: unknown) => (
                     <Cell key={entry.name} fill={SENTIMENT_COLORS[entry.name] || "#888"} />
                   ))}
                 </Pie>
@@ -389,7 +389,7 @@ export default function BriefingPage() {
             </ResponsiveContainer>
           </div>
           <div className="flex justify-center gap-4 mt-2">
-            {data.sentimentData.map((s: any) => (
+            {data.sentimentData.map((s: unknown) => (
               <div key={s.name} className="flex items-center gap-1.5 text-xs">
                 <div className="w-2 h-2 rounded-full" style={{ background: SENTIMENT_COLORS[s.name] }} />
                 <span className="capitalize text-muted-foreground">{s.name}: {s.value}</span>
@@ -409,7 +409,7 @@ export default function BriefingPage() {
             <p className="text-sm text-muted-foreground text-center py-4">No active narratives</p>
           ) : (
             <div className="space-y-3">
-              {data.narratives.map((n: any, i: number) => (
+              {data.narratives.map((n: unknown, i: number) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                   <span className="text-sm text-card-foreground">{n.name}</span>
                   <div className="flex items-center gap-2">
@@ -432,7 +432,7 @@ export default function BriefingPage() {
             <p className="text-sm text-muted-foreground text-center py-4">No open escalations</p>
           ) : (
             <div className="space-y-3">
-              {data.escalations.slice(0, 5).map((e: any, i: number) => (
+              {data.escalations.slice(0, 5).map((e: unknown, i: number) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                   <span className="text-sm text-card-foreground">{e.title}</span>
                   <Badge variant="outline" className={`text-[9px] capitalize ${

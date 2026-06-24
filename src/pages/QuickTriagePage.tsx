@@ -30,7 +30,7 @@ interface TriageMention {
   severity: string | null;
   posted_at: string | null;
   url: string | null;
-  flags: any;
+  flags: unknown;
   status: string | null;
 }
 
@@ -50,6 +50,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 function cleanContent(text: string | null): string {
   if (!text) return "";
+  // eslint-disable-next-line no-control-regex
   return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, " ").trim();
 }
 
@@ -223,12 +224,12 @@ export default function QuickTriagePage() {
                         {current.sentiment_label}
                       </span>
                     )}
-                    {(current.flags as any)?.misinformation && (
+                    {(current.flags as unknown)?.misinformation && (
                       <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/5">
                         <Flag className="h-2.5 w-2.5 mr-0.5" /> Misinformation
                       </Badge>
                     )}
-                    {(current.flags as any)?.coordinated && (
+                    {(current.flags as unknown)?.coordinated && (
                       <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-400 bg-purple-500/5">
                         Coordinated
                       </Badge>

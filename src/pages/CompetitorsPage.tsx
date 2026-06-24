@@ -206,7 +206,7 @@ export default function CompetitorsPage() {
         description: `Found ${data?.mentions_created || 0} new mentions for "${comp.name}"`,
       });
       loadCompetitors();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
     } finally {
       setScanningId(null);
@@ -375,7 +375,7 @@ export default function CompetitorsPage() {
                   <Scatter
                     data={competitors.map(c => ({ name: c.name, x: c.mentionCount, y: c.negPct }))}
                     fill="hsl(var(--primary))"
-                    shape={(props: any) => {
+                    shape={(props: unknown) => {
                       const { cx, cy, payload } = props;
                       const isHighRisk = payload.y > 50 && payload.x > maxMentions / 2;
                       return (

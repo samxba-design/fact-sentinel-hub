@@ -15,7 +15,7 @@ interface ReportData {
   org_name: string;
   period_days: number;
   generated_at: string;
-  stats: Record<string, any>;
+  stats: Record<string, unknown>;
   content: string;
   sections: string[];
 }
@@ -83,7 +83,7 @@ export default function ReportGeneratorDialog({ trigger }: Props) {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       setReport(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);

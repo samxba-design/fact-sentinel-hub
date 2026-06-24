@@ -70,9 +70,9 @@ Deno.serve(async (req) => {
     const competitors = (competitorKwRes.data || []).map(k => k.value);
 
     const totalMentions = mentions.length;
-    const sentimentCounts: Record<string, number> = {};
-    const sourceCounts: Record<string, number> = {};
-    const severityCounts: Record<string, number> = {};
+    const sentimentCounts: Record<string, number> = { /* noop */ };
+    const sourceCounts: Record<string, number> = { /* noop */ };
+    const severityCounts: Record<string, number> = { /* noop */ };
     
     mentions.forEach(m => {
       const s = m.sentiment_label || "neutral";
@@ -145,7 +145,7 @@ Generate the report content with these sections. Use markdown formatting with he
   } catch (e) {
     console.error("generate-report error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

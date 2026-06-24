@@ -19,7 +19,7 @@ type RequiredAccess = "all" | "write" | "edit" | "manage";
 
 interface NavItem {
   to: string;
-  icon: any;
+  icon: unknown;
   label: string;
   access?: RequiredAccess;
 }

@@ -67,7 +67,7 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<unknown[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedRelation, setSelectedRelation] = useState("related");
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
 
   async function loadRelated() {
     const { data } = await supabase
-      .from("related_mentions" as any)
+      .from("related_mentions" as unknown)
       .select(`
         id, relation, related_id,
         mention:mentions!related_mentions_related_id_fkey(
@@ -102,7 +102,7 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
         .order("posted_at", { ascending: false })
         .limit(10);
       setSearchResults(data ?? []);
-    } catch {}
+    } catch { /* noop */ }
     setSearching(false);
   }
 
@@ -117,7 +117,7 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
     try {
       const { data: { user } } = await supabase.auth.getUser();
       // Create bidirectional link
-      await supabase.from("related_mentions" as any).upsert([
+      await supabase.from("related_mentions" as unknown).upsert([
         { org_id: currentOrg.id, mention_id: mentionId, related_id: targetId, relation: selectedRelation, created_by: user?.id },
         { org_id: currentOrg.id, mention_id: targetId, related_id: mentionId, relation: selectedRelation, created_by: user?.id },
       ], { onConflict: "mention_id,related_id" });
@@ -125,7 +125,7 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
       setSearchOpen(false);
       setSearchQuery("");
       toast({ title: "Linked", description: "Mentions linked successfully." });
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Link failed", description: e.message, variant: "destructive" });
     } finally {
       setLinkingId(null);
@@ -135,21 +135,21 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
   async function unlinkMention(relId: string, relatedId: string) {
     setDeletingId(relId);
     try {
-      await supabase.from("related_mentions" as any).delete().eq("id", relId);
+      await supabase.from("related_mentions" as unknown).delete().eq("id", relId);
       // Also remove the reverse link
-      await supabase.from("related_mentions" as any)
+      await supabase.from("related_mentions" as unknown)
         .delete()
         .eq("mention_id", relatedId)
         .eq("related_id", mentionId);
       setRelated(r => r.filter(x => x.id !== relId));
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Unlink failed", description: e.message, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }
   }
 
-  const snippetText = (m: any) =>
+  const snippetText = (m: unknown) =>
     (m.title || m.content || "").replace(/TITLE:\s*/i, "").replace(/TRANSCRIPT:\s*/i, "").slice(0, 120);
 
   return (

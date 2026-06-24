@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     const { keywords, app_urls, limit } = await req.json();
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     // Strategy 1: Search app stores by keywords
     if (keywords?.length > 0) {
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
                   try { return new URL(url).hostname.replace("www.", ""); } catch { return "app-store"; }
                 })(),
                 posted_at: null,
-                metrics: {},
+                metrics: { /* noop */ },
               });
             }
           }
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
                 try { return new URL(url).hostname.replace("www.", ""); } catch { return "app-store"; }
               })(),
               posted_at: null,
-              metrics: {},
+              metrics: { /* noop */ },
             });
           }
         } catch (e) {
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("scan-app-store error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

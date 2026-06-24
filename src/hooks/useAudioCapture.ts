@@ -32,7 +32,7 @@ export function useAudioCapture() {
     try {
       // Use getDisplayMedia for system audio capture
       // In Chrome, this lets the user share a tab/window with audio
-      const displayStream = await (navigator.mediaDevices as any).getDisplayMedia({
+      const displayStream = await (navigator.mediaDevices as unknown).getDisplayMedia({
         video: {
           width: { ideal: 1 },
           height: { ideal: 1 },
@@ -91,7 +91,7 @@ export function useAudioCapture() {
 
       // Return the destination stream for speech recognition
       return destination.stream;
-    } catch (err: any) {
+    } catch (err: unknown) {
       const message =
         err.name === 'AbortError'
           ? 'Screen share was cancelled.'
@@ -112,7 +112,7 @@ export function useAudioCapture() {
 
     if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch(() => { /* noop */ });
     }
 
     setState({
@@ -129,7 +129,7 @@ export function useAudioCapture() {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current.close().catch(() => { /* noop */ });
       }
     };
   }, []);

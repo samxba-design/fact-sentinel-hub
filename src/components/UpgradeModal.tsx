@@ -50,7 +50,7 @@ export default function UpgradeModal({ open, onOpenChange, feature }: UpgradeMod
       if (data?.url) {
         window.location.href = data.url;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoadingPlan(null);

@@ -196,7 +196,7 @@ export default function NarrativeNow() {
     ]);
 
     const mentions = mentionsRes.data || [];
-    const narratives = (narrativesRes as any).data || [];
+    const narratives = (narrativesRes as unknown).data || [];
     const lastScan = scanRes.data?.[0]?.finished_at || null;
 
     const negCount = mentions.filter(m => m.sentiment_label === "negative" || m.sentiment_label === "mixed").length;
@@ -233,7 +233,7 @@ export default function NarrativeNow() {
         table: "mentions",
         filter: `org_id=eq.${currentOrg.id}`,
       }, (payload) => {
-        const m = payload.new as any;
+        const m = payload.new as unknown;
         // Apply client-side filters (realtime can't do multi-value IN filters)
         if (sentimentFilter && !sentimentFilter.includes(m.sentiment_label)) return;
         if (severityFilter && !severityFilter.includes(m.severity)) return;
@@ -261,7 +261,7 @@ export default function NarrativeNow() {
       if (error) throw error;
       toast({ title: "Scan complete", description: `${res?.mentions_created || 0} new mentions found` });
       load();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Scan failed", description: e.message, variant: "destructive" });
     } finally {
       setScanning(false);

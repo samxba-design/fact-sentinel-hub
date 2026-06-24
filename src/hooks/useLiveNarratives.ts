@@ -65,7 +65,7 @@ export function useLiveNarratives() {
       .eq("org_id", currentOrg.id)
       .maybeSingle()
       .then(({ data }) => {
-        const serverCfg = (data?.settings as any)?.live_narratives;
+        const serverCfg = (data?.settings as unknown)?.live_narratives;
         if (serverCfg) {
           const merged = { ...DEFAULTS, ...serverCfg };
           setConfig(merged);
@@ -88,7 +88,7 @@ export function useLiveNarratives() {
           .eq("org_id", currentOrg.id)
           .maybeSingle()
           .then(({ data }) => {
-            const existingSettings = (data?.settings as Record<string, any>) || {};
+            const existingSettings = (data?.settings as Record<string, unknown>) || { /* noop */ };
             return supabase
               .from("tracking_profiles")
               .upsert({

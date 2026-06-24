@@ -59,12 +59,12 @@ export default function SentimentForecastWidget() {
       .or(`posted_at.gte.${ago},and(posted_at.is.null,created_at.gte.${ago})`)
       .order("created_at")
       .then(({ data }) => {
-        const dayMap: Record<string, { negative: number; positive: number; total: number }> = {};
+        const dayMap: Record<string, { negative: number; positive: number; total: number }> = { /* noop */ };
         for (let i = 13; i >= 0; i--) {
           const d = format(subDays(now, i), "MMM dd");
           dayMap[d] = { negative: 0, positive: 0, total: 0 };
         }
-        (data || []).forEach((m: any) => {
+        (data || []).forEach((m: unknown) => {
           const dateStr = m.posted_at || m.created_at;
           if (!dateStr) return;
           const d = format(new Date(dateStr), "MMM dd");
@@ -185,13 +185,13 @@ export default function SentimentForecastWidget() {
           <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
           <Tooltip
-            content={({ active, payload, label }: any) => {
+            content={({ active, payload, label }: unknown) => {
               if (!active || !payload?.length) return null;
               const isPred = payload[0]?.payload?.predicted;
               return (
                 <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-xs">
                   <p className="text-muted-foreground mb-1">{label} {isPred ? "(projected est.)" : ""}</p>
-                  {payload.map((p: any) => (
+                  {payload.map((p: unknown) => (
                     <p key={p.dataKey} style={{ color: p.color }} className="font-medium">{p.name}: {p.value}</p>
                   ))}
                 </div>

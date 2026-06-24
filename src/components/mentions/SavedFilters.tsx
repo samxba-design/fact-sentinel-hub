@@ -12,12 +12,12 @@ import { useToast } from "@/hooks/use-toast";
 interface SavedFilter {
   id: string;
   name: string;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
 }
 
 interface SavedFiltersProps {
-  currentFilters: Record<string, any>;
-  onApply: (filters: Record<string, any>) => void;
+  currentFilters: Record<string, unknown>;
+  onApply: (filters: Record<string, unknown>) => void;
 }
 
 export default function SavedFilters({ currentFilters, onApply }: SavedFiltersProps) {
@@ -37,7 +37,7 @@ export default function SavedFilters({ currentFilters, onApply }: SavedFiltersPr
       .eq("org_id", currentOrg.id)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .then(({ data }) => setFilters((data as any) || []));
+      .then(({ data }) => setFilters((data as unknown) || []));
   }, [currentOrg, user]);
 
   const saveFilter = async () => {
@@ -56,7 +56,7 @@ export default function SavedFilters({ currentFilters, onApply }: SavedFiltersPr
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else if (data) {
-      setFilters((prev) => [data as any, ...prev]);
+      setFilters((prev) => [data as unknown, ...prev]);
       setNewName("");
       toast({ title: "Filter saved" });
     }

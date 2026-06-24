@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useState } from "react";
 
 interface GuideSection {
-  icon: any;
+  icon: unknown;
   title: string;
   route: string;
   description: string;

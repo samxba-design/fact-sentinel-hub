@@ -42,7 +42,7 @@ export default function PeoplePage() {
   useEffect(() => {
     if (!currentOrg) return;
     supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle()
-      .then(({ data }) => setWatchlistIds((data?.settings as any)?.watchlist_alerts || []));
+      .then(({ data }) => setWatchlistIds((data?.settings as unknown)?.watchlist_alerts || []));
   }, [currentOrg]);
 
   const fetchPeople = () => {
@@ -55,7 +55,7 @@ export default function PeoplePage() {
       .order("created_at", { ascending: false })
       .limit(50)
       .then(({ data }) => {
-        setPeople((data as any) || []);
+        setPeople((data as unknown) || []);
         setLoading(false);
       });
   };
@@ -69,10 +69,10 @@ export default function PeoplePage() {
       const score = p.impact_score || calculateImpactScore(p);
       // Fire-and-forget: persist computed score back to DB
       if (!p.impact_score && score > 0) {
-        const existingMeta = (p as any).metadata || {};
+        const existingMeta = (p as unknown).metadata || { /* noop */ };
         supabase
           .from("org_people")
-          .update({ metadata: { ...existingMeta, impact_score: score } } as any)
+          .update({ metadata: { ...existingMeta, impact_score: score } } as unknown)
           .eq("id", p.person_id)
           .then()
           .catch(() => {/* silent */});

@@ -183,7 +183,7 @@ serve(async (req) => {
 
   try {
     const body: InterviewRequest = await req.json();
-    const { action, stream = false, context = {} } = body;
+    const { action, stream = false, context = { /* noop */ } } = body;
 
     // --- STREAMING PATH for generate_response ---
     if (action === "generate_response" && stream) {
@@ -203,7 +203,7 @@ serve(async (req) => {
             }
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
             controller.close();
-          } catch (err: any) {
+          } catch (err: unknown) {
             const errorEvent = JSON.stringify({ type: "error", error: err.message });
             controller.enqueue(encoder.encode(`data: ${errorEvent}\n\n`));
             controller.close();
@@ -286,7 +286,7 @@ Give a quick coaching tip (1-2 sentences) — what could they improve for next t
       JSON.stringify({ result, action }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Interview copilot error:", err);
     return new Response(
       JSON.stringify({ error: err.message || "Internal server error" }),

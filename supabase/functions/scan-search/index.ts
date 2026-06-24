@@ -31,7 +31,7 @@ function xmlDecode(s: string) {
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
 }
 
-async function bingRss(query: string): Promise<any[]> {
+async function bingRss(query: string): Promise<unknown[]> {
   try {
     const res = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`, {
       headers: { "User-Agent":"Mozilla/5.0" }, signal: AbortSignal.timeout(10000),
@@ -47,29 +47,29 @@ async function bingRss(query: string): Promise<any[]> {
         if (!link||blocked(link)) return null;
         const content = clean([title,desc].filter(Boolean).join(". "));
         if (content.length<30) return null;
-        let posted_at: string|null=null; try { if (pub) posted_at=new Date(pub).toISOString(); } catch {}
+        let posted_at: string|null=null; try { if (pub) posted_at=new Date(pub).toISOString(); } catch { /* noop */ }
         return { source:src(link), content, title, url:link, author_name:(() => { try { return new URL(link).hostname.replace("www.",""); } catch { return ""; } })(), posted_at, date_verified:!!posted_at };
       } catch { return null; }
     }).filter(Boolean);
   } catch { return []; }
 }
 
-async function hnSearch(query: string, dateFrom?: string): Promise<any[]> {
+async function hnSearch(query: string, dateFrom?: string): Promise<unknown[]> {
   try {
     const params = new URLSearchParams({ query, hitsPerPage:"20", tags:"story,comment" });
     if (dateFrom) params.set("numericFilters",`created_at_i>${Math.floor(new Date(dateFrom).getTime()/1000)}`);
     const res = await fetch(`https://hn.algolia.com/api/v1/search?${params}`, { signal:AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.hits||[]).filter((h:any)=>h.story_text||h.comment_text||h.title).map((h:any) => ({
+    return (data.hits||[]).filter((h: unknown)=>h.story_text||h.comment_text||h.title).map((h: unknown) => ({
       source:"forum", content:clean((h.story_text||h.comment_text||h.title||"").slice(0,500)),
       title:h.title||"", url:h.url||`https://news.ycombinator.com/item?id=${h.objectID}`,
       author_name:h.author||"HackerNews", posted_at:h.created_at||null, date_verified:!!h.created_at,
-    })).filter((r:any)=>r.content.length>=30);
+    })).filter((r: unknown)=>r.content.length>=30);
   } catch { return []; }
 }
 
-async function redditPublic(query: string, dateFrom?: string): Promise<any[]> {
+async function redditPublic(query: string, dateFrom?: string): Promise<unknown[]> {
   try {
     const params = new URLSearchParams({ q:query, sort:"new", limit:"25", t:"month" });
     const res = await fetch(`https://www.reddit.com/search.json?${params}`, {
@@ -79,8 +79,8 @@ async function redditPublic(query: string, dateFrom?: string): Promise<any[]> {
     const data = await res.json();
     const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
     return (data.data?.children||[])
-      .filter((c:any)=>!dateMs||c.data.created_utc*1000>=dateMs)
-      .map((c:any) => {
+      .filter((c: unknown)=>!dateMs||c.data.created_utc*1000>=dateMs)
+      .map((c: unknown) => {
         const p=c.data;
         const content=clean((p.selftext||p.title||"").slice(0,500));
         if (content.length<20) return null;
@@ -91,7 +91,7 @@ async function redditPublic(query: string, dateFrom?: string): Promise<any[]> {
   } catch { return []; }
 }
 
-async function braveSearch(query: string, count: number, apiKey: string, freshness?: string): Promise<any[]> {
+async function braveSearch(query: string, count: number, apiKey: string, freshness?: string): Promise<unknown[]> {
   try {
     const params = new URLSearchParams({ q:query, count:String(Math.min(count,20)), search_lang:"en", safesearch:"off" });
     if (freshness) params.set("freshness",freshness);
@@ -102,8 +102,8 @@ async function braveSearch(query: string, count: number, apiKey: string, freshne
     if (!res.ok) return [];
     const data = await res.json();
     return [...(data.web?.results||[]),...(data.news?.results||[])]
-      .filter((r:any)=>r.url&&!blocked(r.url))
-      .map((r:any) => {
+      .filter((r: unknown)=>r.url&&!blocked(r.url))
+      .map((r: unknown) => {
         const content=clean([r.title,r.description,...(r.extra_snippets||[])].filter(Boolean).join(" ").slice(0,600));
         if (content.length<30) return null;
         return { source:src(r.url), content, title:r.title||"", url:r.url,
@@ -113,7 +113,7 @@ async function braveSearch(query: string, count: number, apiKey: string, freshne
   } catch { return []; }
 }
 
-async function newsApiSearch(query: string, count: number, apiKey: string, dateFrom?: string): Promise<any[]> {
+async function newsApiSearch(query: string, count: number, apiKey: string, dateFrom?: string): Promise<unknown[]> {
   try {
     const params = new URLSearchParams({ q:query, pageSize:String(Math.min(count,100)), language:"en", sortBy:"publishedAt" });
     if (dateFrom) params.set("from",new Date(dateFrom).toISOString().split("T")[0]);
@@ -123,7 +123,7 @@ async function newsApiSearch(query: string, count: number, apiKey: string, dateF
     if (!res.ok) return [];
     const data = await res.json();
     if (data.status!=="ok") return [];
-    return (data.articles||[]).filter((a:any)=>a.url&&a.title&&!blocked(a.url)).map((a:any) => {
+    return (data.articles||[]).filter((a: unknown)=>a.url&&a.title&&!blocked(a.url)).map((a: unknown) => {
       const content=clean([a.title,a.description].filter(Boolean).join(" ").slice(0,600));
       if (content.length<30) return null;
       return { source:src(a.url), content, title:a.title||"", url:a.url,
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
     ]);
 
     const seen = new Set<string>();
-    const results: any[] = [];
+    const results: unknown[] = [];
     for (const r of [...bingResults,...braveResults,...newsResults,...hnResults,...redditResults]) {
       if (!r.url||!r.content||r.content.length<25) continue;
       const key = r.url.toLowerCase().replace(/\/$/,"");
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success:true, results, discovery_engine:"multi-source", engine_breakdown:eb, query_used:query }),
       { headers: { ...CORS, "Content-Type":"application/json" } });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ success:false, error:err.message }), { status:500, headers: { ...CORS, "Content-Type":"application/json" } });
   }
 });

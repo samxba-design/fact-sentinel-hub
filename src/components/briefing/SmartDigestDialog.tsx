@@ -66,7 +66,7 @@ export default function SmartDigestDialog() {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Preview failed");
       setPreview(data.stats);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Preview failed", description: err.message, variant: "destructive" });
     } finally {
       setLoadingPreview(false);
@@ -102,7 +102,7 @@ export default function SmartDigestDialog() {
         title: `Digest sent to ${data.sent} recipient${data.sent !== 1 ? "s" : ""}`,
         description: data.subject,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Failed to send digest", description: err.message, variant: "destructive" });
     } finally {
       setSending(false);

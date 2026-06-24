@@ -25,12 +25,12 @@ const SENTIMENT_COLORS: Record<string, string> = {
   mixed: "hsl(35, 92%, 50%)",
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-popover border border-border rounded-lg p-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p: unknown) => (
         <p key={p.dataKey} style={{ color: p.color || p.fill }} className="font-medium">
           {p.name}: {p.value}
         </p>
@@ -57,7 +57,7 @@ export default function PersonTrendChart({ mentions }: PersonTrendChartProps) {
     const rangeDays = Math.min(daySpan + 1, 90);
 
     const now = new Date();
-    const dayMap: Record<string, { total: number; negative: number; positive: number; neutral: number }> = {};
+    const dayMap: Record<string, { total: number; negative: number; positive: number; neutral: number }> = { /* noop */ };
 
     for (let i = rangeDays - 1; i >= 0; i--) {
       const d = format(subDays(now, i), "MMM dd");

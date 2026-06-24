@@ -54,7 +54,7 @@ export function useResponseEfficacy(orgId: string | undefined, incidentId?: stri
     if (!orgId) return;
     setLoading(true);
     try {
-      let q = supabase.from("response_events" as any).select("*").eq("org_id", orgId).order("published_at", { ascending: false });
+      let q = supabase.from("response_events" as unknown).select("*").eq("org_id", orgId).order("published_at", { ascending: false });
       if (incidentId) q = q.eq("incident_id", incidentId);
       const { data } = await q;
       setEvents((data as ResponseEvent[]) ?? []);
@@ -76,11 +76,11 @@ export async function logResponseEvent(data: LogResponseData): Promise<ResponseE
     .gte("posted_at", before).lt("posted_at", data.published_at);
 
   const sentBefore = preMentions?.length
-    ? preMentions.reduce((a: number, m: any) => a + (m.sentiment_score ?? 0), 0) / preMentions.length
+    ? preMentions.reduce((a: number, m: unknown) => a + (m.sentiment_score ?? 0), 0) / preMentions.length
     : null;
 
   const { data: result, error } = await supabase
-    .from("response_events" as any)
+    .from("response_events" as unknown)
     .insert({
       ...data,
       sentiment_before: sentBefore,
@@ -102,7 +102,7 @@ export async function computeEfficacy(event: ResponseEvent, orgId: string): Prom
 
   if (!postMentions?.length) return { efficacy_label: "pending" };
 
-  const sentAfter = postMentions.reduce((a: number, m: any) => a + (m.sentiment_score ?? 0), 0) / postMentions.length;
+  const sentAfter = postMentions.reduce((a: number, m: unknown) => a + (m.sentiment_score ?? 0), 0) / postMentions.length;
   const sentBefore = event.sentiment_before ?? 0;
   const volBefore = event.volume_before ?? 0;
   const volAfter = postMentions.length;
@@ -124,7 +124,7 @@ export async function computeEfficacy(event: ResponseEvent, orgId: string): Prom
     efficacy_score: score,
     efficacy_label: label,
   };
-  await supabase.from("response_events" as any).update(patch).eq("id", event.id);
+  await supabase.from("response_events" as unknown).update(patch).eq("id", event.id);
   return patch;
 }
 

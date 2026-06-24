@@ -63,8 +63,8 @@ export default function BulkScanSchedulingTab() {
       supabase.from("scan_runs").select("id", { count: "exact", head: true }).eq("org_id", currentOrg.id).eq("status", "completed"),
     ]).then(([sourcesRes, profileRes, lastScanRes, countRes]) => {
       const sources = sourcesRes.data || [];
-      const settings = (profileRes.data?.settings as Record<string, any>) || {};
-      const scanSchedules = settings.scan_schedules || {};
+      const settings = (profileRes.data?.settings as Record<string, unknown>) || { /* noop */ };
+      const scanSchedules = settings.scan_schedules || { /* noop */ };
       setMultiLangEnabled(settings.multi_language_detection ?? false);
       setAutoTranslate(settings.auto_translate ?? true);
       setLastScanAt(lastScanRes.data?.[0]?.finished_at || null);
@@ -93,7 +93,7 @@ export default function BulkScanSchedulingTab() {
     if (!currentOrg) return;
     setSaving(true);
     try {
-      const scanSchedules: Record<string, string> = {};
+      const scanSchedules: Record<string, string> = { /* noop */ };
       schedules.forEach(s => { scanSchedules[s.type] = s.frequency; });
 
       // Update tracking_profiles settings
@@ -104,7 +104,7 @@ export default function BulkScanSchedulingTab() {
         .maybeSingle();
 
       const newSettings = {
-        ...((existing?.settings as Record<string, any>) || {}),
+        ...((existing?.settings as Record<string, unknown>) || { /* noop */ }),
         scan_schedules: scanSchedules,
         multi_language_detection: multiLangEnabled,
         auto_translate: autoTranslate,
@@ -122,7 +122,7 @@ export default function BulkScanSchedulingTab() {
       }
 
       toast({ title: "Scan schedules saved" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

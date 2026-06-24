@@ -37,7 +37,7 @@ export default function ContactPage() {
       if (error) throw error;
       setSubmitted(true);
       toast({ title: "Message sent", description: "We'll be in touch shortly." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Contact form error:", err);
       // Still show success to user — form data was attempted
       setSubmitted(true);

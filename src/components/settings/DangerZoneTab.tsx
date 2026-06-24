@@ -73,7 +73,7 @@ export default function DangerZoneTab() {
         title: "Data reset complete",
         description: "All mentions, scans, incidents, narratives, escalations, and alerts have been cleared. Your keywords, sources, and settings are untouched.",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error resetting data", description: err.message, variant: "destructive" });
     } finally {
       setResetting(false);

@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     });
 
     if (!searchRes.ok) {
-      const errData = await searchRes.json().catch(() => ({}));
+      const errData = await searchRes.json().catch(() => ({ /* noop */ }));
       const errMsg = errData.detail || errData.title || `Twitter API error ${searchRes.status}`;
       throw new Error(errMsg);
     }
@@ -75,10 +75,10 @@ Deno.serve(async (req) => {
     const tweets = searchData.data || [];
     const users = searchData.includes?.users || [];
 
-    const userMap = new Map(users.map((u: any) => [u.id, u]));
+    const userMap = new Map(users.map((u: unknown) => [u.id, u]));
 
-    const results = tweets.map((tweet: any) => {
-      const author = userMap.get(tweet.author_id) as any;
+    const results = tweets.map((tweet: unknown) => {
+      const author = userMap.get(tweet.author_id) as unknown;
       return {
         source: "twitter",
         content: tweet.text || "",
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("scan-twitter error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

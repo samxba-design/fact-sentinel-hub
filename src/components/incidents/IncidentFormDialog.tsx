@@ -145,7 +145,7 @@ export default function IncidentFormDialog({ open, onOpenChange, onSaved, editDa
       }
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

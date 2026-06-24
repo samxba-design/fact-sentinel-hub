@@ -70,12 +70,12 @@ export function useStoryArc(
         } else {
           // For topic watch, first get the watch query terms
           const { data: watch } = await supabase
-            .from("topic_watches" as any).select("query, org_id").eq("id", sourceId).single();
-          const terms = ((watch as any)?.query ?? "").split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+            .from("topic_watches" as unknown).select("query, org_id").eq("id", sourceId).single();
+          const terms = ((watch as unknown)?.query ?? "").split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
           if (!terms.length) { setLoading(false); return; }
-          query = query.eq("org_id", (watch as any)?.org_id).gte("posted_at", since);
+          query = query.eq("org_id", (watch as unknown)?.org_id).gte("posted_at", since);
           const { data: all } = await query;
-          const filtered = (all ?? []).filter((m: any) => terms.some((t: string) => m.content?.toLowerCase().includes(t)));
+          const filtered = (all ?? []).filter((m: unknown) => terms.some((t: string) => m.content?.toLowerCase().includes(t)));
           buildArc(filtered);
           setLoading(false);
           return;
@@ -88,14 +88,14 @@ export function useStoryArc(
     })();
   }, [sourceType, sourceId, days]);
 
-  function buildArc(mentions: any[]) {
+  function buildArc(mentions: unknown[]) {
     if (!mentions.length) { setLoading(false); return; }
 
     // Sort chronologically
     const sorted = [...mentions].sort((a, b) => (a.posted_at ?? "").localeCompare(b.posted_at ?? ""));
 
     // Bucket into 4h windows
-    const buckets: Record<string, any[]> = {};
+    const buckets: Record<string, unknown[]> = { /* noop */ };
     for (const m of sorted) {
       const key = bucketDate(new Date(m.posted_at ?? ""), 4);
       if (!buckets[key]) buckets[key] = [];

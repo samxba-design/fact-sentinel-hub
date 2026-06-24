@@ -379,7 +379,7 @@ function ContactFormDialog({ open, onOpenChange, onSaved, editData }: {
       }
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

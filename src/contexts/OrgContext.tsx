@@ -46,7 +46,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
     if (memberships && memberships.length > 0) {
       const orgList = memberships
-        .map((m: any) => m.organizations)
+        .map((m: unknown) => m.organizations)
         .filter(Boolean) as Org[];
       setOrgs(orgList);
       
@@ -79,7 +79,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       if (error || data?.error) return;
       if (data?.subscribed !== undefined) {
         const newStatus = data.subscribed ? "active" : "free";
-        const updates: any = { subscription_status: newStatus };
+        const updates: unknown = { subscription_status: newStatus };
         if (data.subscription_type) updates.subscription_type = data.subscription_type;
         if (data.subscription_end) updates.subscription_expires_at = data.subscription_end;
 

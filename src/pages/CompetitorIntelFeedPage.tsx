@@ -240,7 +240,7 @@ export default function CompetitorIntelFeedPage() {
                     key={c.id}
                     variant={selectedCompetitor === c.value ? "default" : "outline"}
                     className="cursor-pointer"
-                    style={selectedCompetitor === c.value ? { backgroundColor: getCompetitorColor(c.value) } : {}}
+                    style={selectedCompetitor === c.value ? { backgroundColor: getCompetitorColor(c.value) } : { /* noop */ }}
                     onClick={() => { setSelectedCompetitor(c.value); setPage(0); }}
                   >
                     {c.value}

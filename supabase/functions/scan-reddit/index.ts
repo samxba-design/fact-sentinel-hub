@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     const searchData = await searchRes.json();
     const posts = searchData.data?.children || [];
 
-    const results = posts.map((child: any) => {
+    const results = posts.map((child: unknown) => {
       const post = child.data;
       return {
         source: "reddit",
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("scan-reddit error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

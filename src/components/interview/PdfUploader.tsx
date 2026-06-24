@@ -15,7 +15,7 @@ async function extractPdfText(file: File): Promise<string> {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const pageText = textContent.items
-      .map((item: any) => item.str)
+      .map((item: unknown) => item.str)
       .join(' ');
     pages.push(pageText);
   }
@@ -62,7 +62,7 @@ const PdfUploader: React.FC<PdfUploaderProps> = ({
         const text = await extractPdfText(file);
         onTextExtracted(text, file.name);
         setFileName(file.name);
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError(err.message || 'Failed to extract text from PDF.');
         setFileName(null);
       } finally {

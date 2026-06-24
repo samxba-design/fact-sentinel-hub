@@ -117,7 +117,7 @@ export default function OnboardingPage() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       setProfile(data as ProfileSuggestion);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setGeneratingProfile(false);
@@ -150,13 +150,13 @@ export default function OnboardingPage() {
           id: orgId,
           name: orgName, slug, domain, industry,
           regions: selectedRegions, languages: selectedLanguages, timezone,
-          ...(isBeta ? { subscription_status: "active", subscription_type: "beta", plan: "pro" } : {}),
+          ...(isBeta ? { subscription_status: "active", subscription_type: "beta", plan: "pro" } : { /* noop */ }),
         });
       if (orgError) throw orgError;
 
       const { error: memError } = await supabase
         .from("org_memberships")
-        .insert({ org_id: orgId, user_id: user.id, role: "owner" as any, accepted_at: new Date().toISOString() });
+        .insert({ org_id: orgId, user_id: user.id, role: "owner" as unknown, accepted_at: new Date().toISOString() });
       if (memError) throw memError;
 
       const org = { id: orgId };
@@ -259,11 +259,11 @@ export default function OnboardingPage() {
       toast({ title: "Organization created!", description: `Welcome to ${orgName}` });
 
       // Trigger first scan (non-blocking — user goes to dashboard while it runs)
-      supabase.functions.invoke("run-scan", { body: { org_id: org.id } }).catch(() => {});
+      supabase.functions.invoke("run-scan", { body: { org_id: org.id } }).catch(() => { /* noop */ });
       toast({ title: "First scan running…", description: "Your dashboard will populate in a moment." });
 
       navigate("/");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

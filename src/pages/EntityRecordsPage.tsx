@@ -251,7 +251,7 @@ export default function EntityRecordsPage() {
   const fetchEntities = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (supabase as unknown)
       .from("entity_records")
       .select("*")
       .eq("org_id", currentOrg.id)
@@ -311,7 +311,7 @@ export default function EntityRecordsPage() {
       });
       await fetchEntities();
       toast({ title: "Enrich complete", description: `${displayLabel(e)} has been re-enriched.` });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Enrich failed", description: err?.message ?? "Unknown error", variant: "destructive" });
     } finally {
       setEnrichingId(null);

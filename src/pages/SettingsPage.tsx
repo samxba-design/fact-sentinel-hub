@@ -38,7 +38,7 @@ interface Topic { id: string; name: string; org_id: string | null; is_default: b
 interface Source { id: string; type: string; enabled: boolean | null }
 
 // ─── Info Banner Component ───
-function TabInfoBanner({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function TabInfoBanner({ icon: Icon, title, children }: { icon: unknown; title: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 mb-5">
       <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -219,7 +219,7 @@ export default function SettingsPage() {
       toast({ title: "Demo data seeded!", description: `${data.mentions_created} mentions created` });
       await refetchOrgs();
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSeeding(false);
@@ -332,7 +332,7 @@ export default function SettingsPage() {
   const groupedKeywords = keywords.reduce<Record<string, Keyword[]>>((acc, k) => {
     (acc[k.type] = acc[k.type] || []).push(k);
     return acc;
-  }, {});
+  }, { /* noop */ });
 
   const existingTopicNames = new Set(topics.map(t => t.name.toLowerCase()));
 
@@ -897,7 +897,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       if (data?.url) window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setCheckoutLoading(null);
@@ -931,7 +931,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
     },
   });
 
-  const hasPending = requests?.some((r: any) => r.status === "pending");
+  const hasPending = requests?.some((r: unknown) => r.status === "pending");
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -948,7 +948,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
       setMessage("");
       queryClient.invalidateQueries({ queryKey: ["subscription-requests", orgId] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
@@ -997,7 +997,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
                   if (error) throw new Error(error.message);
                   if (data?.error) throw new Error(data.error);
                   if (data?.url) window.open(data.url, "_blank");
-                } catch (err: any) {
+                } catch (err: unknown) {
                   toast({ title: "Error", description: err.message, variant: "destructive" });
                 } finally {
                   setPortalLoading(false);
@@ -1098,7 +1098,7 @@ function SubscriptionTab({ orgId, userId }: { orgId?: string; userId?: string })
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-card-foreground">Request History</h3>
           <div className="space-y-2">
-            {requests.map((r: any) => (
+            {requests.map((r: unknown) => (
               <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
                 <div>
                   <span className="text-xs text-card-foreground capitalize">{r.requested_type}</span>

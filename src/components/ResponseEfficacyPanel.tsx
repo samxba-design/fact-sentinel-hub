@@ -62,7 +62,7 @@ export default function ResponseEfficacyPanel({ incidentId }: Props) {
       setOpen(false);
       setForm({ response_type: "statement", title: "", content_url: "", content_preview: "", published_at: new Date().toISOString().slice(0, 16) });
       refetch();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setSaving(false); }
   }

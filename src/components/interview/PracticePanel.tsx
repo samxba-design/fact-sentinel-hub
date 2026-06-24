@@ -117,7 +117,7 @@ Return them as a numbered list. Each question should be on a new line starting w
         setCurrentQuestion(fallback[0]);
         setPhase('question');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to generate questions. Check your Supabase connection.');
       const fallback = generateFallbackQuestions(context);
       setQuestions(fallback);
@@ -137,7 +137,7 @@ Return them as a numbered list. Each question should be on a new line starting w
         const stream = await startCapture();
         if (stream) {
           captureRef.current = stream;
-          startListening(() => {}); // No auto-trigger in practice mode
+          startListening(() => { /* noop */ }); // No auto-trigger in practice mode
         }
       } catch {
         // Fall back to typing
@@ -179,7 +179,7 @@ Return them as a numbered list. Each question should be on a new line starting w
 
       setCurrentFeedback(feedback);
       setAnswers((prev) => [...prev, feedback]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Fallback feedback
       const fallback: PracticeAnswer = {
         questionId: currentQuestion.id,
@@ -551,7 +551,7 @@ function parseQuestionsFromResponse(text: string): PracticeQuestion[] {
   const lines = text.split('\n');
 
   for (const line of lines) {
-    const match = line.match(/^\d+[\.\)]\s*(.+)/);
+    const match = line.match(/^\d+[.)]\s*(.+)/);
     if (match) {
       const q = match[1].trim();
       if (q.length > 10) {
@@ -615,8 +615,8 @@ function parseFeedback(text: string, question: string): PracticeAnswer {
       if (match) score = Math.min(10, Math.max(1, parseInt(match[1])));
     }
 
-    if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.match(/^\d+[\.\)]/)) {
-      const point = trimmed.replace(/^[-\•\d\.\)\s]+/, '').trim();
+    if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.match(/^\d+[.)]/)) {
+      const point = trimmed.replace(/^[-•\d.)\s]+/, '').trim();
       if (point.length > 5) {
         if (section === 'strengths') strengths.push(point);
         else if (section === 'improvements') improvements.push(point);

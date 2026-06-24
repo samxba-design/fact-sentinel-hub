@@ -33,7 +33,7 @@ function syntheticFollowers(platform: string, handle: string): number {
 export function useAmplifierRadar(
   orgId: string | undefined,
   days = 7,
-  filters: { accountType?: string; platform?: string; minFollowers?: number } = {}
+  filters: { accountType?: string; platform?: string; minFollowers?: number } = { /* noop */ }
 ) {
   const [amplifiers, setAmplifiers] = useState<AmplifierProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,8 +55,8 @@ export function useAmplifierRadar(
         if (!mentions?.length) { setLoading(false); return; }
 
         // Group by handle+platform
-        type A = { handle: string; platform: string; accountType: string; followerCount: number; mentions: any[]; first: string; last: string };
-        const byAuthor: Record<string, A> = {};
+        type A = { handle: string; platform: string; accountType: string; followerCount: number; mentions: unknown[]; first: string; last: string };
+        const byAuthor: Record<string, A> = { /* noop */ };
 
         for (const m of mentions) {
           const handle = (m.author_handle as string) ?? `user_${(m.id as string).slice(0, 6)}`;
@@ -85,7 +85,7 @@ export function useAmplifierRadar(
         const { data: priorMentions } = await supabase
           .from("mentions").select("author_handle, source")
           .eq("org_id", orgId).gte("posted_at", prior).lt("posted_at", since);
-        const priorCounts: Record<string, number> = {};
+        const priorCounts: Record<string, number> = { /* noop */ };
         for (const m of priorMentions ?? []) {
           const k = `${m.author_handle ?? ""}::${m.source ?? ""}`;
           priorCounts[k] = (priorCounts[k] ?? 0) + 1;
@@ -101,7 +101,7 @@ export function useAmplifierRadar(
             const priorCount = priorCounts[key] ?? 0;
             const trendRatio = priorCount > 0 ? total / priorCount : 1;
             const trend: AmplifierProfile["trend"] = trendRatio > 1.5 ? "rising" : trendRatio < 0.7 ? "falling" : "stable";
-            const excerpts = a.mentions.slice(0, 3).map((m: any) => (m.content ?? "").slice(0, 150));
+            const excerpts = a.mentions.slice(0, 3).map((m: unknown) => (m.content ?? "").slice(0, 150));
             return {
               handle: a.handle,
               displayName: a.handle,

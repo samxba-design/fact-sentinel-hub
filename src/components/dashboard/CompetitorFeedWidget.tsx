@@ -52,7 +52,7 @@ export default function CompetitorFeedWidget() {
         .eq("org_id", currentOrg.id)
         .eq("type", "competitor")
         .eq("status", "active");
-      const compNames = (compRes.data || []).map((k: any) => k.value as string);
+      const compNames = (compRes.data || []).map((k: unknown) => k.value as string);
       setCompetitorNames(compNames);
 
       if (compNames.length === 0) { setLoading(false); return; }

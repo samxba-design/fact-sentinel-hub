@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       regulators_scanned: REGULATORS.length,
     }), { headers: corsHeaders });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500, headers: corsHeaders,
     });

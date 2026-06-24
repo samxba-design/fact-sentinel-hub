@@ -38,7 +38,7 @@ interface Mention {
   posted_at: string | null;
   created_at: string | null;
   author_follower_count: number | null;
-  flags: any;
+  flags: unknown;
   status: string | null;
   scan_run_id: string | null;
   url: string | null;
@@ -64,7 +64,7 @@ const sentimentColors: Record<string, string> = {
   mixed: "text-sentinel-amber",
 };
 
-const statusLabels: Record<string, { label: string; icon: any; class: string }> = {
+const statusLabels: Record<string, { label: string; icon: unknown; class: string }> = {
   ignored: { label: "Ignored", icon: EyeOff, class: "text-muted-foreground" },
   snoozed: { label: "Snoozed", icon: Clock, class: "text-sentinel-amber" },
   resolved: { label: "Resolved", icon: CheckCircle2, class: "text-sentinel-emerald" },
@@ -85,19 +85,19 @@ function cleanPreview(raw: string | null): string {
 }
 
 // Boolean search helper for AND/OR/NOT operators
-function applySearchFilter(query: any, search: string) {
+function applySearchFilter(query: unknown, search: string) {
   const upper = search.trim().toUpperCase();
   if (upper.includes(" AND ")) {
     const parts = search.split(/ AND /i).map((s: string) => s.trim()).filter(Boolean);
-    parts.forEach((p: string) => { query = (query as any).ilike("content", `%${p}%`); });
+    parts.forEach((p: string) => { query = (query as unknown).ilike("content", `%${p}%`); });
   } else if (upper.includes(" OR ")) {
     const parts = search.split(/ OR /i).map((s: string) => s.trim()).filter(Boolean);
-    query = (query as any).or(parts.map((p: string) => `content.ilike.%${p}%`).join(","));
+    query = (query as unknown).or(parts.map((p: string) => `content.ilike.%${p}%`).join(","));
   } else if (upper.startsWith("NOT ")) {
     const term = search.slice(4).trim();
-    query = (query as any).not("content", "ilike", `%${term}%`);
+    query = (query as unknown).not("content", "ilike", `%${term}%`);
   } else {
-    query = (query as any).ilike("content", `%${search}%`);
+    query = (query as unknown).ilike("content", `%${search}%`);
   }
   return query;
 }
@@ -214,7 +214,7 @@ export default function MentionsPage() {
               .in("mention_id", chunk)
           )
         );
-        const allLinks = results.flatMap(r => (r.data as any) || []);
+        const allLinks = results.flatMap(r => (r.data as unknown) || []);
         setNarrativeLinks(allLinks);
       }
     });
@@ -245,7 +245,7 @@ export default function MentionsPage() {
           filter: `org_id=eq.${currentOrg.id}`,
         },
         (payload) => {
-          const m = payload.new as any;
+          const m = payload.new as unknown;
           if (m.mention_type === "brand") {
             setNewMentionsCount(c => c + 1);
           }
@@ -446,12 +446,12 @@ export default function MentionsPage() {
   // Build narrative groups
   const narrativeGroups = useMemo(() => {
     if (!groupByNarrative) return null;
-    const groups: Record<string, { name: string; mentionIds: Set<string> }> = {};
+    const groups: Record<string, { name: string; mentionIds: Set<string> }> = { /* noop */ };
     const ungrouped = new Set(filtered.map(m => m.id));
 
     for (const link of narrativeLinks) {
       if (!ungrouped.has(link.mention_id)) continue;
-      const name = (link.narratives as any)?.name || "Unknown Narrative";
+      const name = (link.narratives as unknown)?.name || "Unknown Narrative";
       if (!groups[link.narrative_id]) {
         groups[link.narrative_id] = { name, mentionIds: new Set() };
       }
@@ -510,7 +510,7 @@ export default function MentionsPage() {
   const hasUrlFilters = searchParams.has("sentiment") || searchParams.has("severity") || searchParams.has("days") || searchParams.has("status");
 
   const currentFilters = { statusFilter, severityFilter, sentimentFilter, sourceFilter, search };
-  const applyFilters = (f: Record<string, any>) => {
+  const applyFilters = (f: Record<string, unknown>) => {
     if (f.statusFilter) setStatusFilter(f.statusFilter);
     if (f.severityFilter) setSeverityFilter(f.severityFilter);
     if (f.sentimentFilter) setSentimentFilter(f.sentimentFilter);
@@ -606,7 +606,7 @@ export default function MentionsPage() {
     }
 
     // Check if many flagged as coordinated by AI
-    const coordMentions = filtered.filter(m => (m.flags as any)?.coordinated);
+    const coordMentions = filtered.filter(m => (m.flags as unknown)?.coordinated);
     if (coordMentions.length >= 3) {
       warnings.push({
         type: "ai_flagged",
@@ -622,7 +622,7 @@ export default function MentionsPage() {
 
   // Render a single mention card
   const renderMention = (m: Mention) => {
-    const flags = m.flags as any || {};
+    const flags = m.flags as unknown || { /* noop */ };
     const mStatus = m.status || "new";
     const statusInfo = statusLabels[mStatus];
     const isSelected = selected.has(m.id);

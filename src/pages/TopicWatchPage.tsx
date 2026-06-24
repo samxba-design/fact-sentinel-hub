@@ -111,7 +111,7 @@ export default function TopicWatchPage() {
       setAnalysis(data.analysis);
       setEditedAnalysis({ ...data.analysis });
       setStep("review");
-    } catch (e: any) {
+    } catch (e: unknown) {
       setErrorMsg(e.message);
       setStep("error");
     }
@@ -129,7 +129,7 @@ export default function TopicWatchPage() {
       toast({ title: "Topic Watch created", description: `Now monitoring: ${editedAnalysis.name}` });
       setOpen(false);
       refetch();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setErrorMsg(e.message);
       setStep("error");
     }

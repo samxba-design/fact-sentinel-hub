@@ -14,8 +14,8 @@ interface ScanRun {
   total_mentions: number | null;
   negative_pct: number | null;
   emergencies_count: number | null;
-  config_snapshot: any;
-  result_snapshot?: any;
+  config_snapshot: unknown;
+  result_snapshot?: unknown;
 }
 
 interface Props {
@@ -68,12 +68,12 @@ export default function ScanResultDrawer({ run, onClose }: Props) {
 
   if (!run) return null;
 
-  const snap = run.result_snapshot as any;
-  const config = run.config_snapshot as any;
+  const snap = run.result_snapshot as unknown;
+  const config = run.config_snapshot as unknown;
   const hasSnap = !!snap;
 
   const scanLog: { source: string; query: string; found: number }[] = snap?.scan_log || [];
-  const kwGroups = snap?.keyword_groups || config?.keyword_groups || {};
+  const kwGroups = snap?.keyword_groups || config?.keyword_groups || { /* noop */ };
   const errors: string[] = snap?.errors || [];
   const zeroReason: string = snap?.zero_reason || "";
   const totalFound = snap?.total_found ?? 0;

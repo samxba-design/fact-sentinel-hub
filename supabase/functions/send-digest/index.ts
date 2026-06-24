@@ -10,7 +10,7 @@ const corsHeaders = {
 function buildDigestEmail(
   orgName: string,
   stats: { totalMentions: number; negativePct: number; criticalCount: number; topNarratives: string[]; alertCount: number; escalationCount: number },
-  topThreats: any[],
+  topThreats: unknown[],
   dashboardUrl: string
 ): { subject: string; html: string } {
   const subject = `[${orgName}] Intelligence Digest — ${stats.totalMentions} mentions tracked`;
@@ -118,15 +118,15 @@ Deno.serve(async (req) => {
 
     const mentions = mentionsRes.data || [];
     const totalMentions = mentions.length;
-    const negMentions = mentions.filter((m: any) => m.sentiment_label === "negative").length;
+    const negMentions = mentions.filter((m: unknown) => m.sentiment_label === "negative").length;
     const negativePct = totalMentions > 0 ? Math.round((negMentions / totalMentions) * 100) : 0;
-    const criticalCount = mentions.filter((m: any) => m.severity === "critical").length;
+    const criticalCount = mentions.filter((m: unknown) => m.severity === "critical").length;
     const alertCount = (alertsRes.data || []).length;
     const escalationCount = (escalationsRes.data || []).length;
-    const topNarratives = (narrativesRes.data || []).map((n: any) => n.name);
+    const topNarratives = (narrativesRes.data || []).map((n: unknown) => n.name);
     const topThreats = mentions
-      .filter((m: any) => m.severity === "critical" || m.severity === "high")
-      .sort((a: any, b: any) => a.severity === "critical" ? -1 : 1)
+      .filter((m: unknown) => m.severity === "critical" || m.severity === "high")
+      .sort((a: unknown, b: unknown) => a.severity === "critical" ? -1 : 1)
       .slice(0, 5);
 
     const dashboardUrl = "https://app.sentiwatch.app";
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("send-digest error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 200,

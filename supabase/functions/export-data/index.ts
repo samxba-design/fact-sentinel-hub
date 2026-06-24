@@ -57,7 +57,7 @@ async function ensureSheetTab(
   }
 
   const data = await res.json();
-  const existing = data.sheets?.map((s: any) => s.properties.title) || [];
+  const existing = data.sheets?.map((s: unknown) => s.properties.title) || [];
 
   if (!existing.includes(sheetName)) {
     const addRes = await fetch(
@@ -84,7 +84,7 @@ async function ensureSheetTab(
 
 // ── Data fetchers ──────────────────────────────────────────
 
-async function fetchMentions(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchMentions(supabase: unknown, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("mentions")
     .select("id, source, content, author_name, author_handle, sentiment_label, sentiment_score, severity, status, posted_at, url, author_follower_count, language")
@@ -96,7 +96,7 @@ async function fetchMentions(supabase: any, orgId: string, selectedIds?: string[
   return data || [];
 }
 
-async function fetchNarratives(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchNarratives(supabase: unknown, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("narratives")
     .select("id, name, description, status, confidence, first_seen, last_seen, example_phrases")
@@ -108,7 +108,7 @@ async function fetchNarratives(supabase: any, orgId: string, selectedIds?: strin
   return data || [];
 }
 
-async function fetchIncidents(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchIncidents(supabase: unknown, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("incidents")
     .select("id, name, description, status, started_at, ended_at, stakeholders")
@@ -120,7 +120,7 @@ async function fetchIncidents(supabase: any, orgId: string, selectedIds?: string
   return data || [];
 }
 
-async function fetchEscalations(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchEscalations(supabase: unknown, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("escalations")
     .select("id, title, description, status, priority, department, created_at, updated_at")
@@ -132,7 +132,7 @@ async function fetchEscalations(supabase: any, orgId: string, selectedIds?: stri
   return data || [];
 }
 
-async function fetchFacts(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchFacts(supabase: unknown, orgId: string, selectedIds?: string[]) {
   let q = supabase
     .from("approved_facts")
     .select("id, title, statement_text, category, status, jurisdiction, owner_department, source_link, approved_by, version, last_reviewed, created_at")
@@ -144,7 +144,7 @@ async function fetchFacts(supabase: any, orgId: string, selectedIds?: string[]) 
   return data || [];
 }
 
-async function fetchPeople(supabase: any, orgId: string, selectedIds?: string[]) {
+async function fetchPeople(supabase: unknown, orgId: string, selectedIds?: string[]) {
   // Fetch people linked to this org via org_people
   const { data: orgPeople } = await supabase
     .from("org_people")
@@ -155,7 +155,7 @@ async function fetchPeople(supabase: any, orgId: string, selectedIds?: string[])
   if (!orgPeople) return [];
 
   if (selectedIds?.length) {
-    return orgPeople.filter((op: any) => selectedIds.includes(op.person_id));
+    return orgPeople.filter((op: unknown) => selectedIds.includes(op.person_id));
   }
   return orgPeople;
 }
@@ -178,43 +178,43 @@ function toCSV(rows: string[][]): string {
     .join("\n");
 }
 
-function mentionsToRows(data: any[]): string[][] {
+function mentionsToRows(data: unknown[]): string[][] {
   const header = ["ID", "Source", "Content", "Author", "Handle", "Sentiment", "Sentiment Score", "Severity", "Status", "Posted At", "URL", "Followers", "Language"];
   const rows = data.map((m) => [m.id, m.source, m.content, m.author_name, m.author_handle, m.sentiment_label, m.sentiment_score, m.severity, m.status, m.posted_at, m.url, m.author_follower_count, m.language]);
   return [header, ...rows];
 }
 
-function narrativesToRows(data: any[]): string[][] {
+function narrativesToRows(data: unknown[]): string[][] {
   const header = ["ID", "Name", "Description", "Status", "Confidence", "First Seen", "Last Seen", "Example Phrases"];
   const rows = data.map((n) => [n.id, n.name, n.description, n.status, n.confidence, n.first_seen, n.last_seen, (n.example_phrases || []).join("; ")]);
   return [header, ...rows];
 }
 
-function incidentsToRows(data: any[]): string[][] {
+function incidentsToRows(data: unknown[]): string[][] {
   const header = ["ID", "Name", "Description", "Status", "Started At", "Ended At", "Stakeholders"];
   const rows = data.map((i) => [i.id, i.name, i.description, i.status, i.started_at, i.ended_at, (i.stakeholders || []).join("; ")]);
   return [header, ...rows];
 }
 
-function escalationsToRows(data: any[]): string[][] {
+function escalationsToRows(data: unknown[]): string[][] {
   const header = ["ID", "Title", "Description", "Status", "Priority", "Department", "Created At", "Updated At"];
   const rows = data.map((e) => [e.id, e.title, e.description, e.status, e.priority, e.department, e.created_at, e.updated_at]);
   return [header, ...rows];
 }
 
-function factsToRows(data: any[]): string[][] {
+function factsToRows(data: unknown[]): string[][] {
   const header = ["ID", "Title", "Statement", "Category", "Status", "Jurisdiction", "Department", "Source Link", "Approved By", "Version", "Last Reviewed", "Created At"];
   const rows = data.map((f) => [f.id, f.title, f.statement_text, f.category, f.status, f.jurisdiction, f.owner_department, f.source_link, f.approved_by, f.version, f.last_reviewed, f.created_at]);
   return [header, ...rows];
 }
 
-function peopleToRows(data: any[]): string[][] {
+function peopleToRows(data: unknown[]): string[][] {
   const header = ["Person ID", "Name", "Titles", "Tier", "Status", "Confidence", "Follower Count", "Handles", "Links", "Evidence"];
-  const rows = data.map((op: any) => {
-    const p = op.people || {};
+  const rows = data.map((op: unknown) => {
+    const p = op.people || { /* noop */ };
     return [
       p.id, p.name, (p.titles || []).join("; "), op.tier, op.status, op.confidence,
-      p.follower_count, JSON.stringify(p.handles || {}), (p.links || []).join("; "), op.evidence,
+      p.follower_count, JSON.stringify(p.handles || { /* noop */ }), (p.links || []).join("; "), op.evidence,
     ];
   });
   return [header, ...rows];
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Fetch the data
-    let rawData: any[];
+    let rawData: unknown[];
     let rows: string[][];
     const sheetTabName = data_type.charAt(0).toUpperCase() + data_type.slice(1);
 
@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("export-data error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

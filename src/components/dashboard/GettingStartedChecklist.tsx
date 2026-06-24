@@ -12,7 +12,7 @@ interface Step {
   key: string;
   label: string;
   description: string;
-  icon: any;
+  icon: unknown;
   link: string;
   done: boolean;
 }
@@ -35,7 +35,7 @@ export default function GettingStartedChecklist() {
       supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle(),
     ]).then(([kw, keys, scans, facts, profile]) => {
       // Check DB dismissal
-      if ((profile.data?.settings as any)?.checklist_dismissed === true) {
+      if ((profile.data?.settings as unknown)?.checklist_dismissed === true) {
         setDismissed(true);
         setLoading(false);
         return;
@@ -91,7 +91,7 @@ export default function GettingStartedChecklist() {
           .select("settings")
           .eq("org_id", currentOrg.id)
           .maybeSingle();
-        const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+        const existingSettings = (existing?.settings as Record<string, unknown>) || { /* noop */ };
         await supabase
           .from("tracking_profiles")
           .upsert(

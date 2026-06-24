@@ -46,14 +46,14 @@ export default function RespondPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const prefill = (location.state as any) || {};
+  const prefill = (location.state as unknown) || { /* noop */ };
   const [inputText, setInputText] = useState(prefill.prefillText || "");
   const [platform, setPlatform] = useState("general");
   const [intent, setIntent] = useState("");
   const [result, setResult] = useState<ResponseResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draftHistory, setDraftHistory] = useState<any[]>([]);
+  const [draftHistory, setDraftHistory] = useState<unknown[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [factsCount, setFactsCount] = useState<number | null>(null);
@@ -118,7 +118,7 @@ export default function RespondPage() {
         throw new Error(msg);
       }
       setResult(data as ResponseResult);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -141,14 +141,14 @@ export default function RespondPage() {
         input_text: inputText,
         output_text: result.message,
         status: "draft",
-        facts_used: result.matched_facts.map(f => ({ id: f.id, title: f.title, statement: f.statement })) as any,
-        claims_extracted: result.claims as any,
+        facts_used: result.matched_facts.map(f => ({ id: f.id, title: f.title, statement: f.statement })) as unknown,
+        claims_extracted: result.claims as unknown,
         created_by: user?.id || null,
       };
       const { error } = await supabase.from("response_drafts").insert(insertData);
       if (error) throw error;
       toast({ title: "Draft saved", description: "Saved to your response drafts." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -207,7 +207,7 @@ export default function RespondPage() {
           {
             icon: <BookCheck className="h-4 w-4 text-primary" />,
             title: "2. AI Extracts & Matches",
-            description: "AI extracts claims from the text, then matches each claim against your approved facts library. If any claims can't be matched, the response is blocked and an escalation ticket is auto-created.",
+            description: "AI extracts claims from the text, then matches each claim against your approved facts library. If unknown claims can't be matched, the response is blocked and an escalation ticket is auto-created.",
           },
           {
             icon: <MessageCircleReply className="h-4 w-4 text-primary" />,

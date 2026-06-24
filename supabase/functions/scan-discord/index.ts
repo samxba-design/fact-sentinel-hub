@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       .eq("enabled", true);
 
     const token = bot_token ||
-      sourceData?.find((s: any) => s.config?.bot_token)?.[0]?.config?.bot_token ||
+      sourceData?.find((s: unknown) => s.config?.bot_token)?.[0]?.config?.bot_token ||
       Deno.env.get("DISCORD_BOT_TOKEN") || "";
 
     if (!token) {
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     }
 
     const guildIds = userGuilds ||
-      sourceData?.flatMap((s: any) => s.config?.guild_ids || []) || [];
+      sourceData?.flatMap((s: unknown) => s.config?.guild_ids || []) || [];
 
     const fromDate = date_from ? new Date(date_from) : new Date(Date.now() - 7 * 86400000);
     const results: ScanResult[] = [];
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       guilds_scanned: guildIds.length,
     }), { headers: corsHeaders });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500, headers: corsHeaders,
     });
@@ -118,7 +118,7 @@ async function listGuilds(token: string): Promise<Array<{ id: string; name: stri
   if (!res.ok) throw new Error(`Discord API error ${res.status}`);
 
   const data = await res.json();
-  return (data || []).map((g: any) => ({ id: g.id, name: g.name }));
+  return (data || []).map((g: unknown) => ({ id: g.id, name: g.name }));
 }
 
 // ── Scan a specific guild ───────────────────────────────────────────────
@@ -151,7 +151,7 @@ async function scanGuild(
   }
 
   const channels = (await channelsRes.json()) || [];
-  const textChannels = channels.filter((c: any) => c.type === 0); // type 0 = GUILD_TEXT
+  const textChannels = channels.filter((c: unknown) => c.type === 0); // type 0 = GUILD_TEXT
 
   // Scan each text channel (limit to first 20 to avoid rate limits)
   const channelsToScan = textChannels.slice(0, 20);

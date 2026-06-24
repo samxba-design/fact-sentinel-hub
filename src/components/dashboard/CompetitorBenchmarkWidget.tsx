@@ -160,7 +160,7 @@ export default function CompetitorBenchmarkWidget() {
             <Tooltip
               contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: 12 }}
               formatter={(value: number) => [`${value}% sentiment`, ""]}
-              labelFormatter={(label: string, payload: any) => payload?.[0]?.payload?.fullName || label}
+              labelFormatter={(label: string, payload: unknown) => payload?.[0]?.payload?.fullName || label}
             />
             <Bar dataKey="score" radius={[0, 4, 4, 0]}>
               {barData.map((entry, idx) => (
@@ -201,7 +201,7 @@ export default function CompetitorBenchmarkWidget() {
   );
 }
 
-function computeSentimentScore(mentions: any[]): { positive_pct: number; negative_pct: number; neutral_pct: number; total_mentions: number; sentiment_score: number } {
+function computeSentimentScore(mentions: unknown[]): { positive_pct: number; negative_pct: number; neutral_pct: number; total_mentions: number; sentiment_score: number } {
   const total = mentions.length;
   if (total === 0) return { positive_pct: 0, negative_pct: 0, neutral_pct: 0, total_mentions: 0, sentiment_score: 0 };
 

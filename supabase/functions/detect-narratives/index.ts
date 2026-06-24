@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       .from("narratives")
       .select("name")
       .eq("org_id", org_id);
-    const existingNames = new Set((existingNarratives || []).map((n: any) => n.name.toLowerCase()));
+    const existingNames = new Set((existingNarratives || []).map((n: unknown) => n.name.toLowerCase()));
 
     // Prepare mention summaries for AI
     const mentionSummaries = mentions.slice(0, 200).map((m, i) => 
@@ -101,7 +101,7 @@ Only return narratives with at least 2 mentions. Focus on reputation-relevant th
 
     const rawContent = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
 
-    let narratives: any[] = [];
+    let narratives: unknown[] = [];
     try {
       const parsed = JSON.parse(rawContent);
       narratives = parsed.narratives || parsed.clusters || (Array.isArray(parsed) ? parsed : []);
@@ -110,7 +110,7 @@ Only return narratives with at least 2 mentions. Focus on reputation-relevant th
     }
 
     // Filter out duplicates and insert
-    const newNarratives = narratives.filter((n: any) => 
+    const newNarratives = narratives.filter((n: unknown) => 
       n.name && !existingNames.has(n.name.toLowerCase())
     );
 
@@ -164,7 +164,7 @@ Only return narratives with at least 2 mentions. Focus on reputation-relevant th
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("detect-narratives error:", err);
     return new Response(
       JSON.stringify({ error: err.message }),

@@ -19,7 +19,7 @@ interface NarrativeRow {
   id: string;
   org_id: string;
   name: string;
-  mention_count_history: any[];
+  mention_count_history: unknown[];
 }
 
 interface MentionCount {
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
   try {
-    const { org_id } = await req.json().catch(() => ({}));
+    const { org_id } = await req.json().catch(() => ({ /* noop */ }));
 
     // Fetch active narratives
     let query = supabase
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const mentionIds = currentMentions.map((m: any) => m.mention_id);
+        const mentionIds = currentMentions.map((m: unknown) => m.mention_id);
 
         // Get mention details for source breakdown & time range
         const { data: mentions, error: mErr } = await supabase
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
         const crossPlatform = recentSources.size >= 3;
 
         // Build source breakdown
-        const sourceBreakdown: Record<string, number> = {};
+        const sourceBreakdown: Record<string, number> = { /* noop */ };
         for (const m of (mentions || [])) {
           sourceBreakdown[m.source] = (sourceBreakdown[m.source] || 0) + 1;
         }
@@ -154,29 +154,29 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ processed: narratives.length, updated }), { headers: corsHeaders });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
   }
 });
 
-function countMentionsByDay(mentions: any[]): number {
+function countMentionsByDay(mentions: unknown[]): number {
   const oneDayAgo = new Date(Date.now() - 86400000);
-  return mentions.filter((m: any) => {
+  return mentions.filter((m: unknown) => {
     const ts = m.posted_at || m.created_at;
     return new Date(ts) >= oneDayAgo;
   }).length;
 }
 
-function getDailyHistory(existing: any[], now: Date, todayCount: number): any[] {
+function getDailyHistory(existing: unknown[], now: Date, todayCount: number): unknown[] {
   const history = Array.isArray(existing) ? existing : [];
   const todayStr = now.toISOString().slice(0, 10);
 
   // Remove entries older than 30 days
   const cutoff = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
-  const filtered = history.filter((h: any) => h.date >= cutoff);
+  const filtered = history.filter((h: unknown) => h.date >= cutoff);
 
   // Upsert today's count
-  const idx = filtered.findIndex((h: any) => h.date === todayStr);
+  const idx = filtered.findIndex((h: unknown) => h.date === todayStr);
   if (idx >= 0) filtered[idx].count = todayCount;
   else filtered.push({ date: todayStr, count: todayCount });
 

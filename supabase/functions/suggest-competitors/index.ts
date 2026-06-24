@@ -65,7 +65,7 @@ ${mentionSamples || "No mentions yet"}`;
       { role: "user", content: userPrompt },
     ], true);
 
-    let result: any;
+    let result: unknown;
     try {
       result = JSON.parse(rawText);
     } catch {
@@ -79,7 +79,7 @@ ${mentionSamples || "No mentions yet"}`;
   } catch (e) {
     console.error("suggest-competitors error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

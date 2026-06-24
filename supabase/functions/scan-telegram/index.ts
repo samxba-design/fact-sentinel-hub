@@ -60,12 +60,12 @@ Deno.serve(async (req) => {
       .eq("enabled", true);
 
     const configuredChannels = userChannels ||
-      sourceData?.flatMap((s: any) => s.config?.channels || []) ||
+      sourceData?.flatMap((s: unknown) => s.config?.channels || []) ||
       DEFAULT_CRYPTO_CHANNELS;
 
     const fromDate = date_from ? new Date(date_from) : new Date(Date.now() - 7 * 86400000);
     const token = bot_token ||
-      sourceData?.find((s: any) => s.config?.bot_token)?.[0]?.config?.bot_token ||
+      sourceData?.find((s: unknown) => s.config?.bot_token)?.[0]?.config?.bot_token ||
       Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 
     const results: ScanResult[] = [];
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       modes_used: [true, !!token],
     }), { headers: corsHeaders });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500, headers: corsHeaders,
     });
@@ -223,7 +223,7 @@ async function scanViaBot(
       if (!data.ok || !data.result?.length) continue;
 
       for (const update of data.result) {
-        const msg = update.message || update.channel_post;
+        const msg = updat(e as Error).message || update.channel_post;
         if (!msg?.text) continue;
 
         const msgDate = new Date(msg.date * 1000);

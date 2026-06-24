@@ -178,7 +178,7 @@ export function useTranscription(audioStream: MediaStream | null) {
 
       try {
         recognition.start();
-      } catch (err: any) {
+      } catch (err: unknown) {
         setState((prev) => ({
           ...prev,
           error: `Failed to start: ${err.message}`,

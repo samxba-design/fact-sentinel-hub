@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
         totalMentions,
         negativePct,
         criticalCount: critRes.count ?? 0,
-        topNarratives: (narrativesRes.data || []).map((n: any) => n.name),
+        topNarratives: (narrativesRes.data || []).map((n: unknown) => n.name),
         alertCount: alertsRes.count ?? 0,
         escalationCount: escRes.count ?? 0,
       };
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
       if (!members || members.length === 0) continue;
 
-      const userIds = members.map((m: any) => m.user_id);
+      const userIds = members.map((m: unknown) => m.user_id);
 
       const { data: prefs } = await supabase
         .from("notification_preferences")
@@ -92,8 +92,8 @@ Deno.serve(async (req) => {
         .select("id, email, full_name")
         .in("id", userIds);
 
-      const prefsMap = new Map((prefs || []).map((p: any) => [p.user_id, p]));
-      const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      const prefsMap = new Map((prefs || []).map((p: unknown) => [p.user_id, p]));
+      const profilesMap = new Map((profiles || []).map((p: unknown) => [p.id, p]));
 
       const preferencesUrl = `${APP_URL}/settings?tab=notifications`;
       const dashboardUrl = `${APP_URL}/`;
@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ sent: totalSent }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("send-weekly-digest error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,

@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing stripe-signature" }), { status: 400 });
     }
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Webhook signature verification failed:", err.message);
     return new Response(JSON.stringify({ error: err.message }), { status: 400 });
   }
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
         break;
       }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Webhook processing error:", err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }

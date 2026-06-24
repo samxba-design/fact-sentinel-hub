@@ -30,7 +30,7 @@ interface NoiseRule {
   created_at: string;
 }
 
-const RULE_TYPE_CONFIG: Record<string, { label: string; icon: any; placeholder: string; description: string }> = {
+const RULE_TYPE_CONFIG: Record<string, { label: string; icon: unknown; placeholder: string; description: string }> = {
   domain:           { label: "Domain",           icon: Globe,          placeholder: "e.g. reddit.com, spamsite.net",  description: "Ignore all mentions from this domain" },
   keyword:          { label: "Keyword match",    icon: MessageSquare,  placeholder: "e.g. 'competitor', 'unrelated'", description: "Ignore mentions containing this word or phrase" },
   author:           { label: "Author/Handle",    icon: User,           placeholder: "e.g. @spambot, John Doe",        description: "Ignore all mentions from this author" },
@@ -74,7 +74,7 @@ export default function NoiseFiltersPage() {
       .eq("org_id", currentOrg.id)
       .maybeSingle();
 
-    const settings = (data?.settings as any) || {};
+    const settings = (data?.settings as unknown) || { /* noop */ };
     const savedRules: NoiseRule[] = settings.noise_rules || [];
     setRules(savedRules);
     setLoading(false);
@@ -92,7 +92,7 @@ export default function NoiseFiltersPage() {
       .select("settings")
       .eq("org_id", currentOrg.id)
       .maybeSingle();
-    const currentSettings = (data?.settings as any) || {};
+    const currentSettings = (data?.settings as unknown) || { /* noop */ };
     const merged = { ...currentSettings, noise_rules: updatedRules };
 
     // Upsert tracking_profiles with new settings
@@ -212,7 +212,7 @@ export default function NoiseFiltersPage() {
         title: "Rules applied",
         description: `${updated} existing mentions marked as ignored based on your rules.`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error applying rules", description: err.message, variant: "destructive" });
     } finally {
       setApplying(false);

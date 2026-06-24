@@ -39,7 +39,7 @@ export function useScanPreflight(selectedSources: string[]) {
       if (cancelled) return;
 
       const keywordCount = kwRes.count ?? 0;
-      const connectedProviders = [...new Set((keysRes.data || []).map((k: any) => k.provider))];
+      const connectedProviders = [...new Set((keysRes.data || []).map((k: unknown) => k.provider))];
       const issues: PreflightIssue[] = [];
 
       // Error: no keywords at all

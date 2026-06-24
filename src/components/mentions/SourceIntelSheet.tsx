@@ -69,7 +69,7 @@ export default function SourceIntelSheet({ domain, open, onOpenChange, mentionCo
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
       setProfile(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {

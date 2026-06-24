@@ -39,7 +39,7 @@ export default function WatchlistDiscoveryWidget() {
       .from("org_people")
       .select("people(name)")
       .eq("org_id", currentOrg.id);
-    const trackedNames = new Set((existing || []).map((e: any) => e.people?.name?.toLowerCase()).filter(Boolean));
+    const trackedNames = new Set((existing || []).map((e: unknown) => e.people?.name?.toLowerCase()).filter(Boolean));
 
     // Find frequently mentioned authors not yet tracked
     const { data: mentions } = await supabase
@@ -102,7 +102,7 @@ export default function WatchlistDiscoveryWidget() {
       .from("people")
       .insert({
         name: s.author_name,
-        handles: s.author_handle ? { [s.source]: s.author_handle } : {},
+        handles: s.author_handle ? { [s.source]: s.author_handle } : { /* noop */ },
       })
       .select("id")
       .single();

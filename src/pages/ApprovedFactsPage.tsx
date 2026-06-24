@@ -30,7 +30,7 @@ interface Fact {
   source_link: string | null;
 }
 
-const statusConfig: Record<string, { icon: any; className: string; label: string }> = {
+const statusConfig: Record<string, { icon: unknown; className: string; label: string }> = {
   active: { icon: CheckCircle2, className: "border-sentinel-emerald/30 text-sentinel-emerald", label: "Active" },
   under_review: { icon: Clock, className: "border-sentinel-amber/30 text-sentinel-amber", label: "Under Review" },
   deprecated: { icon: Archive, className: "border-muted-foreground/30 text-muted-foreground", label: "Deprecated" },
@@ -71,7 +71,7 @@ export default function ApprovedFactsPage() {
   const [editingFact, setEditingFact] = useState<Fact | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [templateCount, setTemplateCount] = useState<Record<string, number>>({});
+  const [templateCount, setTemplateCount] = useState<Record<string, number>>({ /* noop */ });
   const [draftCount, setDraftCount] = useState(0);
 
   const fetchFacts = async () => {
@@ -89,7 +89,7 @@ export default function ApprovedFactsPage() {
     setFacts(factsRes.data || []);
     setDraftCount(draftsRes.count || 0);
 
-    const counts: Record<string, number> = {};
+    const counts: Record<string, number> = { /* noop */ };
     (templatesRes.data || []).forEach(t => {
       (t.required_fact_categories || []).forEach((cat: string) => {
         counts[cat] = (counts[cat] || 0) + 1;
@@ -127,7 +127,7 @@ export default function ApprovedFactsPage() {
       setDialogOpen(false);
       setEditingFact(null);
       fetchFacts();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

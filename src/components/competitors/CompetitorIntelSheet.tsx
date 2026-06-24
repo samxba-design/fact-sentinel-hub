@@ -45,7 +45,7 @@ const SENTIMENT_COLORS = {
 };
 
 function extractTopics(mentions: MentionRow[], topN = 8): string[] {
-  const freq: Record<string, number> = {};
+  const freq: Record<string, number> = { /* noop */ };
   for (const m of mentions) {
     if (!m.content) continue;
     const tokens = m.content

@@ -16,7 +16,7 @@ interface CustomSource {
   id: string;
   type: string;
   enabled: boolean | null;
-  config: any;
+  config: unknown;
 }
 
 export default function CustomSourcesTab() {
@@ -41,7 +41,7 @@ export default function CustomSourcesTab() {
       .order("created_at");
     // Filter to only custom/RSS sources (those with config.scan_url or config.source_kind)
     const customSources = (data || []).filter(
-      (s: any) => s.config?.scan_url || s.config?.source_kind
+      (s: unknown) => s.config?.scan_url || s.config?.source_kind
     );
     setSources(customSources);
     setLoading(false);
@@ -70,7 +70,7 @@ export default function CustomSourcesTab() {
       if (error) throw error;
       if (data) setSources(prev => [...prev, data]);
       toast({ title: "RSS feed added", description: "It will be checked for your keywords during scans." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAdding(false);
@@ -97,7 +97,7 @@ export default function CustomSourcesTab() {
       if (error) throw error;
       if (data) setSources(prev => [...prev, data]);
       toast({ title: "Custom source added" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAdding(false);
@@ -135,7 +135,7 @@ export default function CustomSourcesTab() {
       toast({ title: `${added} source${added !== 1 ? "s" : ""} imported` });
       setBulkUrls("");
       setShowBulkImport(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAdding(false);

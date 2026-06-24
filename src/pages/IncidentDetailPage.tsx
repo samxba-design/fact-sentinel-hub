@@ -101,9 +101,9 @@ export default function IncidentDetailPage() {
       supabase.from("incident_narratives").select("narrative_id, narratives(name, status)").eq("incident_id", id),
     ]);
     setIncident(incRes.data as Incident);
-    setEvents((eventsRes.data as any) || []);
-    setMentions((mentionsRes.data as any) || []);
-    setNarratives((narrativesRes.data as any) || []);
+    setEvents((eventsRes.data as unknown) || []);
+    setMentions((mentionsRes.data as unknown) || []);
+    setNarratives((narrativesRes.data as unknown) || []);
     setLoading(false);
   }, [id, currentOrg]);
 
@@ -153,7 +153,7 @@ export default function IncidentDetailPage() {
       setMentionPopoverOpen(false);
       toast({ title: "Mention attached" });
       fetchAll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAttachingMention(false);
@@ -172,7 +172,7 @@ export default function IncidentDetailPage() {
       setNarrativePopoverOpen(false);
       toast({ title: "Narrative attached" });
       fetchAll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAttachingNarrative(false);
@@ -203,7 +203,7 @@ export default function IncidentDetailPage() {
       setNoteInput("");
       toast({ title: "Note added" });
       fetchAll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAddingNote(false);
@@ -364,11 +364,11 @@ export default function IncidentDetailPage() {
                       onClick={() => navigate(`/mentions/${m.mention_id}`)}
                     >
                       <p className="text-xs text-foreground line-clamp-2">
-                        {(m.mentions as any)?.content?.slice(0, 80) || "—"}...
+                        {(m.mentions as unknown)?.content?.slice(0, 80) || "—"}...
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[8px]">{(m.mentions as any)?.source}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{(m.mentions as any)?.author_name}</span>
+                        <Badge variant="outline" className="text-[8px]">{(m.mentions as unknown)?.source}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{(m.mentions as unknown)?.author_name}</span>
                       </div>
                     </div>
                     <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => handleDetachMention(m.mention_id)}>
@@ -424,9 +424,9 @@ export default function IncidentDetailPage() {
                       className="flex-1 cursor-pointer hover:text-primary transition-colors"
                       onClick={() => navigate(`/narratives/${n.narrative_id}`)}
                     >
-                      <p className="text-xs text-foreground">{(n.narratives as any)?.name || "—"}</p>
+                      <p className="text-xs text-foreground">{(n.narratives as unknown)?.name || "—"}</p>
                       <Badge variant="outline" className="text-[8px] mt-1 capitalize">
-                        {(n.narratives as any)?.status || "active"}
+                        {(n.narratives as unknown)?.status || "active"}
                       </Badge>
                     </div>
                     <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => handleDetachNarrative(n.narrative_id)}>

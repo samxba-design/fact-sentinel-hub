@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     }
 
     // Get video statistics
-    const videoIds = items.map((v: any) => v.id?.videoId).filter(Boolean);
+    const videoIds = items.map((v: unknown) => v.id?.videoId).filter(Boolean);
     const statsUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
     statsUrl.searchParams.set("part", "statistics,contentDetails");
     statsUrl.searchParams.set("id", videoIds.join(","));
@@ -101,20 +101,20 @@ Deno.serve(async (req) => {
 
     const statsRes = await fetch(statsUrl.toString());
     const statsData = await statsRes.json();
-    const statsMap: Record<string, any> = {};
+    const statsMap: Record<string, unknown> = { /* noop */ };
     for (const v of (statsData.items || [])) {
       statsMap[v.id] = v.statistics;
     }
 
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     // Date filter for secondary validation
     const dateFromMs = date_from ? new Date(date_from).getTime() : 0;
 
     for (const item of items) {
       const videoId = item.id?.videoId;
-      const snippet = item.snippet || {};
-      const stats = statsMap[videoId] || {};
+      const snippet = item.snippet || { /* noop */ };
+      const stats = statsMap[videoId] || { /* noop */ };
       const publishedAt = snippet.publishedAt || new Date().toISOString();
 
       // Double-check date range (API sometimes returns edge cases)
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
           const commRes = await fetch(commentsUrl.toString());
           if (commRes.ok) {
             const commData = await commRes.json();
-            const commentResults: any[] = [];
+            const commentResults: unknown[] = [];
             for (const thread of (commData.items || [])) {
               const comment = thread.snippet?.topLevelComment?.snippet;
               if (!comment) continue;
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("scan-youtube error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

@@ -42,12 +42,12 @@ const COLORS = [
   "hsl(280, 67%, 55%)",
 ];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-popover border border-border rounded-lg p-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p: unknown) => (
         <p key={p.dataKey} style={{ color: p.fill || p.color }} className="font-medium">
           {p.name}: {p.value}
         </p>
@@ -94,7 +94,7 @@ export default function CompetitorDeepDive({ competitorName, mentions, narrative
   }, [mentions, narratives, orgMentionCount]);
 
   const sourceBreakdown = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, number> = { /* noop */ };
     mentions.forEach(m => { map[m.source] = (map[m.source] || 0) + 1; });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }));
   }, [mentions]);

@@ -69,7 +69,7 @@ const DEFAULT_FORM: EntityForm = {
   watch_keywords: "", alert_enabled: false, evidence_links: [],
   known_aliases: "", ai_suggested_type: "", ai_suggested_risk: "",
   ai_confidence: 0, bio: "", follower_count: "", detected_topics: [],
-  risk_flags: {}, why_flagged: [],
+  risk_flags: { /* noop */ }, why_flagged: [],
 };
 
 const STEPS = ["Source", "Enrich", "Classify", "Details & Save"];
@@ -110,7 +110,7 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
   const [tagInput, setTagInput] = useState("");
   const [evidenceInput, setEvidenceInput] = useState({ url: "", label: "", note: "" });
 
-  const set = (k: keyof EntityForm, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+  const set = (k: keyof EntityForm, v: unknown) => setForm(prev => ({ ...prev, [k]: v }));
 
   // Reset on close
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
         }
         if (typeof data.ai_confidence === "number") set("ai_confidence", data.ai_confidence);
       }
-    } catch (_) {}
+    } catch (_) { /* noop */ }
     setEnriching(false);
     setEnrichDone(true);
   };
@@ -200,7 +200,7 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
     if (!currentOrg) return;
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: unknown = {
         org_id: currentOrg.id,
         platform: form.platform,
         url: form.url || null,
@@ -236,7 +236,7 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
         audit_log: [{ action: "created", at: new Date().toISOString(), by: "user" }],
       };
 
-      const { data: inserted, error } = await (supabase as any)
+      const { data: inserted, error } = await (supabase as unknown)
         .from("entity_records")
         .insert(payload)
         .select("id")
@@ -248,13 +248,13 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
       if (form.url && inserted?.id) {
         supabase.functions.invoke("enrich-entity", {
           body: { entity_id: inserted.id, url: form.url, platform: form.platform, handle: form.handle },
-        }).catch(() => {});
+        }).catch(() => { /* noop */ });
       }
 
       toast({ title: "Entity added", description: form.display_name || form.handle || form.url || "New entity created" });
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -432,8 +432,8 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
                       <div key={flag} className="flex items-start gap-2 text-xs text-muted-foreground">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1 flex-shrink-0" />
                         <span>{RISK_FLAG_LABELS[flag] || toLabel(flag)}</span>
-                        {(form.risk_flags as any)[`${flag}_reason`] && (
-                          <span className="text-red-400/70">— {(form.risk_flags as any)[`${flag}_reason`]}</span>
+                        {(form.risk_flags as unknown)[`${flag}_reason`] && (
+                          <span className="text-red-400/70">— {(form.risk_flags as unknown)[`${flag}_reason`]}</span>
                         )}
                       </div>
                     ))}

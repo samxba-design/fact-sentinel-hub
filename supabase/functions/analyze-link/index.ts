@@ -107,8 +107,8 @@ async function fetchArchiveFallback(url: string): Promise<{ content: string; tit
           return { content: text.slice(0, 8000), title, source: service.name };
         }
       }
-    } catch (e: any) {
-      console.log(`[ARCHIVE-FALLBACK] ${service.name} failed:`, e.message);
+    } catch (e: unknown) {
+      console.log(`[ARCHIVE-FALLBACK] ${service.name} failed:`, (e as Error).message);
     }
   }
 
@@ -134,8 +134,8 @@ async function fetchArchiveFallback(url: string): Promise<{ content: string; tit
         }
       }
     }
-  } catch (e: any) {
-    console.log("[ARCHIVE-FALLBACK] Archive.org failed:", e.message);
+  } catch (e: unknown) {
+    console.log("[ARCHIVE-FALLBACK] Archive.org failed:", (e as Error).message);
   }
 
   return null;
@@ -204,7 +204,7 @@ function isGenericTitle(title: string, url: string): boolean {
   try {
     const domain = new URL(url).hostname.replace("www.", "").replace(/\..+$/, "");
     if (lower === domain || lower === `the ${domain}` || lower.replace(/[^a-z]/g, "") === domain.replace(/[^a-z]/g, "")) return true;
-  } catch {}
+  } catch { /* noop */ }
 
   // Check exact match or "Site Name - Tagline" format for known publications
   // Split on common separators: -, |, ·, –, —, :
@@ -252,7 +252,7 @@ function isGenericDescription(desc: string, url: string): boolean {
     const domain = new URL(url).hostname.replace("www.", "").replace(/\..+$/, "");
     // If desc is essentially about the publication itself, not an article
     if (lower.includes(domain) && desc.length < 80) return true;
-  } catch {}
+  } catch { /* noop */ }
   return false;
 }
 
@@ -265,7 +265,7 @@ function titleFromUrlSlug(url: string): string {
     if (slug) {
       return slug.replace(/[-_]/g, " ").replace(/\.html?$/i, "").replace(/\b\w/g, c => c.toUpperCase());
     }
-  } catch {}
+  } catch { /* noop */ }
   return "";
 }
 
@@ -281,14 +281,15 @@ function extractYouTubeId(url: string): string | null {
   return null;
 }
 
-function extractJson(raw: string): any {
+function extractJson(raw: string): unknown {
   // Strip markdown code fences
-  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
   let jsonStr = cleaned.slice(start, end + 1);
   jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
+  // eslint-disable-next-line no-control-regex
   jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === "\n" || ch === "\r" || ch === "\t" ? ch : "");
   try {
     return JSON.parse(jsonStr);
@@ -349,8 +350,8 @@ Deno.serve(async (req) => {
           markdown = `# ${pageTitle}\n\nBy: ${oembed.author_name || "Unknown"}\nChannel: ${oembed.author_url || ""}\n\nThis is a YouTube video. Transcript not available via scraping.`;
           scrapeSuccess = true;
         }
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] YouTube oEmbed failed:", e.message);
+      } catch (e: unknown) {
+        console.log("[ANALYZE-LINK] YouTube oEmbed failed:", (e as Error).message);
       }
       // Try Firecrawl for richer content (may get transcript/comments)
       if (firecrawlKey) {
@@ -368,8 +369,8 @@ Deno.serve(async (req) => {
             if (d.metadata?.description) pageDescription = d.metadata.description;
             scrapeSuccess = true;
           }
-        } catch (e: any) {
-          console.log("[ANALYZE-LINK] YouTube Firecrawl scrape failed:", e.message);
+        } catch (e: unknown) {
+          console.log("[ANALYZE-LINK] YouTube Firecrawl scrape failed:", (e as Error).message);
         }
       }
     }
@@ -399,8 +400,8 @@ Deno.serve(async (req) => {
           pageDescription = d.metadata?.description || "";
           scrapeSuccess = true;
         }
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] Firecrawl scrape failed, falling back:", e.message);
+      } catch (e: unknown) {
+        console.log("[ANALYZE-LINK] Firecrawl scrape failed, falling back:", (e as Error).message);
       }
     }
 
@@ -422,9 +423,9 @@ Deno.serve(async (req) => {
           .trim()
           .slice(0, 5000);
         html = rawHtml.slice(0, 3000);
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] Direct fetch failed:", e.message);
-        markdown = `Could not access ${formattedUrl}: ${e.message}`;
+      } catch (e: unknown) {
+        console.log("[ANALYZE-LINK] Direct fetch failed:", (e as Error).message);
+        markdown = `Could not access ${formattedUrl}: ${(e as Error).message}`;
       }
     }
 
@@ -446,8 +447,8 @@ Deno.serve(async (req) => {
             pageTitle = extracted;
             console.log(`[ANALYZE-LINK] AI-extracted title: "${pageTitle}"`);
           }
-        } catch (e: any) {
-          console.log("[ANALYZE-LINK] AI title extraction failed:", e.message);
+        } catch (e: unknown) {
+          console.log("[ANALYZE-LINK] AI title extraction failed:", (e as Error).message);
         }
       }
     }
@@ -476,8 +477,8 @@ Deno.serve(async (req) => {
     }
 
     // Step 3: Related coverage search with AI relevance filtering
-    let socialPickup: any[] = [];
-    let mediaPickup: any[] = [];
+    const socialPickup: unknown[] = [];
+    const mediaPickup: unknown[] = [];
 
     if (firecrawlKey) {
       const domain = new URL(formattedUrl).hostname.replace("www.", "");
@@ -500,14 +501,14 @@ Deno.serve(async (req) => {
           });
           const searchData = await searchRes.json();
           if (searchData.success && searchData.data) {
-            const candidates: any[] = [];
+            const candidates: unknown[] = [];
             for (const result of searchData.data) {
               const resUrl = (result.url || "").toLowerCase();
               if (resUrl === formattedUrl.toLowerCase()) continue;
               try {
                 const resDomain = new URL(result.url).hostname.replace("www.", "");
                 if (resDomain === domain) continue;
-              } catch {}
+              } catch { /* noop */ }
               candidates.push(result);
             }
 
@@ -546,20 +547,20 @@ Deno.serve(async (req) => {
                     mediaPickup.push({ url: result.url, title: result.title, snippet: result.description, domain: new URL(result.url).hostname.replace("www.", "") });
                   }
                 }
-              } catch (e: any) {
-                console.log("[ANALYZE-LINK] Relevance filter failed:", e.message);
+              } catch (e: unknown) {
+                console.log("[ANALYZE-LINK] Relevance filter failed:", (e as Error).message);
               }
             }
           }
-        } catch (e: any) {
-          console.log("[ANALYZE-LINK] Coverage search failed:", e.message);
+        } catch (e: unknown) {
+          console.log("[ANALYZE-LINK] Coverage search failed:", (e as Error).message);
         }
       }
     }
 
     // Step 4: Search engine visibility + keyword discovery
-    let searchVisibility: any = null;
-    let searchDiscovery: any = null;
+    let searchVisibility: unknown = null;
+    let searchDiscovery: unknown = null;
     
     if (firecrawlKey && pageTitle && pageTitle.length > 5) {
       const domain = new URL(formattedUrl).hostname.replace("www.", "");
@@ -580,28 +581,28 @@ Deno.serve(async (req) => {
         const seoData = await seoRes.json();
         if (seoData.success && seoData.data) {
            const targetUrl = formattedUrl.toLowerCase().replace(/\/$/, "");
-          const exactUrlMatches = seoData.data.filter((r: any) => {
+          const exactUrlMatches = seoData.data.filter((r: unknown) => {
             try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
           });
-          const domainMatches = seoData.data.filter((r: any) => {
+          const domainMatches = seoData.data.filter((r: unknown) => {
             try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
           });
           const isIndexed = exactUrlMatches.length > 0 || domainMatches.length > 0;
-          const rankPosition = seoData.data.findIndex((r: any) => {
+          const rankPosition = seoData.data.findIndex((r: unknown) => {
             try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
           });
-          const domainRank = rankPosition >= 0 ? rankPosition : seoData.data.findIndex((r: any) => {
+          const domainRank = rankPosition >= 0 ? rankPosition : seoData.data.findIndex((r: unknown) => {
             try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
           });
 
           // Competing results: filter by AI for relevance to THIS article's topic
           const otherResults = seoData.data
-            .filter((r: any) => {
+            .filter((r: unknown) => {
               try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
             })
             .slice(0, 8);
 
-          let competingResults: any[] = [];
+          let competingResults: unknown[] = [];
           if (otherResults.length > 0) {
             try {
               const rawIdx = await geminiChat([
@@ -611,7 +612,7 @@ Deno.serve(async (req) => {
                 },
                 {
                   role: "user",
-                  content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\n\nResults:\n${otherResults.map((c: any, i: number) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
+                  content: `Article: "${pageTitle}"\nDescription: "${pageDescription}"\n\nResults:\n${otherResults.map((c: unknown, i: number) => `[${i}] ${c.title} — ${c.description || ""} (${c.url})`).join("\n")}`,
                 },
               ]);
               const idxMatch = rawIdx.match(/\[[\s\S]*?\]/);
@@ -623,8 +624,8 @@ Deno.serve(async (req) => {
                   url: otherResults[i].url,
                   domain: (() => { try { return new URL(otherResults[i].url).hostname.replace("www.", ""); } catch { return otherResults[i].url; } })(),
                 }));
-            } catch (e: any) {
-              console.log("[ANALYZE-LINK] Competing filter failed:", e.message);
+            } catch (e: unknown) {
+              console.log("[ANALYZE-LINK] Competing filter failed:", (e as Error).message);
             }
           }
 
@@ -650,8 +651,8 @@ Deno.serve(async (req) => {
             search_snippet: articleSnippet,
           };
         }
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] SEO check failed:", e.message);
+      } catch (e: unknown) {
+        console.log("[ANALYZE-LINK] SEO check failed:", (e as Error).message);
       }
 
       // 4b: Search keyword discovery — extract keywords via AI, then verify in search
@@ -706,15 +707,15 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
                 if (verifyData.success && verifyData.data) {
                   const targetUrl = formattedUrl.toLowerCase().replace(/\/$/, "");
                   // Check exact URL match first
-                  const exactRank = verifyData.data.findIndex((r: any) => {
+                  const exactRank = verifyData.data.findIndex((r: unknown) => {
                     try { return r.url.toLowerCase().replace(/\/$/, "") === targetUrl; } catch { return false; }
                   });
                   // Fallback to domain match only if exact not found
-                  const domainRank = exactRank >= 0 ? exactRank : verifyData.data.findIndex((r: any) => {
+                  const domainRank = exactRank >= 0 ? exactRank : verifyData.data.findIndex((r: unknown) => {
                     try { return new URL(r.url).hostname.replace("www.", "") === domain; } catch { return false; }
                   });
                   const rank = exactRank >= 0 ? exactRank : domainRank;
-                  const competitors = verifyData.data.filter((r: any) => {
+                  const competitors = verifyData.data.filter((r: unknown) => {
                     try { return new URL(r.url).hostname.replace("www.", "") !== domain; } catch { return false; }
                   });
                   return {
@@ -726,8 +727,8 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
                     top_competitor: competitors[0]?.title || null,
                   };
                 }
-              } catch (e: any) {
-                console.log("[ANALYZE-LINK] Keyword verify failed for:", kw, e.message);
+              } catch (e: unknown) {
+                console.log("[ANALYZE-LINK] Keyword verify failed for:", kw, (e as Error).message);
               }
               return { keyword: kw, surfaces_article: false, surfaces_domain: false, rank: null, competing_count: 0, top_competitor: null };
             });
@@ -754,8 +755,8 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
             
             console.log(`[ANALYZE-LINK] Search discovery: ${searchDiscovery.surfacing_count}/${searchDiscovery.total_verified} keywords surface the article`);
           }
-      } catch (e: any) {
-        console.log("[ANALYZE-LINK] Search keyword discovery failed:", e.message);
+      } catch (e: unknown) {
+        console.log("[ANALYZE-LINK] Search keyword discovery failed:", (e as Error).message);
       }
     }
 
@@ -776,7 +777,7 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
     }
 
     // Step 6: Similar mentions
-    let similarMentions: any[] = [];
+    let similarMentions: unknown[] = [];
     if (org_id && pageTitle) {
       const keywords = pageTitle.toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
@@ -807,8 +808,8 @@ Return ONLY a JSON array of 6-10 keyword phrases. Example for an article about B
               author: m.author_name,
             }));
           }
-        } catch (e: any) {
-          console.log("[ANALYZE-LINK] Similar mentions search failed:", e.message);
+        } catch (e: unknown) {
+          console.log("[ANALYZE-LINK] Similar mentions search failed:", (e as Error).message);
         }
       }
     }
@@ -830,7 +831,7 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
 {"headline":"article headline","summary":"4-6 sentence detailed summary","content_breakdown":{"main_topic":"primary subject","key_points":["point1","point2"],"tone":"neutral reporting|investigative|promotional|opinion|analytical","target_audience":"who this is for"},"brand_impact":{"brands_mentioned":[{"name":"X","context":"how discussed","sentiment_toward":"positive|negative|neutral|mixed"}],"overall_brand_risk":"none|low|medium|high|critical","brand_opportunities":["opportunity"],"brand_threats":["threat"],"reputation_implications":"what this means for brands"},"reach_and_impact":{"estimated_reach":"audience estimate","virality_potential":"low|medium|high","virality_reasoning":"why","shareability_factors":["factor"]},"sentiment":{"label":"positive|negative|neutral|mixed","score":0.5,"confidence":80,"reasoning":"why"},"narratives":["narrative thread"],"claims":[{"text":"claim","category":"fact|opinion|allegation|statistic","verifiable":true}],"key_entities":[{"name":"entity","role":"their role","sentiment_toward":"positive|negative|neutral"}],"potential_impact":{"level":"low|medium|high|critical","reasoning":"why","affected_parties":["who"]},"regional_scope":{"primary_region":"region","relevant_regions":["region"],"is_global":false},"content_type":"news|opinion|analysis|press_release|blog|report|interview|other","publication_date":"ISO date or null","author":"name or null","reliability":{"score":70,"factors":["factor"],"source_type":"mainstream|independent|trade|social|unknown"},"recommended_actions":["action"]}`;
     const analysisUserPrompt = `Analyze this content from ${formattedUrl}:\n\nTitle: ${pageTitle}\nDescription: ${pageDescription}\n${paywallResult.is_paywalled ? `⚠️ PAYWALL (${paywallResult.paywall_type}): Content may be partial.` : ""}${socialContext}${mediaContext}\n\nContent:\n${contentForAI}`;
 
-    let analysis: any = {};
+    let analysis: unknown = { /* noop */ };
     try {
       const raw = await geminiChat([
         { role: "system", content: analysisSystemPrompt },
@@ -845,7 +846,7 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
         }
       }
       console.log("[ANALYZE-LINK] AI analysis keys:", Object.keys(analysis).join(", "));
-    } catch (aiErr: any) {
+    } catch (aiErr: unknown) {
       console.log("[ANALYZE-LINK] AI request failed:", aiErr.message);
       analysis = { summary: "AI analysis temporarily unavailable. Content was scraped successfully.", error: "ai_failed" };
     }
@@ -885,7 +886,7 @@ Return ONLY valid JSON (no markdown fences, no extra text) with this exact struc
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[ANALYZE-LINK] Error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

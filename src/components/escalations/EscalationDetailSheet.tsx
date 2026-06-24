@@ -82,7 +82,7 @@ export default function EscalationDetailSheet({ open, onOpenChange, escalation, 
       if (error) throw error;
       setComments(prev => [...prev, data]);
       setNewComment("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setPosting(false);

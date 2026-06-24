@@ -41,7 +41,7 @@ function loadLayout(): DashboardWidget[] {
       const parsed = JSON.parse(saved) as DashboardWidget[];
       return mergeWithDefaults(parsed);
     }
-  } catch {}
+  } catch { /* noop */ }
   return DEFAULT_WIDGETS;
 }
 
@@ -58,7 +58,7 @@ export function useDashboardLayout(orgId?: string) {
       .eq("org_id", orgId)
       .maybeSingle()
       .then(({ data }) => {
-        const dbLayout = (data?.settings as any)?.dashboard_layout_v2;
+        const dbLayout = (data?.settings as unknown)?.dashboard_layout_v2;
         if (dbLayout && Array.isArray(dbLayout)) {
           setWidgets(mergeWithDefaults(dbLayout));
         }
@@ -74,7 +74,7 @@ export function useDashboardLayout(orgId?: string) {
           .select("settings")
           .eq("org_id", currentOrgId)
           .maybeSingle();
-        const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+        const existingSettings = (existing?.settings as Record<string, unknown>) || { /* noop */ };
         await supabase
           .from("tracking_profiles")
           .upsert(

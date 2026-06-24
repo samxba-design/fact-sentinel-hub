@@ -104,7 +104,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
       // Track names of already-monitored people to prevent duplicates
       const tracked = new Set<string>();
       for (const t of (trackedRes.data || [])) {
-        const personName = (t as any).people?.name?.toLowerCase();
+        const personName = (t as unknown).people?.name?.toLowerCase();
         if (personName) tracked.add(personName);
       }
       setAlreadyTracked(tracked);
@@ -152,7 +152,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
     
     setSaving(true);
     try {
-      const handles: Record<string, string> = {};
+      const handles: Record<string, string> = { /* noop */ };
       if (twitterHandle) handles.twitter = twitterHandle;
       if (linkedinHandle) handles.linkedin = linkedinHandle;
 
@@ -161,7 +161,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
         .insert({
           name: name.trim(),
           titles: title ? [title] : [],
-          handles: Object.keys(handles).length > 0 ? handles : {},
+          handles: Object.keys(handles).length > 0 ? handles : { /* noop */ },
         })
         .select()
         .single();
@@ -180,7 +180,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
       toast({ title: "Person added", description: `${name} is now being monitored.` });
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -220,7 +220,7 @@ export default function AddPersonDialog({ open, onOpenChange, onSaved }: AddPers
       toast({ title: "Person added for monitoring", description: `${displayName} is now being tracked.` });
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

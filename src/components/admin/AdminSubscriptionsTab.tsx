@@ -14,7 +14,7 @@ import { useState } from "react";
 export default function AdminSubscriptionsTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({ /* noop */ });
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ["admin-subscription-requests"],

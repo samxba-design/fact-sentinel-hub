@@ -19,7 +19,7 @@ const TOUR_KEY = "factsent_tour_v2_completed";
 
 interface TourStep {
   id: string;
-  icon: any;
+  icon: unknown;
   color: string;
   title: string;
   description: string;
@@ -130,7 +130,7 @@ export default function OnboardingTour({ forceShow, onClose }: Props) {
           .select("settings")
           .eq("org_id", currentOrg.id)
           .maybeSingle();
-        if ((data?.settings as any)?.tour_v2_completed === true) {
+        if ((data?.settings as unknown)?.tour_v2_completed === true) {
           localStorage.setItem(TOUR_KEY, "true");
           return;
         }
@@ -153,7 +153,7 @@ export default function OnboardingTour({ forceShow, onClose }: Props) {
         .select("settings")
         .eq("org_id", currentOrg.id)
         .maybeSingle();
-      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      const existingSettings = (existing?.settings as Record<string, unknown>) || { /* noop */ };
       await supabase
         .from("tracking_profiles")
         .upsert(

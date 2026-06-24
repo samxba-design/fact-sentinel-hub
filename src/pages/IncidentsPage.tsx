@@ -67,8 +67,8 @@ export default function IncidentsPage() {
       supabase.from("incident_narratives").select("incident_id").in("incident_id", ids),
     ]);
 
-    const mCountMap: Record<string, number> = {};
-    const nCountMap: Record<string, number> = {};
+    const mCountMap: Record<string, number> = { /* noop */ };
+    const nCountMap: Record<string, number> = { /* noop */ };
     (mentionCounts.data || []).forEach(r => { mCountMap[r.incident_id] = (mCountMap[r.incident_id] || 0) + 1; });
     (narrativeCounts.data || []).forEach(r => { nCountMap[r.incident_id] = (nCountMap[r.incident_id] || 0) + 1; });
 

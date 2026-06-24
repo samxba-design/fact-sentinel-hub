@@ -7,8 +7,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isSuperAdmin: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: unknown }>;
+  signIn: (email: string, password: string) => Promise<{ error: unknown }>;
   signOut: () => Promise<void>;
 }
 
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select("role")
       .eq("user_id", user.id)
       .then(({ data }) => {
-        setIsSuperAdmin(data?.some((r: any) => r.role === "super_admin") ?? false);
+        setIsSuperAdmin(data?.some((r: unknown) => r.role === "super_admin") ?? false);
       });
   }, [user]);
 

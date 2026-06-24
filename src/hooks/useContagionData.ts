@@ -34,12 +34,12 @@ export function useContagionData(topicWatchId: string | undefined, orgId: string
       try {
         // Fetch watch to get query terms
         const { data: watch } = await supabase
-          .from("topic_watches" as any)
+          .from("topic_watches" as unknown)
           .select("query")
           .eq("id", topicWatchId)
           .single();
 
-        const query: string = (watch as any)?.query ?? "";
+        const query: string = (watch as unknown)?.query ?? "";
         setWatchQuery(query);
         const terms = query.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
 
@@ -53,15 +53,15 @@ export function useContagionData(topicWatchId: string | undefined, orgId: string
 
         if (!mentions) { setLoading(false); return; }
 
-        const matchesTopic = (m: any) => terms.some(t => m.content?.toLowerCase().includes(t));
-        const matchesBinance = (m: any) => BINANCE_TERMS.some(b => m.content?.toLowerCase().includes(b));
+        const matchesTopic = (m: unknown) => terms.some(t => m.content?.toLowerCase().includes(t));
+        const matchesBinance = (m: unknown) => BINANCE_TERMS.some(b => m.content?.toLowerCase().includes(b));
 
         // Build bridge posts (both topic AND binance)
         const bridges = mentions.filter(m => matchesTopic(m) && matchesBinance(m)).slice(0, 20);
         setBridgePosts(bridges as BridgePost[]);
 
         // Build hourly buckets (group by 4h for readability)
-        const buckets: Record<string, { topicTotal: number; binanceTotal: number; overlap: number }> = {};
+        const buckets: Record<string, { topicTotal: number; binanceTotal: number; overlap: number }> = { /* noop */ };
         for (const m of mentions) {
           const d = new Date(m.posted_at ?? "");
           const h = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(d.getHours() / 4) * 4).toISOString();
@@ -102,9 +102,9 @@ export function useAllTopicWatches(orgId: string | undefined) {
   const [watches, setWatches] = useState<{ id: string; name: string; query: string; alert_threshold: number }[]>([]);
   useEffect(() => {
     if (!orgId) return;
-    supabase.from("topic_watches" as any).select("id,name,query,alert_threshold")
+    supabase.from("topic_watches" as unknown).select("id,name,query,alert_threshold")
       .eq("org_id", orgId).eq("status", "active")
-      .then(({ data }) => setWatches((data as any) ?? []));
+      .then(({ data }) => setWatches((data as unknown) ?? []));
   }, [orgId]);
   return watches;
 }

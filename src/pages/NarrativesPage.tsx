@@ -38,7 +38,7 @@ interface NarrativeWithCounts {
   sentiment_breakdown: { positive: number; negative: number; neutral: number };
 }
 
-const STATUS_CONFIG: Record<string, { label: string; className: string; icon: any }> = {
+const STATUS_CONFIG: Record<string, { label: string; className: string; icon: unknown }> = {
   active:   { label: "Active",   className: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10", icon: CheckCircle },
   watch:    { label: "Watch",    className: "border-amber-500/40 text-amber-400 bg-amber-500/10",   icon: Eye },
   emerging: { label: "Emerging", className: "border-blue-500/40 text-blue-400 bg-blue-500/10",     icon: TrendingUp },
@@ -86,13 +86,13 @@ export default function NarrativesPage() {
     // Build enrichment map
     const enrichMap: Record<string, {
       count: number; negative: number; positive: number; neutral: number; critical: number; sources: Set<string>;
-    }> = {};
+    }> = { /* noop */ };
 
     narrativeIds.forEach(id => {
       enrichMap[id] = { count: 0, negative: 0, positive: 0, neutral: 0, critical: 0, sources: new Set() };
     });
 
-    (mentionLinks || []).forEach((link: any) => {
+    (mentionLinks || []).forEach((link: unknown) => {
       const m = link.mentions;
       if (!m) return;
       const e = enrichMap[link.narrative_id];
@@ -138,7 +138,7 @@ export default function NarrativesPage() {
         description: `${data?.narratives_created || 0} new narratives, ${data?.mentions_linked || 0} mentions linked`,
       });
       loadNarratives();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Detection failed", description: err.message, variant: "destructive" });
     } finally {
       setDetecting(false);
@@ -157,7 +157,7 @@ export default function NarrativesPage() {
       if (currentOrg) {
         supabase.functions.invoke("send-notification", {
           body: { org_id: currentOrg.id, type: "narrative_status_change", narrative_id: id, new_status: newStatus }
-        }).catch(() => {});
+        }).catch(() => { /* noop */ });
       }
     }
     setUpdatingId(null);
@@ -265,7 +265,7 @@ export default function NarrativesPage() {
               <SelectItem value="resolved">Resolved</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <Select value={sortBy} onValueChange={(v: unknown) => setSortBy(v)}>
             <SelectTrigger className="w-40 bg-muted border-border"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="last_seen">Latest activity</SelectItem>

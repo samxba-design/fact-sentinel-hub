@@ -41,12 +41,12 @@ const COLORS = [
   "hsl(190, 90%, 50%)",
 ];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-popover border border-border rounded-lg p-2 shadow-lg text-xs">
       <p className="text-muted-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p: unknown) => (
         <p key={p.dataKey} style={{ color: p.color || p.stroke }} className="font-medium">
           {p.name}: {p.value}
         </p>
@@ -113,12 +113,12 @@ export default function CompetitorBenchmarkPage() {
     const compNames = (keywords || []).map(k => k.value);
 
     // Build day map template
-    const dayTemplate: Record<string, number> = {};
+    const dayTemplate: Record<string, number> = { /* noop */ };
     for (let i = rangeDays - 1; i >= 0; i--) {
       dayTemplate[format(subDays(now, i), "MMM dd")] = 0;
     }
 
-    const buildData = (name: string, matched: any[]): CompetitorData => {
+    const buildData = (name: string, matched: unknown[]): CompetitorData => {
       const total = matched.length || 1;
       const neg = matched.filter(m => m.sentiment_label === "negative").length;
       const pos = matched.filter(m => m.sentiment_label === "positive").length;
@@ -129,7 +129,7 @@ export default function CompetitorBenchmarkPage() {
         try {
           const d = format(new Date(m.posted_at || m.created_at || ""), "MMM dd");
           if (d in volByDay) volByDay[d]++;
-        } catch {}
+        } catch { /* noop */ }
       });
       return {
         name,
@@ -164,7 +164,7 @@ export default function CompetitorBenchmarkPage() {
     if (!orgData) return [];
     const days = Object.keys(orgData.volumeByDay);
     return days.map(day => {
-      const row: any = { date: day, [orgData.name]: orgData.volumeByDay[day] };
+      const row: unknown = { date: day, [orgData.name]: orgData.volumeByDay[day] };
       competitors.forEach(c => {
         row[c.name] = c.volumeByDay[day] || 0;
       });
@@ -192,7 +192,7 @@ export default function CompetitorBenchmarkPage() {
   const sovChartData = useMemo(() => {
     if (!orgData || allNames.length === 0) return [];
     return Object.keys(orgData.volumeByDay).map(day => {
-      const row: any = { date: day };
+      const row: unknown = { date: day };
       allNames.forEach(name => {
         const d = name === orgData.name ? orgData : competitors.find(c => c.name === name);
         row[name] = d?.volumeByDay[day] || 0;
@@ -354,7 +354,7 @@ export default function CompetitorBenchmarkPage() {
                     return (
                       <div className="bg-popover border border-border rounded-lg p-2.5 shadow-lg text-xs space-y-1">
                         <p className="text-muted-foreground font-medium">{label}</p>
-                        {payload.map((p: any) => (
+                        {payload.map((p: unknown) => (
                           <p key={p.name} style={{ color: p.color }} className="font-medium">
                             {p.name}: {Math.round(p.value * 100)}%
                           </p>

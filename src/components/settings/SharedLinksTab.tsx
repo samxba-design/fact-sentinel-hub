@@ -135,7 +135,7 @@ export default function SharedLinksTab() {
       setNewPermissions({ monitoring: true, intelligence: true, operations: true, assets: true });
       setShowCreateForm(false);
       queryClient.invalidateQueries({ queryKey: ["shared-links", currentOrg.id] });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setCreating(false);

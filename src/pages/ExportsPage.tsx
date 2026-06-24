@@ -59,7 +59,7 @@ export default function ExportsPage() {
   const [mode, setMode] = useState<ExportMode>("csv");
   const [googleToken, setGoogleToken] = useState<GoogleToken | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
-  const [summaryStats, setSummaryStats] = useState<Record<string, number>>({});
+  const [summaryStats, setSummaryStats] = useState<Record<string, number>>({ /* noop */ });
   const [creatingSheet, setCreatingSheet] = useState(false);
   const [newSheetUrl, setNewSheetUrl] = useState<string | null>(null);
 
@@ -119,7 +119,7 @@ export default function ExportsPage() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
       setConnectingGoogle(false);
     }
@@ -149,7 +149,7 @@ export default function ExportsPage() {
         : `"${data.title}" created. Use Sync to populate tabs.`;
       toast({ title: "Sheet Created!", description: desc });
       loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error creating sheet", description: err.message, variant: "destructive" });
     } finally {
       setCreatingSheet(false);
@@ -207,7 +207,7 @@ export default function ExportsPage() {
         toast({ title: "Sheet Updated", description: data.message });
         loadData();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Export Error", description: err.message, variant: "destructive" });
     } finally {
       setExporting(null);

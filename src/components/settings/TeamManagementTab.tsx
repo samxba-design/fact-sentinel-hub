@@ -117,7 +117,7 @@ export default function TeamManagementTab() {
         const { error } = await supabase.from("org_memberships").insert({
           org_id: currentOrg.id,
           user_id: existingProfile.id,
-          role: inviteRole as any,
+          role: inviteRole as unknown,
           invited_email: inviteEmail.trim().toLowerCase(),
           accepted_at: new Date().toISOString(),
         });
@@ -128,7 +128,7 @@ export default function TeamManagementTab() {
         const { error } = await supabase.from("org_memberships").insert({
           org_id: currentOrg.id,
           user_id: user!.id, // Temporary — will be updated when they sign up
-          role: inviteRole as any,
+          role: inviteRole as unknown,
           invited_email: inviteEmail.trim().toLowerCase(),
         });
         if (error) throw error;
@@ -138,7 +138,7 @@ export default function TeamManagementTab() {
       setInviteEmail("");
       setInviteOpen(false);
       await fetchMembers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setInviting(false);
@@ -151,12 +151,12 @@ export default function TeamManagementTab() {
     try {
       const { error } = await supabase
         .from("org_memberships")
-        .update({ role: newRole as any })
+        .update({ role: newRole as unknown })
         .eq("id", member.id);
       if (error) throw error;
       setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m));
       toast({ title: "Role updated" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setUpdatingRole(null);
@@ -171,7 +171,7 @@ export default function TeamManagementTab() {
       if (error) throw error;
       setMembers(prev => prev.filter(m => m.id !== removeTarget.id));
       toast({ title: "Member removed" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setRemoving(false);

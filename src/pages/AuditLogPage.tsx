@@ -64,7 +64,7 @@ export default function AuditLogPage() {
         .select("entity_type")
         .eq("org_id", currentOrg!.id)
         .limit(500);
-      const types = [...new Set((data ?? []).map((r: any) => r.entity_type).filter(Boolean))].sort();
+      const types = [...new Set((data ?? []).map((r: unknown) => r.entity_type).filter(Boolean))].sort();
       return types as string[];
     },
   });
@@ -132,7 +132,7 @@ export default function AuditLogPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.map((log: any) => (
+              {logs.map((log: unknown) => (
                 <TableRow key={log.id} className="hover:bg-muted/30">
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {log.created_at ? (

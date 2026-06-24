@@ -50,7 +50,7 @@ async function scrapeWithFirecrawl(url: string, firecrawlKey: string): Promise<s
   }
 }
 
-async function analyzeWithAI(content: string, url: string, platform: string): Promise<any> {
+async function analyzeWithAI(content: string, url: string, platform: string): Promise<unknown> {
   const prompt = `You are an intelligence analyst. Given this content scraped from ${platform} (${url}), extract entity profile information.
 
 SCRAPED CONTENT:
@@ -115,9 +115,9 @@ Return only valid JSON, no markdown.`;
   }
 }
 
-async function heuristicEnrichment(url: string, platform: string, handle: string | null): Promise<any> {
+async function heuristicEnrichment(url: string, platform: string, handle: string | null): Promise<unknown> {
   // Basic heuristic risk flags without AI
-  const flags: Record<string, any> = {};
+  const flags: Record<string, unknown> = {};
   const lowerHandle = (handle || "").toLowerCase();
   const lowerUrl = (url || "").toLowerCase();
 
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     const platform = inputPlatform !== "unknown" ? inputPlatform : detected.platform;
     const handle = inputHandle || detected.handle;
 
-    let enriched: any = {};
+    let enriched: unknown = {};
     let scrapedContent = "";
 
     // 1. Try Firecrawl scrape if URL available
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
 
     // 4. Build update payload
     const now = new Date().toISOString();
-    const patch: Record<string, any> = {
+    const patch: Record<string, unknown> = {
       enriched_at: now,
       enrichment_source: scrapedContent ? "firecrawl+ai" : "heuristic",
       platform,
@@ -277,22 +277,9 @@ Deno.serve(async (req) => {
       risk_type_suggestion: enriched.risk_type,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("enrich-entity error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-});
-y_flagged || [],
-      source_type_suggestion: enriched.source_type,
-      risk_type_suggestion: enriched.risk_type,
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-  } catch (err: any) {
-    console.error("enrich-entity error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

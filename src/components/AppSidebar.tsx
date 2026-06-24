@@ -23,7 +23,7 @@ type Access = "all" | "write" | "edit" | "manage";
 
 interface NavItem {
   to: string;
-  icon: any;
+  icon: unknown;
   label: string;
   access?: Access;
   badge?: string;
@@ -89,7 +89,7 @@ export default function AppSidebar() {
   const toggleAdv = () => {
     const next = !advOpen;
     setAdvOpen(next);
-    try { localStorage.setItem(ADV_STORAGE_KEY, String(next)); } catch {}
+    try { localStorage.setItem(ADV_STORAGE_KEY, String(next)); } catch { /* noop */ }
   };
 
   const hasAccess = (access?: Access) => {

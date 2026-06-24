@@ -40,9 +40,9 @@ export default function CompetitorProfilePage() {
   const { toast } = useToast();
 
   const [mentions, setMentions] = useState<MentionRow[]>([]);
-  const [narratives, setNarratives] = useState<any[]>([]);
+  const [narratives, setNarratives] = useState<unknown[]>([]);
   const [orgMentionCount, setOrgMentionCount] = useState(0);
-  const [orgNarratives, setOrgNarratives] = useState<any[]>([]);
+  const [orgNarratives, setOrgNarratives] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
@@ -108,7 +108,7 @@ export default function CompetitorProfilePage() {
         description: `Found ${data?.mentions_created || 0} new mentions for "${competitorName}"`,
       });
       loadProfile();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
     } finally {
       setScanning(false);
@@ -241,8 +241,8 @@ export default function CompetitorProfilePage() {
           const weekStart = startOfWeek(subWeeks(new Date(), 7 - i));
           const weekEnd = endOfWeek(weekStart);
           const compAvg = (() => {
-            const m = mentions.filter(x => x.posted_at && isWithinInterval(parseISO(x.posted_at), { start: weekStart, end: weekEnd }) && (x as any).sentiment_score != null);
-            return m.length ? m.reduce((s: number, x: any) => s + (x.sentiment_score || 0), 0) / m.length : null;
+            const m = mentions.filter(x => x.posted_at && isWithinInterval(parseISO(x.posted_at), { start: weekStart, end: weekEnd }) && (x as unknown).sentiment_score != null);
+            return m.length ? m.reduce((s: number, x: unknown) => s + (x.sentiment_score || 0), 0) / m.length : null;
           })();
           return { label: format(weekStart, "MMM d"), comp: compAvg };
         });
@@ -267,7 +267,7 @@ export default function CompetitorProfilePage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                       <YAxis domain={[-1, 1]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                      <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [typeof v === "number" ? v.toFixed(2) : "N/A", "Sentiment"]} />
+                      <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(2) : "N/A", "Sentiment"]} />
                       <Line type="monotone" dataKey="comp" name={competitorName} stroke="hsl(0,84%,60%)" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>

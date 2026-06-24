@@ -30,7 +30,7 @@ export default function WatchlistAlertToggle({ personId, personName }: Props) {
       .eq("org_id", currentOrg.id)
       .maybeSingle()
       .then(({ data }) => {
-        const watchlist: string[] = (data?.settings as any)?.watchlist_alerts || [];
+        const watchlist: string[] = (data?.settings as unknown)?.watchlist_alerts || [];
         setEnabled(watchlist.includes(personId));
         setLoading(false);
       });
@@ -48,7 +48,7 @@ export default function WatchlistAlertToggle({ personId, personName }: Props) {
       .eq("org_id", currentOrg.id)
       .maybeSingle();
 
-    const currentSettings = (data?.settings as any) || {};
+    const currentSettings = (data?.settings as unknown) || { /* noop */ };
     const currentList: string[] = currentSettings.watchlist_alerts || [];
     const newList = newEnabled
       ? [...new Set([...currentList, personId])]

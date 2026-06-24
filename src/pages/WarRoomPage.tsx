@@ -106,7 +106,7 @@ export default function WarRoomPage() {
         critical24h: critRes.count || 0,
       });
       setTeamMembers(
-        (membersRes.data || []).map((m: any) => ({
+        (membersRes.data || []).map((m: unknown) => ({
           user_id: m.user_id,
           email: m.invited_email,
           full_name: null,

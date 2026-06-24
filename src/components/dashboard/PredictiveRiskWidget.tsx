@@ -77,7 +77,7 @@ export default function PredictiveRiskWidget() {
       if (error) throw error;
       setPrediction(data);
       toast({ title: "Risk prediction complete", description: `Confidence: ${data.confidence}%` });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Prediction failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);

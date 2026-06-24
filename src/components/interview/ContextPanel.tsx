@@ -26,7 +26,7 @@ export function loadSavedContext(): InterviewContext | null {
 }
 
 export function saveContext(ctx: InterviewContext) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ctx)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ctx)); } catch { /* noop */ }
 }
 
 const defaultContext: InterviewContext = {
@@ -69,7 +69,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
   const toggle = (key: string) =>
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const SectionHeader = ({ icon: Icon, title, section }: { icon: any; title: string; section: string }) => (
+  const SectionHeader = ({ icon: Icon, title, section }: { icon: unknown; title: string; section: string }) => (
     <button
       onClick={() => toggle(section)}
       className="flex items-center gap-2 w-full text-left py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
@@ -247,7 +247,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ context, onChange, disabled
               <Label className="text-xs">Response Length</Label>
               <Select
                 value={context.responseLength}
-                onValueChange={(v) => update('responseLength', v as any)}
+                onValueChange={(v) => update('responseLength', v as unknown)}
                 disabled={disabled}
               >
                 <SelectTrigger className="h-8 text-xs">

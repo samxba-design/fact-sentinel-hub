@@ -17,7 +17,7 @@ interface AlertItem {
   type: string;
   status: string | null;
   triggered_at: string | null;
-  payload: any;
+  payload: unknown;
 }
 
 export default function NotificationBell() {

@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       },
     ], { jsonMode: true });
 
-    let matchResult = {
+    const matchResult = {
       matched_fact_ids: [] as string[],
       unmatched_claims: [] as string[],
       selected_template_id: "",
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("strict-respond error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

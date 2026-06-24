@@ -48,8 +48,8 @@ export default function WatchlistThreatsWidget() {
       .limit(6)
       .then(({ data }) => {
         const items = (data || [])
-          .filter((d: any) => d.people)
-          .map((d: any) => ({
+          .filter((d: unknown) => d.people)
+          .map((d: unknown) => ({
             person_id: d.person_id,
             name: d.people.name,
             tier: d.tier,

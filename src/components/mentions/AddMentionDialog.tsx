@@ -109,7 +109,7 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
       }
 
       const rawContent = scrapeData.data?.markdown || scrapeData.markdown || "";
-      const metadata = scrapeData.data?.metadata || scrapeData.metadata || {};
+      const metadata = scrapeData.data?.metadata || scrapeData.metadata || { /* noop */ };
 
       if (!rawContent || rawContent.length < 50) {
         throw new Error("Could not extract meaningful content from this URL");
@@ -127,7 +127,7 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
 
       if (aiError) throw aiError;
 
-      const analysis = aiData || {};
+      const analysis = aiData || { /* noop */ };
 
       // Auto-classify source from URL
       const urlLower = url.toLowerCase();
@@ -158,7 +158,7 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
       }
       setAiExtracted(true);
       toast({ title: "Content extracted", description: "Review the details below and edit before saving." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
     } finally {
       setExtracting(false);
@@ -201,14 +201,14 @@ export default function AddMentionDialog({ open, onOpenChange, onCreated }: AddM
         status: "new",
         owner_user_id: user?.id || null,
         flags: { manual_entry: true },
-        metrics: {},
+        metrics: { /* noop */ },
       });
       if (error) throw error;
       toast({ title: "Mention added", description: "Manual mention has been recorded." });
       resetForm();
       onOpenChange(false);
       onCreated?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

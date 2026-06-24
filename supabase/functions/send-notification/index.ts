@@ -113,15 +113,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const userIds = members.map((m: any) => m.user_id);
+    const userIds = members.map((m: unknown) => m.user_id);
 
     const [{ data: prefs }, { data: profiles }] = await Promise.all([
       supabase.from("notification_preferences").select("*").eq("org_id", org_id).in("user_id", userIds),
       supabase.from("profiles").select("id, email, full_name").in("id", userIds),
     ]);
 
-    const prefsMap = new Map((prefs || []).map((p: any) => [p.user_id, p]));
-    const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+    const prefsMap = new Map((prefs || []).map((p: unknown) => [p.user_id, p]));
+    const profilesMap = new Map((profiles || []).map((p: unknown) => [p.id, p]));
 
     const prefFieldMap: Record<string, string> = {
       mention_spike: "mention_spikes",
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ sent: sentCount, total_members: userIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("send-notification error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,

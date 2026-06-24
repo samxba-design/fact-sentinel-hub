@@ -19,7 +19,7 @@ const STAGE_COLORS: Record<ArcStage, string> = {
   normal:        "hsl(var(--muted-foreground)/0.25)",
 };
 
-const MOMENT_ICONS: Record<KeyMoment["type"], any> = {
+const MOMENT_ICONS: Record<KeyMoment["type"], unknown> = {
   first_mention:     Search,
   volume_spike:      TrendingUp,
   sentiment_shift:   MessageCircle,
@@ -121,7 +121,7 @@ export default function StoryArcTimeline({ sourceType, sourceId, days = 7, compa
           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
           <Tooltip
             contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11 }}
-            formatter={(val: any, name: string) => [name === "negPct" ? `${val}%` : val, name === "negPct" ? "Negative %" : "Volume"]}
+            formatter={(val: unknown, name: string) => [name === "negPct" ? `${val}%` : val, name === "negPct" ? "Negative %" : "Volume"]}
           />
           {/* Key moment reference lines */}
           {keyMoments.slice(0, 4).map((m, i) => (

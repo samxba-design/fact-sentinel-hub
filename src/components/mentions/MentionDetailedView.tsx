@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 interface MentionDetailedViewProps {
-  flags: any;
+  flags: unknown;
 }
 
 const sentimentColors: Record<string, string> = {
@@ -43,7 +43,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
 
   const toggle = (key: string) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
-  const SectionHeader = ({ title, icon: Icon, sectionKey, badge }: { title: string; icon: any; sectionKey: string; badge?: React.ReactNode }) => (
+  const SectionHeader = ({ title, icon: Icon, sectionKey, badge }: { title: string; icon: unknown; sectionKey: string; badge?: React.ReactNode }) => (
     <button
       type="button"
       onClick={() => toggle(sectionKey)}
@@ -151,7 +151,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
           />
           {expanded.brand && (
             <div className="px-1 pb-2 space-y-2">
-              {bi.brands_mentioned?.length > 0 && bi.brands_mentioned.map((b: any, i: number) => (
+              {bi.brands_mentioned?.length > 0 && bi.brands_mentioned.map((b: unknown, i: number) => (
                 <div key={i} className="flex items-start justify-between p-2 rounded-md bg-muted/20">
                   <div>
                     <p className="text-xs font-medium text-foreground">{b.name}</p>
@@ -228,7 +228,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
                 Search terms people use to find this content. Verified against actual Google results.
               </p>
               <div className="space-y-1.5">
-                {sd.verified_keywords.map((kw: any, i: number) => (
+                {sd.verified_keywords.map((kw: unknown, i: number) => (
                   <div key={i} className="flex items-center gap-2.5 p-2 rounded-md bg-muted/20">
                     {kw.surfaces_article ? (
                       <CheckCircle2 className="h-3.5 w-3.5 text-sentinel-emerald shrink-0" />
@@ -257,7 +257,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
               </div>
               {sd.unverified_keywords?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {sd.unverified_keywords.map((kw: any, i: number) => (
+                  {sd.unverified_keywords.map((kw: unknown, i: number) => (
                     <Badge key={i} variant="outline" className="text-[10px]">{kw.keyword}</Badge>
                   ))}
                 </div>
@@ -305,7 +305,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
               {sv.competing_results?.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-[10px] text-muted-foreground uppercase">Competing Results</p>
-                  {sv.competing_results.slice(0, 3).map((r: any, i: number) => (
+                  {sv.competing_results.slice(0, 3).map((r: unknown, i: number) => (
                     <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs cursor-pointer hover:bg-muted/30" onClick={() => window.open(r.url, "_blank")}>
                       <span className="text-foreground flex-1 truncate">{r.title}</span>
                       <span className="text-[10px] text-muted-foreground shrink-0">{r.domain}</span>
@@ -325,7 +325,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
           <SectionHeader title="Social Pickup" icon={Share2} sectionKey="social" badge={<Badge variant="outline" className="text-[9px] ml-2">{flags.social_pickup.length}</Badge>} />
           {expanded.social && (
             <div className="px-1 pb-2 space-y-1.5">
-              {flags.social_pickup.map((s: any, i: number) => (
+              {flags.social_pickup.map((s: unknown, i: number) => (
                 <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-muted/20 hover:bg-muted/30 cursor-pointer" onClick={() => window.open(s.url, "_blank")}>
                   <Globe className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -347,7 +347,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
           <SectionHeader title="Media Coverage" icon={Globe} sectionKey="media" badge={<Badge variant="outline" className="text-[9px] ml-2">{flags.media_pickup.length}</Badge>} />
           {expanded.media && (
             <div className="px-1 pb-2 space-y-1.5">
-              {flags.media_pickup.map((m: any, i: number) => (
+              {flags.media_pickup.map((m: unknown, i: number) => (
                 <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-muted/20 hover:bg-muted/30 cursor-pointer" onClick={() => window.open(m.url, "_blank")}>
                   <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -369,7 +369,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
           <SectionHeader title="Claims Extracted" icon={Shield} sectionKey="claims" badge={<Badge variant="outline" className="text-[9px] ml-2">{flags.claims.length}</Badge>} />
           {expanded.claims && (
             <div className="px-1 pb-2 space-y-1.5">
-              {flags.claims.map((c: any, i: number) => (
+              {flags.claims.map((c: unknown, i: number) => (
                 <div key={i} className="p-2 rounded-md bg-muted/20">
                   <p className="text-xs text-foreground">{c.text}</p>
                   <div className="flex items-center gap-2 mt-1">
@@ -390,7 +390,7 @@ export default function MentionDetailedView({ flags }: MentionDetailedViewProps)
           <SectionHeader title="Key Entities" icon={Users} sectionKey="entities" badge={<Badge variant="outline" className="text-[9px] ml-2">{flags.key_entities.length}</Badge>} />
           {expanded.entities && (
             <div className="px-1 pb-2 space-y-1.5">
-              {flags.key_entities.map((e: any, i: number) => (
+              {flags.key_entities.map((e: unknown, i: number) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/20">
                   <div>
                     <p className="text-xs font-medium text-foreground">{e.name}</p>

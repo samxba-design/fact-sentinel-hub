@@ -65,7 +65,7 @@ function useCountUp(target: number, duration = 800) {
 }
 
 const MetricCard = React.forwardRef<HTMLDivElement, {
-  icon: any; label: string; value: number; change?: string; changeType?: "up" | "down" | "neutral";
+  icon: unknown; label: string; value: number; change?: string; changeType?: "up" | "down" | "neutral";
   accentClass?: string; onClick?: () => void; tooltip?: string;
 }>(function MetricCard({ icon: Icon, label, value, change, changeType, accentClass, onClick, tooltip }, ref) {
   const animatedValue = useCountUp(value);
@@ -144,12 +144,12 @@ const SENTIMENT_COLORS: Record<string, string> = {
   mixed: "hsl(38, 92%, 50%)",
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-xs">
       <p className="text-muted-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p: unknown) => (
         <p key={p.dataKey} style={{ color: p.color }} className="font-medium">
           {p.name}: {p.value}
         </p>
@@ -165,18 +165,18 @@ const DATE_RANGES = [
 ];
 
 // Extract chart-building logic to avoid duplication
-function buildChartData(mentions: any[], rangeDays: number) {
+function buildChartData(mentions: unknown[], rangeDays: number) {
   const now = new Date();
-  const dayMap: Record<string, number> = {};
+  const dayMap: Record<string, number> = { /* noop */ };
   const sentMap: Record<string, number> = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
-  const srcMap: Record<string, number> = {};
+  const srcMap: Record<string, number> = { /* noop */ };
 
   for (let i = rangeDays - 1; i >= 0; i--) {
     const d = format(subDays(now, i), "MMM dd");
     dayMap[d] = 0;
   }
 
-  mentions.forEach((m: any) => {
+  mentions.forEach((m: unknown) => {
     const dateStr = m.posted_at || m.created_at;
     if (dateStr) {
       const d = format(new Date(dateStr), "MMM dd");
@@ -309,14 +309,14 @@ export default function DashboardPage() {
       ]);
 
       const keywords = (kwRes.data || [])
-        .filter((k: any) => k.type !== "competitor")
-        .map((k: any) => k.value as string);
+        .filter((k: unknown) => k.type !== "competitor")
+        .map((k: unknown) => k.value as string);
       if (keywords.length === 0) {
         toast({ title: "No keywords", description: "Add brand keywords in Settings first.", variant: "destructive" });
         return;
       }
 
-      const connectedProviders = [...new Set((provRes.data || []).map((k: any) => k.provider))];
+      const connectedProviders = [...new Set((provRes.data || []).map((k: unknown) => k.provider))];
       const sources = ["news", "google-news", "blogs", "forums", "reviews"];
       if (connectedProviders.includes("twitter")) sources.push("twitter");
       if (connectedProviders.includes("reddit")) sources.push("reddit");
@@ -342,7 +342,7 @@ export default function DashboardPage() {
       });
       // Refresh dashboard data
       triggerRealtimeRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
     } finally {
       setQuickScanning(false);
@@ -358,7 +358,7 @@ export default function DashboardPage() {
       if (error) throw error;
       // Reload the page data after seeding
       window.location.reload();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Seed demo error:", err);
     } finally {
       setSeedingDemo(false);

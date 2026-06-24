@@ -147,7 +147,7 @@ export default function NarrativeGraphPage() {
         .select("mention_id, narrative_id")
         .in("narrative_id", narrativeIds);
 
-      const mentionIds = [...new Set((mnRows || []).map((r: any) => r.mention_id))];
+      const mentionIds = [...new Set((mnRows || []).map((r: unknown) => r.mention_id))];
 
       if (!mentionIds.length) {
         // No mentions — set empty stats
@@ -177,8 +177,8 @@ export default function NarrativeGraphPage() {
         .select("mention_id, person_id")
         .in("mention_id", mentionIds.slice(0, 500));
 
-      const personIds = [...new Set((mpRows || []).map((r: any) => r.person_id))];
-      let peopleRows: any[] = [];
+      const personIds = [...new Set((mpRows || []).map((r: unknown) => r.person_id))];
+      let peopleRows: unknown[] = [];
       if (personIds.length) {
         const { data: pr } = await supabase
           .from("people")
@@ -189,14 +189,14 @@ export default function NarrativeGraphPage() {
 
       // Build mention → narrative_ids map
       const mentionToNarratives = new Map<string, string[]>();
-      (mnRows || []).forEach((r: any) => {
+      (mnRows || []).forEach((r: unknown) => {
         if (!mentionToNarratives.has(r.mention_id)) mentionToNarratives.set(r.mention_id, []);
         mentionToNarratives.get(r.mention_id)!.push(r.narrative_id);
       });
 
       // Build mention → person_ids map
       const mentionToPeople = new Map<string, string[]>();
-      (mpRows || []).forEach((r: any) => {
+      (mpRows || []).forEach((r: unknown) => {
         if (!mentionToPeople.has(r.mention_id)) mentionToPeople.set(r.mention_id, []);
         mentionToPeople.get(r.mention_id)!.push(r.person_id);
       });
@@ -206,17 +206,17 @@ export default function NarrativeGraphPage() {
 
       narrativeRows.forEach((n) => {
         const nMentionIds = (mnRows || [])
-          .filter((r: any) => r.narrative_id === n.id)
-          .map((r: any) => r.mention_id);
+          .filter((r: unknown) => r.narrative_id === n.id)
+          .map((r: unknown) => r.mention_id);
 
-        const nMentions = (mentionRows || []).filter((m: any) =>
+        const nMentions = (mentionRows || []).filter((m: unknown) =>
           nMentionIds.includes(m.id)
         );
 
         let pos = 0, neg = 0, neu = 0, crit = 0;
         const sources = new Set<string>();
 
-        nMentions.forEach((m: any) => {
+        nMentions.forEach((m: unknown) => {
           if (m.sentiment_label === "positive") pos++;
           else if (m.sentiment_label === "negative") neg++;
           else neu++;
@@ -233,9 +233,9 @@ export default function NarrativeGraphPage() {
         // Trend: compare last 7 days vs prior 7 days
         const now = Date.now();
         const recentCount = nMentions.filter(
-          (m: any) => m.posted_at && now - new Date(m.posted_at).getTime() < 7 * 86400000
+          (m: unknown) => m.posted_at && now - new Date(m.posted_at).getTime() < 7 * 86400000
         ).length;
-        const priorCount = nMentions.filter((m: any) => {
+        const priorCount = nMentions.filter((m: unknown) => {
           if (!m.posted_at) return false;
           const age = now - new Date(m.posted_at).getTime();
           return age >= 7 * 86400000 && age < 14 * 86400000;
@@ -249,8 +249,8 @@ export default function NarrativeGraphPage() {
           (mentionToPeople.get(mid) || []).forEach((pid: string) => nPersonIds.add(pid));
         });
         const nPeople: Person[] = peopleRows
-          .filter((p: any) => nPersonIds.has(p.id))
-          .map((p: any) => ({
+          .filter((p: unknown) => nPersonIds.has(p.id))
+          .map((p: unknown) => ({
             id: p.id,
             name: p.name,
             handle: p.handles?.twitter || p.handles?.x,

@@ -13,7 +13,7 @@ const json = (data: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-async function tableExists(supabase: any): Promise<boolean> {
+async function tableExists(supabase: unknown): Promise<boolean> {
   const { error } = await supabase.from("topic_watches").select("id").limit(1);
   return error?.code !== "42P01";
 }
@@ -46,8 +46,8 @@ Deno.serve(async (req) => {
       ]);
 
       const orgName       = orgRes.data?.name ?? "Binance";
-      const existingKw    = (keywordsRes.data ?? []).map((k: any) => k.value).join(", ") || "none";
-      const existingWatches = ((watchesRes as any).data ?? []).map((w: any) => w.name).join(", ") || "none";
+      const existingKw    = (keywordsRes.data ?? []).map((k: unknown) => k.value).join(", ") || "none";
+      const existingWatches = ((watchesRes as unknown).data ?? []).map((w: unknown) => w.name).join(", ") || "none";
 
       const systemPrompt = `You are a crypto threat intelligence analyst for ${orgName}, a major global exchange. Analyse the provided intelligence text and extract a structured monitoring configuration called a "Topic Watch".
 
@@ -78,7 +78,7 @@ Return ONLY valid JSON matching this exact schema:
         { jsonMode: true }
       );
 
-      let analysis: any;
+      let analysis: unknown;
       try {
         analysis = JSON.parse(rawText);
       } catch {
@@ -129,7 +129,7 @@ Return ONLY valid JSON matching this exact schema:
 
     return json({ error: `Unknown action: ${action}` }, 400);
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[analyze-topic-watch] unhandled:", err.message);
     return json({ error: err.message }, 500);
   }

@@ -134,7 +134,7 @@ export function useInterviewAI() {
             } else if (event.type === 'error') {
               throw new Error(event.error);
             }
-          } catch (parseErr: any) {
+          } catch (parseErr: unknown) {
             if (parseErr.message && !parseErr.message.includes('JSON')) {
               throw parseErr;
             }
@@ -159,7 +159,7 @@ export function useInterviewAI() {
       }
 
       throw new Error('Empty response from AI');
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err.name === 'AbortError') return null;
       const message = err.message || 'Failed to generate response';
       setError(message);
@@ -192,7 +192,7 @@ export function useInterviewAI() {
 
       if (fnError) throw new Error(fnError.message);
       return data?.result || '';
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Question analysis error:', err);
       return null;
     }
@@ -215,7 +215,7 @@ export function useInterviewAI() {
 
       if (fnError) throw new Error(fnError.message);
       return data?.result || '';
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Talking points error:', err);
       return null;
     }
@@ -238,7 +238,7 @@ export function useInterviewAI() {
 
         if (fnError) throw new Error(fnError.message);
         return data?.result || '';
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Coaching error:', err);
         return null;
       }

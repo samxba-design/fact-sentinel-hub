@@ -75,16 +75,16 @@ export default function GlobalSearch() {
       supabase.from("incidents").select("id, name").eq("org_id", orgId).ilike("name", term).limit(5),
       supabase.from("people").select("id, name").ilike("name", term).limit(5),
       supabase.from("escalations").select("id, title").eq("org_id", orgId).ilike("title", term).limit(5),
-      (supabase as any).from("entity_records").select("id, display_name, handle, platform, risk_type").eq("org_id", orgId).or(`display_name.ilike.${term},handle.ilike.${term}`).limit(5),
+      (supabase as unknown).from("entity_records").select("id, display_name, handle, platform, risk_type").eq("org_id", orgId).or(`display_name.ilike.${term},handle.ilike.${term}`).limit(5),
     ]);
 
     const r: SearchResult[] = [
-      ...(mentions.data?.map((m: any) => ({ type: "mention" as const, id: m.id, label: (m.content || "").slice(0, 80), detail: m.source })) || []),
-      ...(narratives.data?.map((n: any) => ({ type: "narrative" as const, id: n.id, label: n.name })) || []),
-      ...(incidents.data?.map((i: any) => ({ type: "incident" as const, id: i.id, label: i.name })) || []),
-      ...(people.data?.map((p: any) => ({ type: "person" as const, id: p.id, label: p.name })) || []),
-      ...(escalations.data?.map((e: any) => ({ type: "escalation" as const, id: e.id, label: e.title })) || []),
-      ...(entities.data?.map((e: any) => ({ type: "entity" as const, id: e.id, label: e.display_name || e.handle || "Entity", detail: e.platform })) || []),
+      ...(mentions.data?.map((m: unknown) => ({ type: "mention" as const, id: m.id, label: (m.content || "").slice(0, 80), detail: m.source })) || []),
+      ...(narratives.data?.map((n: unknown) => ({ type: "narrative" as const, id: n.id, label: n.name })) || []),
+      ...(incidents.data?.map((i: unknown) => ({ type: "incident" as const, id: i.id, label: i.name })) || []),
+      ...(people.data?.map((p: unknown) => ({ type: "person" as const, id: p.id, label: p.name })) || []),
+      ...(escalations.data?.map((e: unknown) => ({ type: "escalation" as const, id: e.id, label: e.title })) || []),
+      ...(entities.data?.map((e: unknown) => ({ type: "entity" as const, id: e.id, label: e.display_name || e.handle || "Entity", detail: e.platform })) || []),
     ];
     setResults(r);
     setLoading(false);

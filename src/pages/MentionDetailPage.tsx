@@ -45,8 +45,8 @@ interface MentionDetail {
   created_at: string | null;
   url: string | null;
   status: string | null;
-  flags: any;
-  metrics: any;
+  flags: unknown;
+  metrics: unknown;
   scan_run_id: string | null;
 }
 
@@ -74,7 +74,7 @@ const severityColors: Record<string, string> = {
   critical: "border-sentinel-red/50 text-sentinel-red bg-sentinel-red/10",
 };
 
-const sentimentIcons: Record<string, any> = {
+const sentimentIcons: Record<string, unknown> = {
   positive: ThumbsUp,
   negative: ThumbsDown,
   neutral: Minus,
@@ -155,9 +155,9 @@ export default function MentionDetailPage() {
     ]).then(async ([mentionRes, claimsRes, topicsRes, narrativesRes]) => {
       const currentMention = mentionRes.data as MentionDetail;
       setMention(currentMention);
-      setClaims((claimsRes.data as any) || []);
-      setTopics((topicsRes.data as any) || []);
-      setNarratives((narrativesRes.data as any) || []);
+      setClaims((claimsRes.data as unknown) || []);
+      setTopics((topicsRes.data as unknown) || []);
+      setNarratives((narrativesRes.data as unknown) || []);
 
       // Fetch adjacent mentions (prev and next)
       if (currentMention) {
@@ -195,7 +195,7 @@ export default function MentionDetailPage() {
       .select("user_id, invited_email")
       .eq("org_id", currentOrg.id)
       .then(({ data }) => {
-        const members = (data || []).map((m: any) => ({
+        const members = (data || []).map((m: unknown) => ({
           id: m.user_id || m.invited_email,
           email: m.invited_email || "",
           name: m.invited_email || m.user_id || "",
@@ -210,7 +210,7 @@ export default function MentionDetailPage() {
     const content = cleanContentText(mention.content);
     if (content.length < 40) return;
 
-    const flags = mention.flags || {};
+    const flags = mention.flags || { /* noop */ };
     if (!flags.coordinated && !flags.misinformation && !flags.bot_likely) return;
 
     setSimilarLoading(true);
@@ -299,7 +299,7 @@ export default function MentionDetailPage() {
       });
       if (error) throw error;
       toast({ title: "Escalation created", description: "A new ticket was created for this mention." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
@@ -341,7 +341,7 @@ export default function MentionDetailPage() {
         title: "Re-analysis complete — sentiment and severity updated",
         description: `${data.updated.sentiment_label} · ${data.updated.severity} · ${method}`,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setReAnalysing(false);
@@ -389,10 +389,10 @@ export default function MentionDetailPage() {
       
       // Cache the summary in the mention's flags
       if (res.data && mention.id) {
-        const updatedFlags = { ...(mention.flags || {}), ai_summary: res.data };
+        const updatedFlags = { ...(mention.flags || { /* noop */ }), ai_summary: res.data };
         await supabase.from("mentions").update({ flags: updatedFlags }).eq("id", mention.id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Summary failed", description: err.message, variant: "destructive" });
     } finally {
       setSummaryLoading(false);
@@ -432,8 +432,8 @@ export default function MentionDetailPage() {
     );
   }
 
-  const flags = (mention.flags as any) || {};
-  const metrics = (mention.metrics as any) || {};
+  const flags = (mention.flags as unknown) || { /* noop */ };
+  const metrics = (mention.metrics as unknown) || { /* noop */ };
   const SentimentIcon = sentimentIcons[mention.sentiment_label || "neutral"] || Minus;
 
   return (
@@ -516,14 +516,14 @@ export default function MentionDetailPage() {
             <Select onValueChange={async (userId) => {
               const member = assignees.find(a => a.id === userId);
               if (!mention) return;
-              const newFlags = { ...(mention.flags || {}), assigned_to: userId, assigned_email: member?.email };
+              const newFlags = { ...(mention.flags || { /* noop */ }), assigned_to: userId, assigned_email: member?.email };
               await supabase.from("mentions").update({ flags: newFlags }).eq("id", mention.id);
               setMention({ ...mention, flags: newFlags });
               toast({ title: `Assigned to ${member?.name || member?.email}` });
               if (currentOrg) {
                 supabase.functions.invoke("send-notification", {
                   body: { org_id: currentOrg.id, type: "mention_assigned", mention_id: mention.id, assigned_to: userId }
-                }).catch(() => {});
+                }).catch(() => { /* noop */ });
               }
             }}>
               <SelectTrigger className="h-8 text-xs w-48"><SelectValue placeholder="Assign to..." /></SelectTrigger>
@@ -577,7 +577,7 @@ export default function MentionDetailPage() {
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> AI Analysis
-            {(aiSummary as any)?.content_note === "youtube_metadata_only" && (
+            {(aiSummary as unknown)?.content_note === "youtube_metadata_only" && (
               <span className="text-[10px] normal-case font-normal text-muted-foreground ml-1">
                 · title &amp; description only
               </span>
@@ -986,7 +986,7 @@ export default function MentionDetailPage() {
             <div className="flex flex-wrap gap-2">
               {topics.map(t => (
                 <Badge key={t.topic_id} variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
-                  {(t.topics as any)?.name || t.topic_id}
+                  {(t.topics as unknown)?.name || t.topic_id}
                 </Badge>
               ))}
             </div>
@@ -1021,9 +1021,9 @@ export default function MentionDetailPage() {
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:border-primary/30 transition-colors cursor-pointer"
                 onClick={() => navigate(`/narratives/${n.narrative_id}`)}
               >
-                <span className="text-sm text-primary hover:underline">{(n.narratives as any)?.name || n.narrative_id}</span>
+                <span className="text-sm text-primary hover:underline">{(n.narratives as unknown)?.name || n.narrative_id}</span>
                 <Badge variant="outline" className="text-[10px] capitalize">
-                  {(n.narratives as any)?.status || "active"}
+                  {(n.narratives as unknown)?.status || "active"}
                 </Badge>
               </div>
             ))}

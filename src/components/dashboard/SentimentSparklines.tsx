@@ -38,9 +38,9 @@ export default function SentimentSparklines() {
       if (!data || data.length === 0) return;
 
       const buckets: Record<string, Record<string, number>> = {
-        negative: {},
-        neutral: {},
-        positive: {},
+        negative: { /* noop */ },
+        neutral: { /* noop */ },
+        positive: { /* noop */ },
       };
 
       for (let i = 29; i >= 0; i--) {
@@ -50,7 +50,7 @@ export default function SentimentSparklines() {
         buckets.positive[day] = 0;
       }
 
-      data.forEach((m: any) => {
+      data.forEach((m: unknown) => {
         if (!m.posted_at) return;
         const day = format(new Date(m.posted_at), "MM-dd");
         const label = m.sentiment_label || "neutral";

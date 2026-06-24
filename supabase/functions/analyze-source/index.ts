@@ -137,7 +137,7 @@ ${contentSamples.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`,
   } catch (e) {
     console.error("analyze-source error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

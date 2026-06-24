@@ -33,7 +33,7 @@ interface PlaybookData {
   estimatedDuration: string;
 }
 
-const categoryIcons: Record<string, any> = {
+const categoryIcons: Record<string, unknown> = {
   immediate: AlertTriangle,
   communication: MessageSquare,
   monitoring: Shield,
@@ -150,7 +150,7 @@ Generate 6-10 actionable tasks across all categories. Use real contact names whe
           estimatedDuration: "24-48 hours",
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Playbook generated with defaults", description: "Using template-based playbook." });
       // Use fallback
       setPlaybook({

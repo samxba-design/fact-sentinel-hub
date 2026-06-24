@@ -28,12 +28,12 @@ interface Alert {
   id: string;
   type: string;
   status: string | null;
-  payload: any;
+  payload: unknown;
   triggered_at: string | null;
   created_at: string | null;
 }
 
-const ALERT_META: Record<string, { icon: any; color: string; label: string; description: string; mentionsFilter: string }> = {
+const ALERT_META: Record<string, { icon: unknown; color: string; label: string; description: string; mentionsFilter: string }> = {
   mention_spike: {
     icon: TrendingUp,
     color: "text-primary",
@@ -145,7 +145,7 @@ export default function AlertsPage() {
         setAlertEmails((configRes.data.alert_emails || []).join(", "));
         setQuietStart(configRes.data.quiet_hours_start);
         setQuietEnd(configRes.data.quiet_hours_end);
-        const thresholds = (configRes.data.settings as any)?.alert_thresholds;
+        const thresholds = (configRes.data.settings as unknown)?.alert_thresholds;
         if (thresholds) {
           setVolumeThreshold(thresholds.volume_spike ?? 50);
           setNegativeThreshold(thresholds.negative_surge ?? 30);
@@ -196,7 +196,7 @@ export default function AlertsPage() {
     setSavingThresholds(true);
     try {
       const { data: existing } = await supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle();
-      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      const existingSettings = (existing?.settings as Record<string, unknown>) || { /* noop */ };
       await supabase.from("tracking_profiles").upsert(
         { org_id: currentOrg.id, settings: { ...existingSettings, alert_thresholds: { volume_spike: volumeThreshold, negative_surge: negativeThreshold } } },
         { onConflict: "org_id" }
@@ -276,7 +276,7 @@ export default function AlertsPage() {
       acc[a.type] = (acc[a.type] || 0) + 1;
     }
     return acc;
-  }, {});
+  }, { /* noop */ });
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -590,7 +590,7 @@ export default function AlertsPage() {
             {filteredAlerts.map(alert => {
               const meta = ALERT_META[alert.type] || { icon: Bell, color: "text-primary", label: alert.type, description: "", mentionsFilter: "" };
               const Icon = meta.icon;
-              const payload = alert.payload as any || {};
+              const payload = alert.payload as unknown || { /* noop */ };
               const isActive = alert.status === "active" || alert.status === "new";
               return (
                 <div

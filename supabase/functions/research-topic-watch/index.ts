@@ -9,17 +9,17 @@ const corsHeaders = {
 // ── Retry with exponential backoff ────────────────────────────────────────────
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, baseDelayMs = 1000): Promise<T> {
-  let lastError: any;
+  let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
-    } catch (e: any) {
+    } catch (e: unknown) {
       lastError = e;
-      const isRateLimit = e.message?.includes("429") || e.message?.includes("rate limit") || e.message?.includes("too many");
+      const isRateLimit = (e as Error).message?.includes("429") || (e as Error).message?.includes("rate limit") || (e as Error).message?.includes("too many");
       if (!isRateLimit && i > 0) throw e; // Only retry on rate limits after first attempt
       if (i < retries - 1) {
         const delay = baseDelayMs * Math.pow(2, i) + Math.random() * 500;
-        console.log(`[retry] attempt ${i + 1} failed, retrying in ${Math.round(delay)}ms:`, e.message);
+        console.log(`[retry] attempt ${i + 1} failed, retrying in ${Math.round(delay)}ms:`, (e as Error).message);
         await new Promise(r => setTimeout(r, delay));
       }
     }
@@ -51,7 +51,7 @@ function srcFromUrl(url: string) {
 
 // ── Brave web search ──────────────────────────────────────────────────────────
 
-async function braveSearch(query: string, apiKey: string, count = 10, freshness = "pm"): Promise<any[]> {
+async function braveSearch(query: string, apiKey: string, count = 10, freshness = "pm"): Promise<unknown[]> {
   if (!apiKey) return [];
   try {
     const params = new URLSearchParams({ q: query, count: String(count), search_lang: "en", safesearch: "off", freshness });
@@ -62,15 +62,15 @@ async function braveSearch(query: string, apiKey: string, count = 10, freshness 
     if (!res.ok) { console.log("[brave] non-ok:", res.status); return []; }
     const data = await res.json();
     const items = [...(data.web?.results || []), ...(data.news?.results || [])];
-    return items.map((r: any) => ({
+    return items.map((r: unknown) => ({
       title: r.title || "",
       url: r.url || "",
       snippet: clean([r.title, r.description, ...(r.extra_snippets || [])].filter(Boolean).join(" ").slice(0, 600)),
       source: srcFromUrl(r.url),
       age: r.age || null,
     })).filter(r => r.url && r.snippet.length > 20);
-  } catch (e: any) {
-    console.log("[brave] failed:", e.message);
+  } catch (e: unknown) {
+    console.log("[brave] failed:", (e as Error).message);
     return [];
   }
 }
@@ -90,15 +90,15 @@ async function scrapeUrl(url: string, firecrawlKey: string, maxChars = 3000): Pr
     const data = await res.json();
     const md = data.data?.markdown || data.markdown || "";
     return clean(md.slice(0, maxChars));
-  } catch (e: any) {
-    console.log("[scrape] failed for", url, ":", e.message);
+  } catch (e: unknown) {
+    console.log("[scrape] failed for", url, ":", (e as Error).message);
     return "";
   }
 }
 
 // ── AI call helper ────────────────────────────────────────────────────────────
 
-async function aiCall(systemPrompt: string, userPrompt: string, jsonMode = true): Promise<any> {
+async function aiCall(systemPrompt: string, userPrompt: string, jsonMode = true): Promise<unknown> {
   const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
   if (!geminiKey) throw new Error("GOOGLE_API_KEY not set in Supabase Edge Function secrets.");
   const res = await fetch(
@@ -111,7 +111,7 @@ async function aiCall(systemPrompt: string, userPrompt: string, jsonMode = true)
         contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
         generationConfig: {
           temperature: 0.1,
-          ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+          ...(jsonMode ? { responseMimeType: "application/json" } : { /* noop */ }),
         },
       }),
     }
@@ -121,7 +121,7 @@ async function aiCall(systemPrompt: string, userPrompt: string, jsonMode = true)
     throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`);
   }
   const data = await res.json();
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? (jsonMode ? "{}" : "");
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? (jsonMode ? "{ /* noop */ }" : "");
   if (!raw) throw new Error("Gemini returned empty response");
   if (!jsonMode) return raw;
   try { return JSON.parse(raw); }
@@ -187,9 +187,9 @@ Generate 6-8 diverse search queries covering: (1) the original event, (2) entity
       `Intelligence text to analyse:\n\n${text}`
     );
 
-    const entities: any[] = step1.entities ?? [];
-    const keyClaims: any[] = step1.key_claims ?? [];
-    const searchQueries: any[] = step1.search_queries ?? [];
+    const entities: unknown[] = step1.entities ?? [];
+    const keyClaims: unknown[] = step1.key_claims ?? [];
+    const searchQueries: unknown[] = step1.search_queries ?? [];
     const eventSummary: string = step1.event_summary ?? "";
 
     console.log("[research] extracted", entities.length, "entities,", searchQueries.length, "queries");
@@ -197,12 +197,12 @@ Generate 6-8 diverse search queries covering: (1) the original event, (2) entity
     // ── STEP 2: Parallel web searches ────────────────────────────────────────
     console.log("[research] step 2: parallel searches");
 
-    const highPriorityQueries = searchQueries.filter((q: any) => q.priority === "high").slice(0, 4);
-    const medPriorityQueries = searchQueries.filter((q: any) => q.priority !== "high").slice(0, 4);
+    const highPriorityQueries = searchQueries.filter((q: unknown) => q.priority === "high").slice(0, 4);
+    const medPriorityQueries = searchQueries.filter((q: unknown) => q.priority !== "high").slice(0, 4);
     const allQueries = [...highPriorityQueries, ...medPriorityQueries].slice(0, 6);
 
     const searchResults = await Promise.all(
-      allQueries.map(async (q: any) => {
+      allQueries.map(async (q: unknown) => {
         const results = await withRetry(() => braveSearch(q.query, braveKey, 8, "pm"));
         return { query: q.query, angle: q.angle, results };
       })
@@ -210,7 +210,7 @@ Generate 6-8 diverse search queries covering: (1) the original event, (2) entity
 
     // Deduplicate URLs across all searches
     const seenUrls = new Set<string>();
-    const allLinks: any[] = [];
+    const allLinks: unknown[] = [];
     for (const sr of searchResults) {
       for (const r of sr.results) {
         if (!seenUrls.has(r.url)) {
@@ -256,7 +256,7 @@ Sources to evaluate:\n${allLinks.map((l, i) => `[${i}] ${l.title} — ${l.snippe
     console.log("[research] step 4: parallel scraping");
 
     const scraped = await Promise.all(
-      sourcesToScrape.map(async (link: any) => {
+      sourcesToScrape.map(async (link: unknown) => {
         const content = await withRetry(() => scrapeUrl(link.url, firecrawlKey, 2500));
         return {
           ...link,
@@ -272,7 +272,7 @@ Sources to evaluate:\n${allLinks.map((l, i) => `[${i}] ${l.title} — ${l.snippe
     console.log("[research] step 5: extract intelligence from each source");
 
     const sourceIntelligence = await Promise.all(
-      scraped.map(async (source: any) => {
+      scraped.map(async (source: unknown) => {
         try {
           const intel = await aiCall(
             `You are a crypto threat intelligence analyst extracting structured information from an article/source. Extract only what is explicitly stated. Do not infer or fabricate.
@@ -300,8 +300,8 @@ Source title: ${source.title}
 Source content:\n${source.full_content}`
           );
           return { ...source, intelligence: intel };
-        } catch (e: any) {
-          return { ...source, intelligence: null, error: e.message };
+        } catch (e: unknown) {
+          return { ...source, intelligence: null, error: (e as Error).message };
         }
       })
     );
@@ -330,11 +330,11 @@ Return JSON:
     }
   ]
 }`,
-          `Original claims to fact-check:\n${keyClaims.map((c: any, i: number) => `${i + 1}. "${c.claim}" (said by: ${c.source})`).join("\n")}
+          `Original claims to fact-check:\n${keyClaims.map((c: unknown, i: number) => `${i + 1}. "${c.claim}" (said by: ${c.source})`).join("\n")}
 
 Evidence gathered from ${relevantSources.length} sources:\n${allFacts.slice(0, 30).map(f => `- ${f.fact} (from: ${f.title})`).join("\n")}
 
-Entity mentions:\n${relevantSources.flatMap(s => s.intelligence?.claims_about_entities ?? []).slice(0, 20).map((c: any) => `- ${c.entity}: ${c.claim}`).join("\n")}`
+Entity mentions:\n${relevantSources.flatMap(s => s.intelligence?.claims_about_entities ?? []).slice(0, 20).map((c: unknown) => `- ${c.entity}: ${c.claim}`).join("\n")}`
         )
       : { fact_checks: [] };
 
@@ -352,7 +352,7 @@ Return JSON:
   ],
   "reach_estimate": "estimated total reach / impressions",
   "dominant_framing": "how the story is being told (1-2 sentences)",
-  "counter_narratives": ["any pushback or alternative framings"],
+  "counter_narratives": ["unknown pushback or alternative framings"],
   "amplifier_types": ["types of accounts amplifying: crypto media|influencer|regulator|general press|etc"],
   "trajectory": "accelerating|stable|fading",
   "binance_narrative_exposure": "1-2 sentences on how ${brandName} is being framed across all sources"
@@ -366,20 +366,20 @@ Sources that covered this story:\n${relevantSources.map(s => `- ${s.title} (${s.
     // ── STEP 8: Entity profile enrichment ────────────────────────────────────
     console.log("[research] step 8: entity profiles");
 
-    const entityProfiles = entities.slice(0, 6).map((e: any) => {
+    const entityProfiles = entities.slice(0, 6).map((e: unknown) => {
       const mentions = relevantSources.flatMap(s =>
         (s.intelligence?.claims_about_entities ?? [])
-          .filter((c: any) => c.entity?.toLowerCase().includes(e.name?.toLowerCase()))
+          .filter((c: unknown) => c.entity?.toLowerCase().includes(e.name?.toLowerCase()))
       );
       return {
         ...e,
         mention_count: mentions.length,
         sentiment_breakdown: {
-          negative: mentions.filter((m: any) => m.sentiment === "negative").length,
-          positive: mentions.filter((m: any) => m.sentiment === "positive").length,
-          neutral: mentions.filter((m: any) => m.sentiment === "neutral").length,
+          negative: mentions.filter((m: unknown) => m.sentiment === "negative").length,
+          positive: mentions.filter((m: unknown) => m.sentiment === "positive").length,
+          neutral: mentions.filter((m: unknown) => m.sentiment === "neutral").length,
         },
-        key_claims_about: mentions.slice(0, 3).map((m: any) => m.claim),
+        key_claims_about: mentions.slice(0, 3).map((m: unknown) => m.claim),
       };
     });
 
@@ -417,9 +417,9 @@ Confirmed corroborations: ${relevantSources.filter(s => (s.intelligence?.corrobo
     // ── STEP 10: Persist to topic_watches if watch_id given ──────────────────
     if (watch_id) {
       try {
-        const tableCheck = await supabase.from("topic_watches" as any).select("id").eq("id", watch_id).maybeSingle();
+        const tableCheck = await supabase.from("topic_watches" as unknown).select("id").eq("id", watch_id).maybeSingle();
         if (!tableCheck.error) {
-          await supabase.from("topic_watches" as any).update({
+          await supabase.from("topic_watches" as unknown).update({
             research_data: {
               generated_at: new Date().toISOString(),
               event_summary: eventSummary,
@@ -447,8 +447,8 @@ Confirmed corroborations: ${relevantSources.filter(s => (s.intelligence?.corrobo
           }).eq("id", watch_id);
           console.log("[research] saved to topic_watch", watch_id);
         }
-      } catch (e: any) {
-        console.log("[research] failed to save:", e.message);
+      } catch (e: unknown) {
+        console.log("[research] failed to save:", (e as Error).message);
       }
     }
 
@@ -483,7 +483,7 @@ Confirmed corroborations: ${relevantSources.filter(s => (s.intelligence?.corrobo
       generated_at: new Date().toISOString(),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[research-topic-watch]", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,

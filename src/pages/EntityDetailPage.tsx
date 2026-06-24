@@ -49,7 +49,7 @@ interface EntityRecord {
   language: string | null;
   website_in_bio: string | null;
   detected_topics: string[] | null;
-  recent_posts: any;
+  recent_posts: unknown;
   engagement_pattern: string | null;
   source_type: string;
   risk_type: string;
@@ -64,12 +64,12 @@ interface EntityRecord {
   monitoring_intent: string | null;
   watch_keywords: string[] | null;
   alert_enabled: boolean;
-  risk_flags: any;
+  risk_flags: unknown;
   ai_suggested_type: string | null;
   ai_suggested_risk: string | null;
-  ai_suggested_flags: any;
+  ai_suggested_flags: unknown;
   ai_confidence: number | null;
-  enrichment_confidence: any;
+  enrichment_confidence: unknown;
   enriched_at: string | null;
   tags: string[] | null;
   notes: string | null;
@@ -77,11 +77,11 @@ interface EntityRecord {
   claimed_affiliation: string | null;
   actual_affiliation: string | null;
   known_aliases: string[] | null;
-  evidence_links: any;
+  evidence_links: unknown;
   linked_incident_ids: string[] | null;
   linked_narrative_ids: string[] | null;
   linked_people_ids: string[] | null;
-  audit_log: any;
+  audit_log: unknown;
   why_flagged: string[] | null;
   changed_fields: string[] | null;
   created_at: string;
@@ -104,13 +104,13 @@ export default function EntityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
   const [editingSidebar, setEditingSidebar] = useState(false);
-  const [sidebarDraft, setSidebarDraft] = useState<Partial<EntityRecord>>({});
+  const [sidebarDraft, setSidebarDraft] = useState<Partial<EntityRecord>>({ /* noop */ });
   const [tagInput, setTagInput] = useState("");
   const [evidenceInput, setEvidenceInput] = useState({ url: "", label: "", note: "" });
 
   const fetchEntity = useCallback(async () => {
     if (!id) return;
-    const { data } = await (supabase as any).from("entity_records").select("*").eq("id", id).maybeSingle();
+    const { data } = await (supabase as unknown).from("entity_records").select("*").eq("id", id).maybeSingle();
     setEntity(data as EntityRecord | null);
     setLoading(false);
   }, [id]);
@@ -119,13 +119,13 @@ export default function EntityDetailPage() {
 
   const patch = async (fields: Partial<EntityRecord>) => {
     if (!id) return;
-    const { error } = await (supabase as any).from("entity_records").update({
+    const { error } = await (supabase as unknown).from("entity_records").update({
       ...fields,
       audit_log: entity?.audit_log ? [
         ...(Array.isArray(entity.audit_log) ? entity.audit_log : []),
         { action: "updated", fields: Object.keys(fields), at: new Date().toISOString() },
       ] : [{ action: "updated", fields: Object.keys(fields), at: new Date().toISOString() }],
-    } as any).eq("id", id);
+    } as unknown).eq("id", id);
     if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
     setEntity(prev => prev ? { ...prev, ...fields } : prev);
   };
@@ -140,7 +140,7 @@ export default function EntityDetailPage() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: "Enrichment complete", description: `${data.fields_found?.length || 0} fields updated` });
       await fetchEntity();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Enrichment failed", description: err.message, variant: "destructive" });
     } finally {
       setEnriching(false);
@@ -150,7 +150,7 @@ export default function EntityDetailPage() {
   const saveSidebar = async () => {
     await patch(sidebarDraft);
     setEditingSidebar(false);
-    setSidebarDraft({});
+    setSidebarDraft({ /* noop */ });
     toast({ title: "Profile updated" });
   };
 
@@ -316,7 +316,7 @@ export default function EntityDetailPage() {
                 <Button size="sm" className="flex-1 gap-1.5" onClick={saveSidebar}>
                   <Save className="h-3.5 w-3.5" /> Save
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setEditingSidebar(false); setSidebarDraft({}); }}>
+                <Button size="sm" variant="ghost" onClick={() => { setEditingSidebar(false); setSidebarDraft({ /* noop */ }); }}>
                   Cancel
                 </Button>
               </div>
@@ -472,7 +472,7 @@ export default function EntityDetailPage() {
               {entity.recent_posts && Array.isArray(entity.recent_posts) && entity.recent_posts.length > 0 && (
                 <Card className="bg-card border-border p-4 space-y-3">
                   <h3 className="text-sm font-medium text-foreground">Recent Posts</h3>
-                  {(entity.recent_posts as any[]).slice(0, 3).map((post: any, i: number) => (
+                  {(entity.recent_posts as unknown[]).slice(0, 3).map((post: unknown, i: number) => (
                     <div key={i} className="flex items-start gap-2 text-xs border-b border-border/50 last:border-0 pb-2 last:pb-0">
                       <div className="flex-1 text-muted-foreground">{post.text?.slice(0, 200)}</div>
                       {post.url && (
@@ -523,7 +523,7 @@ export default function EntityDetailPage() {
                   ].map(({ label, key, options }) => (
                     <div key={key}>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
-                      <Select value={(entity as any)[key] || ""} onValueChange={v => patch({ [key]: v } as any)}>
+                      <Select value={(entity as unknown)[key] || ""} onValueChange={v => patch({ [key]: v } as unknown)}>
                         <SelectTrigger className="bg-muted border-border text-xs">
                           <SelectValue />
                         </SelectTrigger>
@@ -619,18 +619,18 @@ export default function EntityDetailPage() {
                   }}><Plus className="h-3.5 w-3.5" /></Button>
                 </div>
                 <div className="space-y-1.5">
-                  {(Array.isArray(entity.evidence_links) ? entity.evidence_links : []).map((ev: any, i: number) => (
+                  {(Array.isArray(entity.evidence_links) ? entity.evidence_links : []).map((ev: unknown, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground py-1.5 border-b border-border/50">
                       <ExternalLink className="h-3 w-3 flex-shrink-0 text-primary" />
                       <a href={ev.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground truncate flex-1">{ev.label || ev.url}</a>
                       {ev.note && <span className="text-muted-foreground/60 truncate max-w-[120px]">{ev.note}</span>}
                       <button onClick={() => {
-                        const links = (Array.isArray(entity.evidence_links) ? entity.evidence_links : []) as any[];
-                        patch({ evidence_links: links.filter((_: any, j: number) => j !== i) });
+                        const links = (Array.isArray(entity.evidence_links) ? entity.evidence_links : []) as unknown[];
+                        patch({ evidence_links: links.filter((_: unknown, j: number) => j !== i) });
                       }}><X className="h-3 w-3 hover:text-destructive" /></button>
                     </div>
                   ))}
-                  {(!entity.evidence_links || (entity.evidence_links as any[]).length === 0) && (
+                  {(!entity.evidence_links || (entity.evidence_links as unknown[]).length === 0) && (
                     <p className="text-xs text-muted-foreground text-center py-4">No evidence links yet. Add URLs, screenshots, or archive links.</p>
                   )}
                 </div>
@@ -659,7 +659,7 @@ export default function EntityDetailPage() {
                 <h3 className="text-sm font-medium text-foreground">Audit Trail</h3>
                 {Array.isArray(entity.audit_log) && entity.audit_log.length > 0 ? (
                   <div className="space-y-2">
-                    {(entity.audit_log as any[]).slice().reverse().map((entry: any, i: number) => (
+                    {(entity.audit_log as unknown[]).slice().reverse().map((entry: unknown, i: number) => (
                       <div key={i} className="flex items-start gap-3 py-2 border-b border-border/50 last:border-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">

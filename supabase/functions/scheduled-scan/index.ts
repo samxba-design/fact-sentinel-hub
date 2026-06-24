@@ -85,8 +85,8 @@ Deno.serve(async (req) => {
         supabase.from("sources").select("type").eq("org_id", profile.org_id).eq("enabled", true),
       ]);
 
-      const keywords = (kwRes.data || []).map((k: any) => k.value);
-      const sources = (srcRes.data || []).map((s: any) => s.type);
+      const keywords = (kwRes.data || []).map((k: unknown) => k.value);
+      const sources = (srcRes.data || []).map((s: unknown) => s.type);
 
       if (keywords.length === 0) {
         results.push({ org_id: profile.org_id, status: "skipped_no_keywords" });
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({ org_id: profile.org_id }),
           });
-        } catch (spikeErr: any) {
+        } catch (spikeErr: unknown) {
           console.warn(`check-spikes failed for ${profile.org_id}:`, spikeErr.message);
         }
 
@@ -131,8 +131,8 @@ Deno.serve(async (req) => {
           org_id: profile.org_id,
           status: data.error ? `error: ${data.error}` : `completed: ${data.mentions_created || 0} mentions`,
         });
-      } catch (e: any) {
-        results.push({ org_id: profile.org_id, status: `error: ${e.message}` });
+      } catch (e: unknown) {
+        results.push({ org_id: profile.org_id, status: `error: ${(e as Error).message}` });
       }
     }
 
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ processed: results.length, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("scheduled-scan error:", err);
     return new Response(
       JSON.stringify({ error: err.message }),

@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import InfoTooltip from "@/components/InfoTooltip";
 
 // Re-use TabInfoBanner from parent (inline here)
-function TabInfoBanner({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function TabInfoBanner({ icon: Icon, title, children }: { icon: unknown; title: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 p-4 rounded-lg bg-primary/5 border border-primary/15">
       <Icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -77,7 +77,7 @@ export default function KeywordsTab() {
     if (!acc[k.type]) acc[k.type] = [];
     acc[k.type].push(k);
     return acc;
-  }, {});
+  }, { /* noop */ });
 
   return (
     <Card className="bg-card border-border p-6 space-y-5">

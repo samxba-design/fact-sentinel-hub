@@ -117,7 +117,7 @@ Return a JSON object with this exact structure (no markdown, just JSON):
       { role: "user", content: prompt },
     ], true);
 
-    let content = aiResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const content = aiResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     
     let prediction;
     try {
@@ -155,7 +155,7 @@ Return a JSON object with this exact structure (no markdown, just JSON):
   } catch (e) {
     console.error("predict-risk error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

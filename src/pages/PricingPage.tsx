@@ -70,7 +70,7 @@ export default function PricingPage() {
   const navigate = useNavigate();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  const isActive = (currentOrg as any)?.subscription_status === "active";
+  const isActive = (currentOrg as unknown)?.subscription_status === "active";
 
   const handleSubscribe = async (plan: typeof PLANS[0]) => {
     if (!user) {
@@ -91,7 +91,7 @@ export default function PricingPage() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       if (data?.url) window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoadingPlan(null);

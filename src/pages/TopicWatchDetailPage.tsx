@@ -192,7 +192,7 @@ export default function TopicWatchDetailPage() {
         <ThreatResearchPanel
           text={watch.description ?? watch.query}
           watchId={watch.id}
-          initialData={(watch as any).research_data ?? undefined}
+          initialData={(watch as unknown).research_data ?? undefined}
         />
       </div>
     </div>

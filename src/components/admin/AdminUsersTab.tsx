@@ -94,7 +94,7 @@ export default function AdminUsersTab() {
                       <div className="flex gap-1 flex-wrap">
                         {mems.map((m) => (
                           <Badge key={m.id} variant="outline" className="text-xs">
-                            {(m as any).organizations?.name ?? "?"} ({m.role})
+                            {(m as unknown).organizations?.name ?? "?"} ({m.role})
                           </Badge>
                         ))}
                       </div>

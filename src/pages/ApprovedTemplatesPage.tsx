@@ -79,7 +79,7 @@ export default function ApprovedTemplatesPage() {
       setDialogOpen(false);
       setEditingTemplate(null);
       fetchTemplates();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);

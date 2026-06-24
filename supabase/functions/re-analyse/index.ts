@@ -119,7 +119,7 @@ If the video is not relevant to ${brandName}, set relevant=false. Base your anal
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     if (!rawText) { console.error("[gemini-video] empty response"); return null; }
 
-    let parsed: any;
+    let parsed: unknown;
     try { parsed = JSON.parse(rawText); }
     catch {
       const stripped = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
@@ -146,8 +146,8 @@ If the video is not relevant to ${brandName}, set relevant=false. Base your anal
         analysed_at: new Date().toISOString(),
       },
     };
-  } catch (e: any) {
-    console.error(`[gemini-video] failed for ${videoId}:`, e.message);
+  } catch (e: unknown) {
+    console.error(`[gemini-video] failed for ${videoId}:`, (e as Error).message);
     return null;
   }
 }
@@ -191,8 +191,8 @@ async function analyseTextWithAI(
           console.log(`[re-analyse] fresh scrape: ${analysisContent.length} chars`);
         }
       }
-    } catch (e: any) {
-      console.log("[re-analyse] fresh scrape failed:", e.message);
+    } catch (e: unknown) {
+      console.log("[re-analyse] fresh scrape failed:", (e as Error).message);
     }
   }
 
@@ -228,8 +228,8 @@ severity guide: tutorial/neutral = low; complaints/criticism = medium; fraud/hac
       flags: parsed.flags || {},
       scraped_fresh,
     };
-  } catch (e: any) {
-    console.warn(`[re-analyse] text AI failed: ${e.message}`);
+  } catch (e: unknown) {
+    console.warn(`[re-analyse] text AI failed: ${(e as Error).message}`);
     return null;
   }
 }
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
     const isYouTube = mention.source === "youtube";
     const videoId = isYouTube ? extractVideoId(mention.url || "") : null;
 
-    let updatePayload: Record<string, any> = {
+    let updatePayload: Record<string, unknown> = {
       last_rescanned_at: new Date().toISOString(),
       rescan_count: (mention.flags?.rescan_count ?? 0) + 1,
     };
@@ -333,7 +333,7 @@ Deno.serve(async (req) => {
             severity: analysis.severity,
             has_transcript: true,
             transcript_source: "gemini_native_video",
-            brand_mentions_found: (analysis.gemini_analysis.brand_mentions as any[]).length,
+            brand_mentions_found: (analysis.gemini_analysis.brand_mentions as unknown[]).length,
             key_claims: analysis.gemini_analysis.key_claims,
             content_type: analysis.gemini_analysis.content_type,
           },
@@ -399,23 +399,8 @@ Deno.serve(async (req) => {
       },
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[re-analyse] error:", err);
-    return json({ error: err.message }, 500);
-  }
-});
-ole.error("[re-analyse] error:", err);
-    return json({ error: err.message }, 500);
-  }
-});
-error("[re-analyse] error:", err);
-    return json({ error: err.message }, 500);
-  }
-});
- json({ error: err.message }, 500);
-  }
-});
-error("[re-analyse] error:", err);
-    return json({ error: err.message }, 500);
+    return json({ error: (err as Error).message }, 500);
   }
 });

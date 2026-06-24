@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bell, Info } from "lucide-react";
 
-function TabInfoBanner({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function TabInfoBanner({ icon: Icon, title, children }: { icon: unknown; title: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 p-4 rounded-lg bg-primary/5 border border-primary/15">
       <Icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />

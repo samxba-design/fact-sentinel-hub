@@ -26,18 +26,18 @@ if (missingConfig) {
   supabaseInstance = {
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { /* noop */ } } } }),
       signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.' } }),
       signUp: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured.' } }),
       signOut: () => Promise.resolve({ error: null }),
-      resetPasswordForEmail: () => Promise.resolve({ data: {}, error: null }),
+      resetPasswordForEmail: () => Promise.resolve({ data: { /* noop */ }, error: null }),
     },
     from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }), maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }),
     rpc: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured.' } }),
     functions: { invoke: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured.' } }) },
-    channel: () => ({ on: () => ({ subscribe: () => {} }) }),
-    removeChannel: () => {},
-  } as any;
+    channel: () => ({ on: () => ({ subscribe: () => { /* noop */ } }) }),
+    removeChannel: () => { /* noop */ },
+  } as unknown;
 } else {
   supabaseInstance = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {

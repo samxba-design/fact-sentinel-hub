@@ -53,7 +53,7 @@ export default function ResponseCopilot({ prefillText, mentionId, narrativeConte
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       setVariants(data?.variants || [data?.message || "No response generated"]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally {
       setGenerating(false);

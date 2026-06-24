@@ -168,8 +168,8 @@ export default function SourceConnectionsTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [showValues, setShowValues] = useState<Record<string, boolean>>({});
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [showValues, setShowValues] = useState<Record<string, boolean>>({ /* noop */ });
+  const [formValues, setFormValues] = useState<Record<string, string>>({ /* noop */ });
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
 
   const fetchKeys = async () => {
@@ -218,7 +218,7 @@ export default function SourceConnectionsTab() {
       });
       setExpandedGuide(null);
       await fetchKeys();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error saving keys", description: err.message, variant: "destructive" });
     } finally {
       setSaving(null);
@@ -234,7 +234,7 @@ export default function SourceConnectionsTab() {
       if (error) throw error;
       toast({ title: `${provider.label} disconnected` });
       await fetchKeys();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setDeleting(null);

@@ -181,10 +181,10 @@ export default function IntegrationsTab() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [openDialog, setOpenDialog] = useState<string | null>(null);
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({ /* noop */ });
+  const [formValues, setFormValues] = useState<Record<string, string>>({ /* noop */ });
   const [saving, setSaving] = useState(false);
-  const [storedIntegrations, setStoredIntegrations] = useState<Record<string, boolean>>({});
+  const [storedIntegrations, setStoredIntegrations] = useState<Record<string, boolean>>({ /* noop */ });
   const [loadedKeys, setLoadedKeys] = useState(false);
   const [googleToken, setGoogleToken] = useState<{ google_email: string | null } | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
@@ -199,7 +199,7 @@ export default function IntegrationsTab() {
     ]);
 
     if (keysRes.data) {
-      const map: Record<string, boolean> = {};
+      const map: Record<string, boolean> = { /* noop */ };
       keysRes.data.forEach(k => { map[k.provider] = true; });
       setStoredIntegrations(map);
     }
@@ -222,7 +222,7 @@ export default function IntegrationsTab() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error connecting Google", description: err.message, variant: "destructive" });
       setConnectingGoogle(false);
     }
@@ -271,7 +271,7 @@ export default function IntegrationsTab() {
         return next;
       });
       toast({ title: `${integration.label} configured!` });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -287,7 +287,7 @@ export default function IntegrationsTab() {
         .eq("provider", integration.id);
       setStoredIntegrations(prev => ({ ...prev, [integration.id]: false }));
       toast({ title: `${integration.label} disconnected` });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };

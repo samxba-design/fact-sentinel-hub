@@ -29,11 +29,11 @@ interface ScanRun {
   total_mentions: number | null;
   negative_pct: number | null;
   emergencies_count: number | null;
-  config_snapshot: any;
-  result_snapshot?: any;
+  config_snapshot: unknown;
+  result_snapshot?: unknown;
 }
 
-const statusConfig: Record<string, { icon: any; className: string }> = {
+const statusConfig: Record<string, { icon: unknown; className: string }> = {
   completed: { icon: CheckCircle2, className: "text-sentinel-emerald" },
   running: { icon: Loader2, className: "text-sentinel-cyan animate-spin" },
   failed: { icon: XCircle, className: "text-sentinel-red" },
@@ -87,7 +87,7 @@ export default function ScansPage() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string>("");
-  const [scanResult, setScanResult] = useState<{ mentions: number; emergencies: number; narratives: number; scan_run_id: string; zero_reason?: string; scan_log?: any[]; keyword_groups?: any } | null>(null);
+  const [scanResult, setScanResult] = useState<{ mentions: number; emergencies: number; narratives: number; scan_run_id: string; zero_reason?: string; scan_log?: unknown[]; keyword_groups?: unknown } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -133,7 +133,7 @@ export default function ScansPage() {
       .select("scan_quota")
       .eq("id", currentOrg.id)
       .maybeSingle();
-    const quota = (org as any)?.scan_quota ?? 100;
+    const quota = (org as unknown)?.scan_quota ?? 100;
     const { count } = await supabase
       .from("scan_runs")
       .select("id", { count: "exact", head: true })
@@ -164,8 +164,8 @@ export default function ScansPage() {
 
       // Only use brand/risk/product keywords for auto-scan — competitor keywords are scanned separately
       const autoKeywords = (kwRes.data || [])
-        .filter((k: any) => k.type !== "competitor")
-        .map((k: any) => k.value as string);
+        .filter((k: unknown) => k.type !== "competitor")
+        .map((k: unknown) => k.value as string);
       if (autoKeywords.length === 0) {
         toast({ title: "No keywords configured", description: "Add keywords in Settings first so the scan knows what to look for.", variant: "destructive" });
         setAutoScanning(false);
@@ -231,10 +231,10 @@ export default function ScansPage() {
       const totalFound = data.total_found || data.mentions_created || 0;
       const created = data.mentions_created || 0;
       const scanLogEntries = data.scan_log || [];
-      const kwGroupsUsed = data.keyword_groups || {};
+      const kwGroupsUsed = data.keyword_groups || { /* noop */ };
       const zeroReason = data.zero_results_reason || "";
 
-      const sourceBreakdown = scanLogEntries.map((s: any) => `${s.source}: ${s.found}`).join(" · ");
+      const sourceBreakdown = scanLogEntries.map((s: unknown) => `${s.source}: ${s.found}`).join(" · ");
 
       if (created === 0) {
         // Zero results — give detailed explanation
@@ -267,7 +267,7 @@ export default function ScansPage() {
       setScanProgress("");
       setScanDatePickerOpen(false);
       fetchRuns();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Auto-scan failed", description: err.message, variant: "destructive" });
       setScanProgress("");
     } finally {
@@ -359,7 +359,7 @@ export default function ScansPage() {
         scan_run_id: data.scan_run_id || "",
         zero_reason: data.zero_results_reason || "",
         scan_log: data.scan_log || [],
-        keyword_groups: data.keyword_groups || {},
+        keyword_groups: data.keyword_groups || { /* noop */ },
       });
       setScanProgress("");
 
@@ -374,7 +374,7 @@ export default function ScansPage() {
 
         // Also save selected sources
         const existingSources = await supabase.from("sources").select("type").eq("org_id", currentOrg.id);
-        const existingTypes = (existingSources.data || []).map((s: any) => s.type);
+        const existingTypes = (existingSources.data || []).map((s: unknown) => s.type);
         const newSources = selectedSources.filter(s => !existingTypes.includes(s));
         if (newSources.length > 0) {
           await supabase.from("sources").insert(
@@ -385,7 +385,7 @@ export default function ScansPage() {
         toast({ title: "Schedule saved", description: `Scans will run every ${scheduleInterval}.` });
       }
       fetchRuns();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Scan failed", description: err.message, variant: "destructive" });
       setScanProgress("");
     } finally {
@@ -402,7 +402,7 @@ export default function ScansPage() {
       if (error) throw error;
       setRuns(prev => prev.filter(r => r.id !== scanId));
       toast({ title: "Scan deleted", description: "Scan and its mentions have been removed." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     } finally {
       setDeleting(false);
@@ -422,7 +422,7 @@ export default function ScansPage() {
       await supabase.from("scan_runs").delete().eq("org_id", currentOrg.id);
       setRuns([]);
       toast({ title: "All scans deleted", description: "All scan data has been reset." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     } finally {
       setDeleting(false);
@@ -542,7 +542,7 @@ export default function ScansPage() {
           runs.map(run => {
             const sc = statusConfig[run.status || "pending"];
             const StatusIcon = sc.icon;
-            const snap = run.result_snapshot as any;
+            const snap = run.result_snapshot as unknown;
             const totalFound = snap?.total_found ?? null;
             const zeroReason = snap?.zero_reason ?? "";
             const sourcesUsed: string[] = snap?.sources_used ?? run.config_snapshot?.sources ?? [];
@@ -907,7 +907,7 @@ export default function ScansPage() {
                       <div className="mt-3 space-y-1">
                         <p className="text-xs font-medium text-card-foreground">Per-source breakdown:</p>
                         <div className="grid grid-cols-2 gap-1">
-                          {scanResult.scan_log.map((s: any) => (
+                          {scanResult.scan_log.map((s: unknown) => (
                             <div key={s.source} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-muted/40">
                               <span className="text-muted-foreground">{SCAN_LOG_LABELS[s.source] || s.source}</span>
                               <span className={`font-medium tabular-nums ${s.error ? "text-sentinel-amber" : s.found > 0 ? "text-emerald-500" : "text-muted-foreground"}`}>

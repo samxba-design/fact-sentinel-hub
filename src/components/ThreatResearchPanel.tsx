@@ -19,7 +19,7 @@ import {
 interface ThreatResearchPanelProps {
   text: string;
   watchId?: string;
-  initialData?: any;
+  initialData?: unknown;
   compact?: boolean;
 }
 
@@ -69,7 +69,7 @@ const STAGE_LABELS: Record<Stage, string> = {
 export default function ThreatResearchPanel({ text, watchId, initialData, compact = false }: ThreatResearchPanelProps) {
   const { currentOrg } = useOrg();
   const [stage, setStage] = useState<Stage>(initialData ? "done" : "idle");
-  const [data, setData] = useState<any>(initialData ?? null);
+  const [data, setData] = useState<unknown>(initialData ?? null);
   const [error, setError] = useState("");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     factChecks: true,
@@ -103,7 +103,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
       if (result?.error) throw new Error(result.error);
       setData(result);
       setStage("done");
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message);
       setStage("error");
     }
@@ -225,7 +225,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="space-y-2 mt-1">
-              {data.fact_checks.map((fc: any, i: number) => (
+              {data.fact_checks.map((fc: unknown, i: number) => (
                 <Card key={i} className="bg-card border-border p-4">
                   <div className="flex items-start gap-2.5">
                     <div className="flex-shrink-0 mt-0.5">{VERDICT_ICONS[fc.verdict] ?? <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />}</div>
@@ -275,7 +275,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="space-y-2 mt-1">
-              {synthesis.recommended_actions.map((a: any, i: number) => (
+              {synthesis.recommended_actions.map((a: unknown, i: number) => (
                 <Card key={i} className="bg-card border-border px-4 py-3">
                   <div className="flex items-start gap-3">
                     <span className={`text-[10px] font-bold uppercase mt-0.5 w-14 flex-shrink-0 ${URGENCY_STYLES[a.urgency] ?? "text-muted-foreground"}`}>{a.urgency}</span>
@@ -347,7 +347,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Timeline</p>
                   <div className="space-y-2 border-l-2 border-border pl-3">
-                    {data.spread_map.spread_timeline.map((t: any, i: number) => (
+                    {data.spread_map.spread_timeline.map((t: unknown, i: number) => (
                       <div key={i} className="relative">
                         <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-primary" />
                         <div className="text-[10px] text-muted-foreground">{t.date?.slice(0, 10) ?? "?"} · {t.source}</div>
@@ -384,7 +384,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
-              {data.entity_profiles.map((e: any, i: number) => (
+              {data.entity_profiles.map((e: unknown, i: number) => (
                 <Card key={i} className="bg-card border-border p-3">
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <span className="text-xs font-medium text-foreground">{e.name}</span>
@@ -430,7 +430,7 @@ export default function ThreatResearchPanel({ text, watchId, initialData, compac
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="space-y-2 mt-1">
-              {data.source_list.map((s: any, i: number) => (
+              {data.source_list.map((s: unknown, i: number) => (
                 <Card key={i} className="bg-card border-border p-3">
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <a href={s.url} target="_blank" rel="noopener noreferrer"

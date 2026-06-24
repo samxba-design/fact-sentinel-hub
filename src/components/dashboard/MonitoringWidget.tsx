@@ -16,7 +16,7 @@ interface Alert {
   id: string;
   type: string;
   status: string | null;
-  payload: any;
+  payload: unknown;
   triggered_at: string | null;
 }
 
@@ -26,7 +26,7 @@ interface ScheduleInfo {
   quiet_hours_end: number | null;
 }
 
-const ALERT_ICONS: Record<string, any> = {
+const ALERT_ICONS: Record<string, unknown> = {
   mention_spike: TrendingUp,
   negative_spike: AlertTriangle,
   critical_mention: Siren,
@@ -202,7 +202,7 @@ export default function MonitoringWidget() {
             const color = ALERT_COLORS[alert.type] || "text-primary";
             const label = ALERT_LABELS[alert.type] || alert.type.replace(/_/g, " ");
             const link = buildAlertLink(alert);
-            const payload = alert.payload as any || {};
+            const payload = alert.payload as unknown || { /* noop */ };
             return (
               <div
                 key={alert.id}

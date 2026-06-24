@@ -23,7 +23,7 @@ export interface GeminiOptions {
  */
 export async function geminiChat(
   messages: ChatMessage[],
-  options: GeminiOptions = {}
+  options: GeminiOptions = { /* noop */ }
 ): Promise<string> {
   if (!GEMINI_KEY) {
     throw new Error(
@@ -52,7 +52,7 @@ export async function geminiChat(
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature,
-        ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+        ...(jsonMode ? { responseMimeType: "application/json" } : { /* noop */ }),
       },
     }),
   });
@@ -79,7 +79,7 @@ export async function geminiChat(
  */
 export async function geminiPrompt(
   prompt: string,
-  options: GeminiOptions = {}
+  options: GeminiOptions = { /* noop */ }
 ): Promise<string> {
   return geminiChat([{ role: "user", content: prompt }], options);
 }

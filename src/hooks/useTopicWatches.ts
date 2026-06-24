@@ -64,7 +64,7 @@ export function useTopicWatches(orgId: string | undefined) {
     setLoading(true);
     try {
       const { data, error: err } = await supabase
-        .from("topic_watches" as any)
+        .from("topic_watches" as unknown)
         .select("*")
         .eq("org_id", orgId)
         .neq("status", "archived")
@@ -72,9 +72,9 @@ export function useTopicWatches(orgId: string | undefined) {
       if (err) throw err;
 
       // For each watch, grab latest snapshot
-      const withSnapshots = await Promise.all((data || []).map(async (w: any) => {
+      const withSnapshots = await Promise.all((data || []).map(async (w: unknown) => {
         const { data: snaps } = await supabase
-          .from("topic_watch_snapshots" as any)
+          .from("topic_watch_snapshots" as unknown)
           .select("*")
           .eq("topic_watch_id", w.id)
           .order("bucket_hour", { ascending: false })
@@ -82,7 +82,7 @@ export function useTopicWatches(orgId: string | undefined) {
         return { ...w, latestSnapshot: snaps?.[0] ?? undefined };
       }));
       setWatches(withSnapshots as TopicWatch[]);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Table may not exist in demo — return empty gracefully
       setWatches([]);
       setError(null);
@@ -107,8 +107,8 @@ export function useTopicWatchDetail(id: string | undefined) {
       setLoading(true);
       try {
         const [{ data: w }, { data: snaps }] = await Promise.all([
-          supabase.from("topic_watches" as any).select("*").eq("id", id).single(),
-          supabase.from("topic_watch_snapshots" as any).select("*")
+          supabase.from("topic_watches" as unknown).select("*").eq("id", id).single(),
+          supabase.from("topic_watch_snapshots" as unknown).select("*")
             .eq("topic_watch_id", id)
             .order("bucket_hour", { ascending: true })
             .gte("bucket_hour", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()),
@@ -133,10 +133,10 @@ export async function createTopicWatch(orgId: string, data: CreateTopicWatchData
     if (error) throw new Error(error.message);
     if (result?.error) throw new Error(result.error);
     return result.watch;
-  } catch (fnErr: any) {
+  } catch (fnErr: unknown) {
     // Fallback: direct insert (may fail if table doesn't exist)
     const { data: result, error } = await supabase
-      .from("topic_watches" as any)
+      .from("topic_watches" as unknown)
       .insert({ org_id: orgId, ...data })
       .select()
       .single();
@@ -147,14 +147,14 @@ export async function createTopicWatch(orgId: string, data: CreateTopicWatchData
 
 export async function updateTopicWatch(id: string, patch: Partial<TopicWatch>) {
   const { error } = await supabase
-    .from("topic_watches" as any)
+    .from("topic_watches" as unknown)
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
 }
 
 export async function deleteTopicWatch(id: string) {
-  await supabase.from("topic_watches" as any).update({ status: "archived" }).eq("id", id);
+  await supabase.from("topic_watches" as unknown).update({ status: "archived" }).eq("id", id);
 }
 
 /** Compute what % of mentions matching a query also mention Binance (last N hours). */

@@ -47,7 +47,7 @@ function xmlDecode(s: string): string {
     .replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
 }
 
-function dedup(arr: any[]): any[] {
+function dedup(arr: unknown[]): unknown[] {
   const seen = new Set<string>();
   return arr.filter(r => {
     if (!r.url) return true;
@@ -59,8 +59,8 @@ function dedup(arr: any[]): any[] {
 }
 
 // ── Google News RSS ──
-async function googleNewsRss(query: string, limit: number, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function googleNewsRss(query: string, limit: number, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
     const res = await fetch(url, {
@@ -80,20 +80,20 @@ async function googleNewsRss(query: string, limit: number, dateFrom?: string): P
         const content = clean([title,desc].filter(Boolean).join(". "));
         if (content.length < 30) continue;
         let posted_at: string|null = null;
-        if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch {} }
+        if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ } }
         if (dateFrom && posted_at && new Date(posted_at).getTime() < new Date(dateFrom).getTime()) continue;
         results.push({ source: src(link), content, title, url: link,
           author_name: (() => { try { return new URL(link).hostname.replace("www.",""); } catch { return "news"; } })(),
           posted_at, date_verified: !!posted_at, _engine: "google-rss" });
-      } catch {}
+      } catch { /* noop */ }
     }
-  } catch (e: any) { console.warn("[google-rss] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[google-rss] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Bing News RSS ──
-async function bingNewsRss(query: string, limit: number): Promise<any[]> {
-  const results: any[] = [];
+async function bingNewsRss(query: string, limit: number): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`;
     const res = await fetch(url, {
@@ -113,19 +113,19 @@ async function bingNewsRss(query: string, limit: number): Promise<any[]> {
         const content = clean([title,desc].filter(Boolean).join(". "));
         if (content.length < 30) continue;
         let posted_at: string|null = null;
-        if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch {} }
+        if (pubRaw) { try { posted_at = new Date(pubRaw).toISOString(); } catch { /* noop */ } }
         results.push({ source: src(link), content, title, url: link,
           author_name: (() => { try { return new URL(link).hostname.replace("www.",""); } catch { return "news"; } })(),
           posted_at, date_verified: !!posted_at, _engine: "bing-rss" });
-      } catch {}
+      } catch { /* noop */ }
     }
-  } catch (e: any) { console.warn("[bing-rss] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[bing-rss] failed:", (e as Error).message); }
   return results;
 }
 
 // ── HackerNews ──
-async function hackerNews(query: string, limit: number, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function hackerNews(query: string, limit: number, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const params = new URLSearchParams({ query, hitsPerPage: String(limit), tags: "story,comment" });
     if (dateFrom) params.set("numericFilters",`created_at_i>${Math.floor(new Date(dateFrom).getTime()/1000)}`);
@@ -141,13 +141,13 @@ async function hackerNews(query: string, limit: number, dateFrom?: string): Prom
         author_name: h.author||"HackerNews", posted_at:h.created_at||null, date_verified:!!h.created_at,
         metrics:{ comments:h.num_comments||0, likes:h.points||0 }, _engine:"hackernews" });
     }
-  } catch (e: any) { console.warn("[hackernews] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[hackernews] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Reddit public ──
-async function redditPublic(query: string, limit: number, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function redditPublic(query: string, limit: number, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   const dateMs = dateFrom ? new Date(dateFrom).getTime() : 0;
   try {
     const params = new URLSearchParams({ q: query, sort:"new", limit:String(limit), t:"month" });
@@ -167,13 +167,13 @@ async function redditPublic(query: string, limit: number, dateFrom?: string): Pr
         posted_at:new Date(p.created_utc*1000).toISOString(), date_verified:true,
         metrics:{ likes:p.ups||0, comments:p.num_comments||0 }, _engine:"reddit-public" });
     }
-  } catch (e: any) { console.warn("[reddit-public] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[reddit-public] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Brave Search ──
-async function braveSearch(query: string, limit: number, apiKey: string, freshness?: string): Promise<any[]> {
-  const results: any[] = [];
+async function braveSearch(query: string, limit: number, apiKey: string, freshness?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const params = new URLSearchParams({ q:query, count:String(Math.min(limit,20)), search_lang:"en", safesearch:"off" });
     if (freshness) params.set("freshness", freshness);
@@ -200,13 +200,13 @@ async function braveSearch(query: string, limit: number, apiKey: string, freshne
         author_name:(() => { try { return new URL(r.url).hostname.replace("www.",""); } catch { return ""; } })(),
         posted_at, date_verified:!!posted_at, _engine:"brave" });
     }
-  } catch (e: any) { console.warn("[brave] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[brave] failed:", (e as Error).message); }
   return results;
 }
 
 // ── NewsAPI ──
-async function newsApi(query: string, limit: number, apiKey: string, dateFrom?: string): Promise<any[]> {
-  const results: any[] = [];
+async function newsApi(query: string, limit: number, apiKey: string, dateFrom?: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const params = new URLSearchParams({ q:query, pageSize:String(Math.min(limit,100)), language:"en", sortBy:"publishedAt" });
     if (dateFrom) params.set("from", new Date(dateFrom).toISOString().split("T")[0]);
@@ -225,13 +225,13 @@ async function newsApi(query: string, limit: number, apiKey: string, dateFrom?: 
         author_name:a.source?.name||(() => { try { return new URL(a.url).hostname.replace("www.",""); } catch { return ""; } })(),
         posted_at:a.publishedAt||null, date_verified:!!a.publishedAt, _engine:"newsapi" });
     }
-  } catch (e: any) { console.warn("[newsapi] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[newsapi] failed:", (e as Error).message); }
   return results;
 }
 
 // ── Firecrawl ──
-async function firecrawl(query: string, limit: number, apiKey: string): Promise<any[]> {
-  const results: any[] = [];
+async function firecrawl(query: string, limit: number, apiKey: string): Promise<unknown[]> {
+  const results: unknown[] = [];
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
@@ -249,7 +249,7 @@ async function firecrawl(query: string, limit: number, apiKey: string): Promise<
         author_name:(() => { try { return new URL(item.url).hostname.replace("www.",""); } catch { return ""; } })(),
         posted_at:item.metadata?.publishedTime||null, date_verified:!!item.metadata?.publishedTime, _engine:"firecrawl" });
     }
-  } catch (e: any) { console.warn("[firecrawl] failed:", e.message); }
+  } catch (e: unknown) { console.warn("[firecrawl] failed:", (e as Error).message); }
   return results;
 }
 
@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
     }
 
     // Run all sources in parallel
-    const promises: Promise<{ engine: string; results: any[] }>[] = [
+    const promises: Promise<{ engine: string; results: unknown[] }>[] = [
       googleNewsRss(query, maxResults, date_from).then(r=>({ engine:"google-rss", results:r })),
       bingNewsRss(query, maxResults).then(r=>({ engine:"bing-rss", results:r })),
     ];
@@ -288,8 +288,8 @@ Deno.serve(async (req) => {
     if (firecrawlKey) promises.push(firecrawl(query, maxResults, firecrawlKey).then(r=>({ engine:"firecrawl", results:r })));
 
     const settled = await Promise.allSettled(promises);
-    const engineBreakdown: Record<string,number> = {};
-    let all: any[] = [];
+    const engineBreakdown: Record<string,number> = { /* noop */ };
+    let all: unknown[] = [];
     for (const s of settled) {
       if (s.status==="fulfilled") {
         engineBreakdown[s.value.engine] = s.value.results.length;
@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
       engines_used: Object.keys(engineBreakdown).filter(k=>engineBreakdown[k]>0).length,
     }), { headers: { ...CORS, "Content-Type":"application/json" } });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("scan-web error:", err);
     return new Response(JSON.stringify({ success:false, error:err.message }), { status:500, headers: { ...CORS, "Content-Type":"application/json" } });
   }

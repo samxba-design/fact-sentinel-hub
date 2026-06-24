@@ -56,12 +56,12 @@ export default function TestimonialRequest() {
         rating: rating > 0 ? rating : null,
         status: "pending",
         source_slug: slug || null,
-      } as any);
+      } as unknown);
 
       if (error) throw error;
 
       setSubmitted(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Submission failed", description: err.message, variant: "destructive" });
     } finally {
       setSubmitting(false);

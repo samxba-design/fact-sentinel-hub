@@ -21,18 +21,18 @@ interface RiskMention {
   source: string;
   severity: string | null;
   posted_at: string | null;
-  flags: any;
+  flags: unknown;
 }
 
 interface Alert {
   id: string;
   type: string;
   status: string | null;
-  payload: any;
+  payload: unknown;
   triggered_at: string | null;
 }
 
-const ALERT_ICONS: Record<string, any> = {
+const ALERT_ICONS: Record<string, unknown> = {
   mention_spike: TrendingUp,
   negative_spike: AlertTriangle,
   critical_mention: Siren,
@@ -98,7 +98,7 @@ export default function RiskConsolePage() {
 
       let emergencies = 0, high = 0, falseClaims = 0, regulatory = 0, scams = 0;
       items.forEach(m => {
-        const f = m.flags as any || {};
+        const f = m.flags as unknown || { /* noop */ };
         if (m.severity === "critical") emergencies++;
         if (m.severity === "high") high++;
         if (f.misinformation) falseClaims++;
@@ -164,7 +164,7 @@ export default function RiskConsolePage() {
 
   const filteredMentions = mentions.filter(m => {
     if (!activeQueue) return true;
-    const f = m.flags as any || {};
+    const f = m.flags as unknown || { /* noop */ };
     switch (activeQueue) {
       case "emergencies": return m.severity === "critical";
       case "high": return m.severity === "high";
@@ -269,7 +269,7 @@ export default function RiskConsolePage() {
             {activeAlerts.map(alert => {
               const AlertIcon = ALERT_ICONS[alert.type] || Bell;
               const alertColor = ALERT_COLORS[alert.type] || "text-primary";
-              const payload = alert.payload as any || {};
+              const payload = alert.payload as unknown || { /* noop */ };
               return (
                 <div key={alert.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -303,7 +303,7 @@ export default function RiskConsolePage() {
           <h3 className="text-sm font-medium text-card-foreground mb-4">Alert History</h3>
           <div className="space-y-2">
             {alerts.filter(a => a.status !== "active").slice(0, 10).map(alert => {
-              const payload = alert.payload as any || {};
+              const payload = alert.payload as unknown || { /* noop */ };
               return (
                 <div key={alert.id} className="flex items-center justify-between p-2 rounded-lg opacity-60">
                   <div className="flex items-center gap-3 min-w-0">

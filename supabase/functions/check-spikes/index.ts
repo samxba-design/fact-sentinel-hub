@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       .select("id, name");
     if (orgErr) throw orgErr;
 
-    const alerts: { org_id: string; type: string; payload: any }[] = [];
+    const alerts: { org_id: string; type: string; payload: unknown }[] = [];
 
     for (const org of (orgs || [])) {
       const now = new Date();
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Critical severity alert: any new critical mentions
+      // Critical severity alert: unknown new critical mentions
       if (criticalCount > 0) {
         const { data: existingAlert } = await supabase
           .from("alerts")
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         .gte("posted_at", twentyFourHoursAgo)
         .not("flags", "is", null);
 
-      const viralCount = (viralMentions || []).filter((m: any) => {
+      const viralCount = (viralMentions || []).filter((m: unknown) => {
         try {
           const flags = typeof m.flags === "string" ? JSON.parse(m.flags) : m.flags;
           return flags?.viral_potential === true;
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
           .eq("watchlist_group_id", group.id);
 
         if (!groupPeople || groupPeople.length === 0) continue;
-        const personIds = groupPeople.map((p: any) => p.person_id);
+        const personIds = groupPeople.map((p: unknown) => p.person_id);
 
         // Get recent mentions linked to these people
         const { data: linkedMentions } = await supabase
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
           .in("person_id", personIds);
 
         if (!linkedMentions || linkedMentions.length === 0) continue;
-        const mentionIds = linkedMentions.map((l: any) => l.mention_id);
+        const mentionIds = linkedMentions.map((l: unknown) => l.mention_id);
 
         // Count negative mentions in last 24h
         const { count: groupNegCount } = await supabase
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
         .eq("org_id", org.id)
         .maybeSingle();
 
-      const watchlistPersonIds: string[] = (tp?.settings as any)?.watchlist_alerts || [];
+      const watchlistPersonIds: string[] = (tp?.settings as unknown)?.watchlist_alerts || [];
       if (watchlistPersonIds.length === 0) continue;
 
       const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
           .select("mention_id")
           .eq("person_id", personId);
 
-        const mentionIds = (personMentions || []).map((m: any) => m.mention_id);
+        const mentionIds = (personMentions || []).map((m: unknown) => m.mention_id);
         if (!mentionIds.length) continue;
 
         const { count } = await supabase
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
                 org_id: alert.org_id,
                 type: alert.type,
                 alert_id: alert.id,
-                message: (alert.payload as any)?.message || "Critical alert detected",
+                message: (alert.payload as unknown)?.message || "Critical alert detected",
               }),
             });
           } catch (e) {
@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ alerts_created: alerts.length, alerts }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("check-spikes error:", err);
     return new Response(
       JSON.stringify({ error: err.message }),

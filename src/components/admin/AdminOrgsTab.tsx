@@ -21,7 +21,7 @@ type OrgWithSub = {
   subscription_expires_at: string | null;
   subscription_approved_by: string | null;
   subscription_approved_at: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export default function AdminOrgsTab() {
@@ -47,7 +47,7 @@ export default function AdminOrgsTab() {
         .from("org_memberships")
         .select("org_id");
       if (error) throw error;
-      const counts: Record<string, number> = {};
+      const counts: Record<string, number> = { /* noop */ };
       data.forEach((m) => {
         counts[m.org_id] = (counts[m.org_id] || 0) + 1;
       });
@@ -65,7 +65,7 @@ export default function AdminOrgsTab() {
       status: string;
       type?: string;
     }) => {
-      const updates: any = {
+      const updates: unknown = {
         subscription_status: status,
         subscription_type: type || null,
       };

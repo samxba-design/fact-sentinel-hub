@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     }
 
     // Aggregate by domain
-    const domainStats: Record<string, { total: number; negative: number; high_severity: number; sources: Set<string> }> = {};
+    const domainStats: Record<string, { total: number; negative: number; high_severity: number; sources: Set<string> }> = { /* noop */ };
     for (const m of mentions) {
       if (!m.url) continue;
       try {
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     const parsed = JSON.parse(toolCall.function.arguments);
 
     // Merge AI scores with internal stats
-    const enrichedScores = (parsed.scores || []).map((score: any) => {
+    const enrichedScores = (parsed.scores || []).map((score: unknown) => {
       const stats = domainStats[score.domain];
       return {
         ...score,
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("score-source error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? (e as Error).message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

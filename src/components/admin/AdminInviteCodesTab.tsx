@@ -32,7 +32,7 @@ export default function AdminInviteCodesTab() {
   const { data: codes = [], isLoading } = useQuery<InviteCode[]>({
     queryKey: ["admin-invite-codes"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (supabase as unknown)
         .from("beta_invite_codes")
         .select("*")
         .order("created_at", { ascending: false });
@@ -51,7 +51,7 @@ export default function AdminInviteCodesTab() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!newCode.trim()) throw new Error("Code is required");
-      const { error } = await (supabase as any)
+      const { error } = await (supabase as unknown)
         .from("beta_invite_codes")
         .insert({
           code: newCode.trim().toUpperCase(),
@@ -67,12 +67,12 @@ export default function AdminInviteCodesTab() {
       setNewCode(""); setNewLabel(""); setMaxUses("50"); setExpiresAt("");
       toast.success("Invite code created");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any)
+      const { error } = await (supabase as unknown)
         .from("beta_invite_codes")
         .delete()
         .eq("id", id);
@@ -82,7 +82,7 @@ export default function AdminInviteCodesTab() {
       qc.invalidateQueries({ queryKey: ["admin-invite-codes"] });
       toast.success("Code deleted");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(e.message),
   });
 
   const copyCode = (code: string, type: "code" | "link") => {

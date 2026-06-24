@@ -167,7 +167,7 @@ const InterviewCopilot: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {/* Tabs: Live / Practice */}
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mr-3">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as unknown)} className="mr-3">
             <TabsList className="h-8">
               <TabsTrigger value="live" className="text-[11px] gap-1 h-7">
                 <Radio className="w-3 h-3" /> Live

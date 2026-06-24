@@ -109,7 +109,7 @@ export default function NotificationPreferencesTab() {
           email_enabled: data.email_enabled,
         });
         // Load persisted email theme
-        setEmailTheme((data as any).email_theme === "light" ? "light" : "dark");
+        setEmailTheme((data as unknown).email_theme === "light" ? "light" : "dark");
         setHasExisting(true);
       }
       // Load digest settings from tracking_profiles
@@ -118,7 +118,7 @@ export default function NotificationPreferencesTab() {
         .select("settings")
         .eq("org_id", currentOrg.id)
         .maybeSingle();
-      const digest = (profile?.settings as any)?.weekly_digest;
+      const digest = (profile?.settings as unknown)?.weekly_digest;
       if (digest) {
         setDigestEnabled(digest.enabled ?? false);
         setDigestDay(digest.day ?? "monday");
@@ -175,7 +175,7 @@ export default function NotificationPreferencesTab() {
         setHasExisting(true);
       }
       toast({ title: "Preferences saved", description: "Your notification settings have been updated." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -189,7 +189,7 @@ export default function NotificationPreferencesTab() {
     setSavingDigest(true);
     try {
       const { data: existing } = await supabase.from("tracking_profiles").select("settings").eq("org_id", currentOrg.id).maybeSingle();
-      const existingSettings = (existing?.settings as Record<string, unknown>) || {};
+      const existingSettings = (existing?.settings as Record<string, unknown>) || { /* noop */ };
       await supabase.from("tracking_profiles").upsert(
         { org_id: currentOrg.id, settings: { ...existingSettings, weekly_digest: { enabled: digestEnabled, day: digestDay, time: digestTime } } },
         { onConflict: "org_id" }

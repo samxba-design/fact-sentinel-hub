@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       }
 
       // Use geminiChat for structured extraction in JSON mode
-      let extractedResult: any = null;
+      let extractedResult: unknown = null;
 
       // Always use geminiChat with json mode
       {
@@ -132,7 +132,7 @@ IMPORTANT RULES:
     const raw = await geminiChat([{role: "system", content: systemPrompt}, {role: "user", content: userPrompt}], { jsonMode: true });
 
     // Parse response
-    let parsed: any;
+    let parsed: unknown;
     try {
       const stripped = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
       parsed = JSON.parse(stripped);
@@ -147,7 +147,7 @@ IMPORTANT RULES:
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("generate-ai-summary error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,

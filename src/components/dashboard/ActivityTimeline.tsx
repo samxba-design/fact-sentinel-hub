@@ -45,7 +45,7 @@ export default function ActivityTimeline() {
     ]).then(([scans, escalations, incidents]) => {
       const all: TimelineEvent[] = [];
 
-      (scans.data || []).forEach((s: any) => {
+      (scans.data || []).forEach((s: unknown) => {
         all.push({
           id: `scan-${s.id}`,
           type: "scan",
@@ -55,7 +55,7 @@ export default function ActivityTimeline() {
         });
       });
 
-      (escalations.data || []).forEach((e: any) => {
+      (escalations.data || []).forEach((e: unknown) => {
         all.push({
           id: `esc-${e.id}`,
           type: "escalation",
@@ -65,7 +65,7 @@ export default function ActivityTimeline() {
         });
       });
 
-      (incidents.data || []).forEach((i: any) => {
+      (incidents.data || []).forEach((i: unknown) => {
         all.push({
           id: `inc-${i.id}`,
           type: "incident",

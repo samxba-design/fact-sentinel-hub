@@ -56,13 +56,13 @@ export function useCoAssociation(orgId: string | undefined, days = 30, minCoOccu
 
         // Build co-occurrence map
         type Entry = { count: number; neg: number; pos: number; neu: number; firstSeen: string; excerpts: string[] };
-        const map: Record<string, Entry> = {};
+        const map: Record<string, Entry> = { /* noop */ };
 
         for (const m of mentions) {
           const text = m.content ?? "";
           const lower = text.toLowerCase();
           // Tokenise: split on whitespace + punctuation, deduplicate per mention
-          const rawTokens = lower.split(/[\s\.,!?;:()\[\]"'\/\\]+/).filter(t => t.length > 2 && !STOP_WORDS.has(t));
+          const rawTokens = lower.split(/[\s.,!?;:()[\]"'/\\]+/).filter(t => t.length > 2 && !STOP_WORDS.has(t));
           // Also capture uppercase symbols (coins)
           const upperTokens = (text.match(COIN_PATTERN) ?? []).filter(t => t.length >= 3 && t.length <= 6 && !["THE","AND","FOR","ARE","HAS","NOT","BUT","ITS","WILL","CAN","DID","GET","GOT","NEW","NOW","OUT","VIA","PER"].includes(t));
           const tokens = [...new Set([...rawTokens, ...upperTokens.map(t => t)])];
@@ -83,9 +83,9 @@ export function useCoAssociation(orgId: string | undefined, days = 30, minCoOccu
         const { data: priorMentions } = await supabase
           .from("mentions").select("id, content")
           .eq("org_id", orgId).gte("posted_at", prior).lt("posted_at", since);
-        const priorMap: Record<string, number> = {};
+        const priorMap: Record<string, number> = { /* noop */ };
         for (const m of priorMentions ?? []) {
-          const tokens = (m.content ?? "").toLowerCase().split(/[\s\.,!?;:()\[\]"'\/\\]+/).filter((t: string) => t.length > 2 && !STOP_WORDS.has(t));
+          const tokens = (m.content ?? "").toLowerCase().split(/[\s.,!?;:()[\]"'/\\]+/).filter((t: string) => t.length > 2 && !STOP_WORDS.has(t));
           for (const t of tokens) { priorMap[t] = (priorMap[t] ?? 0) + 1; }
         }
 

@@ -53,7 +53,7 @@ export default function SuggestCompetitorsDialog({ onAdded }: Props) {
       setSuggestions(comps);
       // Pre-select high confidence ones
       setSelected(new Set(comps.filter((c: Suggestion) => c.confidence >= 0.7).map((c: Suggestion) => c.name)));
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);

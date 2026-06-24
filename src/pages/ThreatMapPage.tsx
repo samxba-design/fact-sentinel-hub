@@ -35,7 +35,7 @@ const REGION_COORDS: Record<string, { lat: number; lng: number; label: string }>
   australia:      { lng: 133,   lat: -25,  label: "Australia" },
 };
 
-function inferRegion(mention: any): string | null {
+function inferRegion(mention: unknown): string | null {
   const text = (
     (mention.content || "") + " " +
     (mention.source || "") + " " +
@@ -90,7 +90,7 @@ export default function ThreatMapPage() {
       .limit(500)
       .then(({ data }) => {
         const items = data || [];
-        const regionMap: Record<string, { total: number; negative: number; critical: number }> = {};
+        const regionMap: Record<string, { total: number; negative: number; critical: number }> = { /* noop */ };
         let unknownGlobal = 0;
 
         items.forEach(m => {
