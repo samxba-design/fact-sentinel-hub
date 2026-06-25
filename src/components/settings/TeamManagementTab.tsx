@@ -85,7 +85,9 @@ export default function TeamManagementTab() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchMembers(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchMembers(); }, [currentOrg, fetchMembers]);
 
   const handleInvite = async () => {
     if (!currentOrg || !inviteEmail.trim()) return;

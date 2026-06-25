@@ -404,7 +404,9 @@ export default function MentionDetailPage() {
     if (mention?.content && !aiSummary && !summaryLoading) {
       generateSummary();
     }
-  }, [mention]);
+   
+   
+  }, [mention, aiSummary, summaryLoading, generateSummary]);
 
   if (loading) {
     return (

@@ -65,7 +65,9 @@ export default function CompetitorBenchmarkPage() {
   useEffect(() => {
     if (!currentOrg) return;
     loadBenchmarkData();
-  }, [currentOrg]);
+   
+   
+  }, [currentOrg, loadBenchmarkData]);
 
   const loadBenchmarkData = async () => {
     if (!currentOrg) return;

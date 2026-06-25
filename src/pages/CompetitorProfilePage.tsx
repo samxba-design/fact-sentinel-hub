@@ -49,7 +49,9 @@ export default function CompetitorProfilePage() {
   useEffect(() => {
     if (!currentOrg || !competitorName) return;
     loadProfile();
-  }, [currentOrg, competitorName]);
+   
+   
+  }, [currentOrg, competitorName, loadProfile]);
 
   const loadProfile = async () => {
     if (!currentOrg) return;

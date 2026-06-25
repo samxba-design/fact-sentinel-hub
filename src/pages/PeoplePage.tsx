@@ -60,7 +60,9 @@ export default function PeoplePage() {
       });
   };
 
-  useEffect(() => { fetchPeople(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchPeople(); }, [currentOrg, fetchPeople]);
 
   // Build leaderboard data
   const leaderboardPeople = people

@@ -162,6 +162,9 @@ export default function NarrativeNow() {
 
   const { sentimentFilter, severityFilter } = buildLiveFilter(config);
 
+  const sentimentKey = JSON.stringify(sentimentFilter);
+  const severityKey = JSON.stringify(severityFilter);
+
   const load = useCallback(async () => {
     if (!currentOrg) return;
     setLoading(true);
@@ -208,7 +211,7 @@ export default function NarrativeNow() {
 
     setData({ totalMentions: mentions.length, negPct, posPct, critCount, narratives, topThreat, lastScan });
     setLoading(false);
-  }, [currentOrg, config.enabled, config.sources, config.showNarratives, JSON.stringify(sentimentFilter), JSON.stringify(severityFilter)]);
+  }, [currentOrg, config.enabled, config.sources, config.showNarratives, sentimentKey, severityKey, sentimentFilter, severityFilter]);
 
   // Initial load
   useEffect(() => { load(); }, [load]);
@@ -248,7 +251,7 @@ export default function NarrativeNow() {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [currentOrg?.id, config.enabled, load]);
+  }, [currentOrg?.id, config.enabled, config.sources, load, sentimentFilter, severityFilter]);
 
   const runQuickScan = async () => {
     if (!currentOrg) return;

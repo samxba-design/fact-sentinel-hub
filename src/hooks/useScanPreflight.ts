@@ -25,6 +25,8 @@ export function useScanPreflight(selectedSources: string[]) {
   });
   const [loading, setLoading] = useState(false);
 
+  const sourcesKey = selectedSources.join(",");
+
   useEffect(() => {
     if (!currentOrg) return;
     let cancelled = false;
@@ -82,7 +84,7 @@ export function useScanPreflight(selectedSources: string[]) {
     });
 
     return () => { cancelled = true; };
-  }, [currentOrg, selectedSources.join(",")]);
+  }, [currentOrg, sourcesKey]);
 
   return { preflight: result, preflightLoading: loading };
 }

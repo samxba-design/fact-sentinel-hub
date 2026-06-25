@@ -79,7 +79,9 @@ export default function NarrativeDetailPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [id, currentOrg]);
+   
+   
+  useEffect(() => { fetchData(); }, [id, currentOrg, fetchData]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!narrative) return;

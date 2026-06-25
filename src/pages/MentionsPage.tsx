@@ -291,7 +291,7 @@ export default function MentionsPage() {
     }
   };
 
-  const ignoredDomains = new Set(ignoredSources.map(s => s.domain));
+  const ignoredDomains = useMemo(() => new Set(ignoredSources.map(s => s.domain)), [ignoredSources]);
 
   const updateMentionStatus = async (mentionId: string, newStatus: string) => {
     const { error } = await supabase.from("mentions").update({ status: newStatus }).eq("id", mentionId);

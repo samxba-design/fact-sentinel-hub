@@ -62,7 +62,9 @@ export default function MentionNotesPanel({ mentionId }: MentionNotesPanelProps)
     setLoading(false);
   }
 
-  useEffect(() => { loadNotes(); }, [mentionId]);
+   
+   
+  useEffect(() => { loadNotes(); }, [mentionId, loadNotes]);
 
   async function addNote() {
     if (!text.trim() || !currentOrg) return;

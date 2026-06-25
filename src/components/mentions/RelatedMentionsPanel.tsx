@@ -87,7 +87,9 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
     setLoading(false);
   }
 
-  useEffect(() => { loadRelated(); }, [mentionId]);
+   
+   
+  useEffect(() => { loadRelated(); }, [mentionId, loadRelated]);
 
   async function searchMentions(q: string) {
     if (!q.trim() || q.length < 3) { setSearchResults([]); return; }
@@ -109,7 +111,9 @@ export default function RelatedMentionsPanel({ mentionId, orgId }: RelatedMentio
   useEffect(() => {
     const timer = setTimeout(() => searchMentions(searchQuery), 400);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+   
+   
+  }, [searchQuery, searchMentions]);
 
   async function linkMention(targetId: string) {
     if (!currentOrg) return;

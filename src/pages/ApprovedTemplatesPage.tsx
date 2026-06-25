@@ -55,7 +55,9 @@ export default function ApprovedTemplatesPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchTemplates(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchTemplates(); }, [currentOrg, fetchTemplates]);
 
   const handleSave = async (data: Omit<Template, "id">) => {
     if (!currentOrg) return;

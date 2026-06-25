@@ -137,7 +137,8 @@ export default function AddEntityDialog({ open, onOpenChange, onSaved }: Props) 
   useEffect(() => {
     if (step !== 1 || !form.url || enrichDone) return;
     runEnrich();
-  }, [step]);
+   
+  }, [step, form.url, enrichDone, runEnrich]);
 
   const runEnrich = async () => {
     if (!form.url) { setEnrichDone(true); return; }

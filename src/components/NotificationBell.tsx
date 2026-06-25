@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell } from "lucide-react";
 import {
   Popover,
@@ -28,7 +28,7 @@ export default function NotificationBell() {
   const [escalationCount, setEscalationCount] = useState(0);
   const [markingRead, setMarkingRead] = useState(false);
 
-  const fetchAlerts = async () => {
+  const fetchAlerts = useCallback(async () => {
     if (!currentOrg) return;
     const orgId = currentOrg.id;
     const [alertsRes, escRes] = await Promise.all([
@@ -37,12 +37,12 @@ export default function NotificationBell() {
     ]);
     setAlerts(alertsRes.data || []);
     setEscalationCount(escRes.count || 0);
-  };
+  }, [currentOrg]);
 
   useEffect(() => {
     if (!currentOrg) return;
     fetchAlerts();
-  }, [currentOrg]);
+  }, [currentOrg, fetchAlerts]);
 
   const markAllRead = async () => {
     if (!currentOrg) return;

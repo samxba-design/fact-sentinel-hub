@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/contexts/OrgContext";
@@ -46,7 +46,7 @@ export default function LiveThreatFeed() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const { sentimentFilter, severityFilter } = buildLiveFilter(config);
 
-  const loadFeed = async () => {
+  const loadFeed = useCallback(async () => {
     if (!currentOrg) return;
     setRefreshing(true);
     let q = supabase
@@ -67,12 +67,16 @@ export default function LiveThreatFeed() {
     const { data } = await q;
     setFeed((data as LiveMention[]) || []);
     setRefreshing(false);
-  };
+  }, [currentOrg, config.enabled, config.sentiment, config.minSeverity, config.sources, sentimentFilter, severityFilter]);
 
   // Load feed on mount and config change
-  useEffect(() => { loadFeed(); }, [currentOrg, config.enabled, config.sentiment, config.minSeverity, JSON.stringify(config.sources)]);
+  useEffect(() => { loadFeed(); }, [loadFeed]);
 
   // Realtime subscription — only when enabled AND showLiveFeed is on
+  const sourcesKey = JSON.stringify(config.sources);
+  const sentimentKey = JSON.stringify(sentimentFilter);
+  const severityKey = JSON.stringify(severityFilter);
+
   useEffect(() => {
     if (!currentOrg || !config.enabled || !config.showLiveFeed) {
       if (channelRef.current) {
@@ -104,7 +108,7 @@ export default function LiveThreatFeed() {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [currentOrg?.id, config.enabled, config.showLiveFeed, JSON.stringify(sentimentFilter), JSON.stringify(severityFilter), JSON.stringify(config.sources)]);
+  }, [currentOrg?.id, config.enabled, config.showLiveFeed, sourcesKey, sentimentKey, severityKey, sentimentFilter, severityFilter, config.sources]);
 
   return (
     <Card className="bg-card border-border p-5 space-y-3">

@@ -283,7 +283,9 @@ export default function NarrativeGraphPage() {
     }
   };
 
-  useEffect(() => { load(); }, [currentOrg?.id]);
+   
+   
+  useEffect(() => { load(); }, [currentOrg?.id, load]);
 
   // ─── Filtered / sorted narratives ───────────────────────────────────────────
 

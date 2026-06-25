@@ -302,7 +302,7 @@ export default function ScansPage() {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (!dateFrom) setDateFrom(weekAgo.toISOString().split("T")[0]);
     if (!dateTo) setDateTo(now.toISOString().split("T")[0]);
-  }, [builderOpen, currentOrg]);
+  }, [builderOpen, currentOrg, dateFrom, dateTo, keywords.length]);
 
   const toggleSource = (s: string) => {
     setSelectedSources(prev =>

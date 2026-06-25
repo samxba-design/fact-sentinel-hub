@@ -58,12 +58,16 @@ export default function CompetitorIntelFeedPage() {
   useEffect(() => {
     if (!currentOrg) return;
     loadCompetitors();
-  }, [currentOrg]);
+   
+   
+  }, [currentOrg, loadCompetitors]);
 
   useEffect(() => {
     if (!currentOrg || competitors.length === 0) return;
     loadFeed();
-  }, [currentOrg, competitors, selectedCompetitor, sentimentFilter, page]);
+   
+   
+  }, [currentOrg, competitors, selectedCompetitor, sentimentFilter, page, loadFeed]);
 
   const loadCompetitors = async () => {
     if (!currentOrg) return;

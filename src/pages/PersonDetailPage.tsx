@@ -101,7 +101,9 @@ export default function PersonDetailPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [id, currentOrg]);
+   
+   
+  useEffect(() => { fetchData(); }, [id, currentOrg, fetchData]);
 
   const handleTierChange = async (newTier: string) => {
     if (!id || !currentOrg || !orgPerson) return;

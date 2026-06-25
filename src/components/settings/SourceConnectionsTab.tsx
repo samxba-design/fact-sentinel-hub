@@ -183,7 +183,9 @@ export default function SourceConnectionsTab() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchKeys(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchKeys(); }, [currentOrg, fetchKeys]);
 
   const getStoredValue = (provider: string, keyName: string) =>
     storedKeys.find(k => k.provider === provider && k.key_name === keyName);

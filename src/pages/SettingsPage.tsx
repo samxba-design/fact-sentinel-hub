@@ -175,7 +175,7 @@ export default function SettingsPage() {
       searchParams.delete("success");
       setSearchParams(searchParams, { replace: true });
     }
-  }, []);
+  }, [searchParams, setSearchParams, toast]);
 
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -208,7 +208,9 @@ export default function SettingsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchData(); }, [currentOrg, fetchData]);
 
   const handleSeedDemo = async () => {
     setSeeding(true);

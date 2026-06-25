@@ -47,7 +47,9 @@ export default function CustomSourcesTab() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchSources(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchSources(); }, [currentOrg, fetchSources]);
 
   const addRssFeed = async (url: string) => {
     if (!currentOrg || !url.trim()) return;

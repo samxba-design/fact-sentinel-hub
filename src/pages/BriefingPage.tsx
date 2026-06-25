@@ -35,7 +35,7 @@ function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: 
       if (progress < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
-  }, [value]);
+  }, [value, display, duration]);
   return <>{display.toLocaleString()}</>;
 }
 

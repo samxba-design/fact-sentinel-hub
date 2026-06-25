@@ -208,7 +208,7 @@ Return them as a numbered list. Each question should be on a new line starting w
       // Complete session
       finishSession();
     }
-  }, [questionIndex, questions, clearTranscript]);
+  }, [questionIndex, questions, clearTranscript, finishSession]);
 
   // Finish practice session
   const finishSession = useCallback(() => {
@@ -247,7 +247,7 @@ Return them as a numbered list. Each question should be on a new line starting w
       stopListening();
       stopCapture();
     };
-  }, []);
+  }, [stopListening, stopCapture]);
 
   return (
     <div className="flex flex-col h-full">

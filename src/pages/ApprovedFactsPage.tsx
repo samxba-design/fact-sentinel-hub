@@ -99,7 +99,9 @@ export default function ApprovedFactsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchFacts(); }, [currentOrg]);
+   
+   
+  useEffect(() => { fetchFacts(); }, [currentOrg, fetchFacts]);
 
   const handleSave = async (data: Omit<Fact, "id">) => {
     if (!currentOrg) return;

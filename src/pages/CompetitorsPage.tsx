@@ -69,7 +69,9 @@ export default function CompetitorsPage() {
   useEffect(() => {
     if (!currentOrg) return;
     loadCompetitors();
-  }, [currentOrg]);
+   
+   
+  }, [currentOrg, loadCompetitors]);
 
   const loadCompetitors = async () => {
     if (!currentOrg) return;

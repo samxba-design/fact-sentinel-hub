@@ -75,7 +75,7 @@ export default function ExportsPage() {
       searchParams.delete("google_error");
       setSearchParams(searchParams, { replace: true });
     }
-  }, []);
+  }, [searchParams, setSearchParams, toast]);
 
   const loadData = useCallback(async () => {
     if (!currentOrg || !user) return;

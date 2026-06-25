@@ -54,7 +54,7 @@ export default function SmartDigestDialog() {
           setRecipients(emails.slice(0, 5));
         }
       });
-  }, [currentOrg, open]);
+  }, [currentOrg, open, recipients.length]);
 
   // Load preview stats on open
   const loadPreview = useCallback(async () => {

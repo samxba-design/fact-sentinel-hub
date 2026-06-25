@@ -28,7 +28,9 @@ export default function WatchlistDiscoveryWidget() {
   useEffect(() => {
     if (!currentOrg) return;
     discoverPeople();
-  }, [currentOrg]);
+   
+   
+  }, [currentOrg, discoverPeople]);
 
   const discoverPeople = async () => {
     if (!currentOrg) return;

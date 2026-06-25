@@ -78,7 +78,6 @@ export default function CompetitorIntelSheet({ competitor, orgId, open, onOpenCh
   useEffect(() => {
     if (!open || !competitor || !orgId) return;
     fetchMentions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, competitor?.id, orgId]);
 
   const fetchMentions = async () => {
